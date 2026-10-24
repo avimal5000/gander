@@ -1,0 +1,42 @@
+name: CI
+
+# Pull requests only (PLAN.md section 7): macOS minutes bill at 10x on a private repo.
+on:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      # The macos-26 image defaults to Xcode 26.6 (matches local dev); it also ships Xcode 27 previews, so don't pick "newest".
+      - name: Show Xcode
+        run: xcodebuild -version
+
+      - name: Privacy guard (no networking or image persistence)
+        run: scripts/privacy-guard.sh
+
+      - name: swift-format lint
+        run: xcrun swift-format lint --strict --recursive --parallel Sway SwayCore/Package.swift SwayCore/Sources SwayCore/Tests
+
+      - name: SwiftLint
+        run: |
+          command -v swiftlint >/dev/null || brew install swiftlint
+          swiftlint lint --strict
+
+      - name: SwayCore tests
+        working-directory: SwayCore
+        run: swift test
+
+      - name: Build app (unsigned)
+        run: xcodebuild -project Sway.xcodeproj -scheme Sway -configuration Debug -derivedDataPath .build-xcode build CODE_SIGNING_ALLOWED=NO

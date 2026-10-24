@@ -1,0 +1,26 @@
+# SwiftLint is optional locally (not installed by default); CI installs it.
+# swift-format owns layout; SwiftLint adds semantic checks only.
+included:
+  - Sway
+  - SwayCore/Sources
+  - SwayCore/Tests
+excluded:
+  - SwayCore/.build
+  - SwayCore/.build-agents
+disabled_rules:
+  - trailing_comma
+  - opening_brace
+  - line_length          # swift-format enforces 120
+  - identifier_name      # allows x, y, id, dx in math code
+  - todo
+opt_in_rules:
+  - force_unwrapping
+  - empty_count
+  - first_where
+  - contains_over_first_not_nil
+force_unwrapping:
+  severity: warning
+type_body_length:
+  warning: 400
+file_length:
+  warning: 600

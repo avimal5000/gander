@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Hardened runtime camera access. No App Sandbox: the Accessibility API (M3) cannot control other apps' windows from inside it. No network entitlements. -->
+	<key>com.apple.security.device.camera</key>
+	<true/>
+</dict>
+</plist>

@@ -1,0 +1,30 @@
+name: Bug
+description: Something does not work as expected
+labels: []
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+  - type: input
+    id: version
+    attributes:
+      label: Sway version / commit
+  - type: textarea
+    id: setup
+    attributes:
+      label: Setup
+      description: macOS version, displays and arrangement, camera in use.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: "Console.app, subsystem com.avimal5000.sway (no images are ever logged)."
+      render: text

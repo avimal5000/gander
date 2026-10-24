@@ -1,0 +1,29 @@
+name: Calibration report
+description: Head-pose detection or calibration did not work for a setup
+labels: [risk]
+body:
+  - type: textarea
+    id: setup
+    attributes:
+      label: Setup
+      description: Displays (sizes, arrangement, distances), camera (built-in / external, where mounted), seating.
+    validations:
+      required: true
+  - type: textarea
+    id: layout
+    attributes:
+      label: Layout
+      description: Paste the display list from the gate report or Sway's debug window.
+  - type: textarea
+    id: failed
+    attributes:
+      label: What failed
+      description: False switches, missed switches, calibration rejected, etc.
+    validations:
+      required: true
+  - type: textarea
+    id: report
+    attributes:
+      label: Gate / separability report
+      description: Paste the Markdown summary from the gate test if you have one.
+      render: markdown
