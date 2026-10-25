@@ -2,8 +2,9 @@
 
 Phase: **M0 + M1** (stop at the M1 go/no-go gate). Updated by the orchestrator.
 
-**Current state:** M1 is built, reviewed and verified. It is waiting on the user's hardware checks and gate test
-(SPEC §9, issue #10).
+**Current state:** M1 is built, reviewed and verified, and the **M1 gate is GO** (2026-10-24, C922 camera, 3 displays:
+weakest pair d′ 8.3, held-out accuracy 100%). Recorded in `docs/decisions/0001-m1-head-pose-gate.md`. Remaining:
+the user's other visual/hardware checks, merging PR #44, and deciding on M2.
 
 ## Orchestrator tasks
 
@@ -46,7 +47,7 @@ No builder was blocked, so no task needed a rerun on Opus.
 
 ## Open issues
 
-- **User checks pending** (hardware/visual, SPEC §9):
+- **User checks pending** (hardware/visual, SPEC §9). Already confirmed by the successful gate run: the menu works, the gate window and per-display overlays work, and the camera captures with C922 selection. Still to confirm:
   - the menu bar icon and its state changes;
   - no window flashes at launch, and windows open, close and reopen from the menu;
   - the camera permission flow;
@@ -56,7 +57,7 @@ No builder was blocked, so no task needed a rerun on Opus.
   - light and dark mode;
   - CPU in Activity Monitor with Live on;
   - whether AppKit's one-time `-layoutSubtreeIfNeeded` console warning still appears. It was also seen with the bare skeleton, so it is likely internal to `MenuBarExtra`.
-- **M1 gate decision** (#10): run the gate test and record the result in `docs/decisions/0001-m1-head-pose-gate.md`. M2 starts only after GO, or MARGINAL with an agreed change.
+- **M1 gate decision** (#10): **GO**, recorded. Implications for M2: Vision angles are the primary features; calibrate per camera; rely mainly on yaw (pitch std up to 4.1°). Three displays also separated cleanly, so raising `maxTrackedDisplays` to 3 is a later user decision. Not measured yet: glances, motion, day-to-day drift, the built-in camera.
 - **iCloud + build output:** `~/Documents` is iCloud-synced, and build products there fail codesigning of test bundles. All builds use scratch paths outside Documents (CONTRACT §4). Recommend moving the repo out of `~/Documents` (user decision).
 - **SwiftLint** has not run locally (not installed). CI runs it and reports warnings without failing; errors fail the job.
 - Signed builds need a one-time keychain approval for `codesign` (user step, in Xcode). Verification builds are unsigned.
