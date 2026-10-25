@@ -84,6 +84,9 @@ public protocol FrameSource: AnyObject, Sendable {
     func requestAuthorization() async -> CameraAuthorization
     /// Video devices currently connected.
     func availableDevices() -> [CameraDevice]
+    /// The device `start(deviceID:)` would capture from right now, or `nil` when there is none. Never touches the
+    /// camera or prompts.
+    func resolvedDevice(for deviceID: String?) -> CameraDevice?
     /// Starts capture (about 640x480, `frameRate` fps, late frames dropped).
     ///
     /// - Parameters:
@@ -101,4 +104,13 @@ public protocol FrameSource: AnyObject, Sendable {
     ) async throws
     /// Stops capture and tears down the session so the camera indicator turns off. Idempotent.
     func stop() async
+}
+
+extension FrameSource {
+    /// For fakes and previews: the device with `deviceID` if listed, else the first built-in, else the first listed.
+    /// The real service applies capture's own rule, which ends with the system default instead.
+    public func resolvedDevice(for deviceID: String?) -> CameraDevice? {
+        let devices = availableDevices()
+        return devices.first { $0.id == deviceID } ?? devices.first(where: \.isBuiltIn) ?? devices.first
+    }
 }

@@ -27,8 +27,25 @@ struct SetupResult: Equatable, Sendable {
         SetupResult(quality: .failed, text: text)
     }
 
-    /// The verdict of the Vision-angles report in `analysis`, in words. With no usable verdict (insufficient data or
-    /// no report) it reads as good without naming a pair.
+    /// The fit left out the displays named in `names` (too few face samples while looking at them): nothing was saved.
+    static func missingDisplays(_ names: [String]) -> SetupResult {
+        .failed(
+            "Sway couldn't see your face well enough while you looked at \(listed(names)). "
+                + "Make sure the camera sees you from every display, then calibrate again.")
+    }
+
+    /// "A", "A and B", "A, B, and C".
+    static func listed(_ names: [String]) -> String {
+        switch names.count {
+        case 0: ""
+        case 1: names[0]
+        case 2: "\(names[0]) and \(names[1])"
+        default: names.dropLast().joined(separator: ", ") + ", and " + (names.last ?? "")
+        }
+    }
+
+    /// The verdict of the Vision-angles report in `analysis`, in words. With no report it reads as good without naming
+    /// a pair.
     ///
     /// - Parameter name: the label of a display.
     init(analysis: GateAnalysis, name: (DisplayID) -> String) {
@@ -56,7 +73,13 @@ struct SetupResult: Equatable, Sendable {
                     "Calibration saved, but some displays are hard to tell apart. "
                     + "Try moving the camera, then calibrate again."
             }
-        case .go?, .insufficientData?, nil:
+        case .insufficientData?:
+            // Setup saves only a calibration that covers every display, so this means few samples somewhere.
+            quality = .fair
+            text =
+                "Calibration saved, but Sway saw your face only briefly on some displays. "
+                + "If switching feels unreliable, calibrate again."
+        case .go?, nil:
             quality = .good
             text = Self.good
         }

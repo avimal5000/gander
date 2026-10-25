@@ -48,9 +48,10 @@ struct SetupFlow: Equatable, Sendable {
     /// True while the camera must run for the window: the camera check and the calibration itself.
     var needsCamera: Bool { step == .cameraCheck || step == .calibrating }
 
-    /// True while automatic switching holds so the user can move and look freely: the camera check, the calibration,
-    /// and the result.
-    var holdsTracking: Bool { step == .cameraCheck || step == .calibrating || step == .result }
+    /// True while automatic switching holds so the user can move and look freely: the camera check and the calibration.
+    /// The result step doesn't hold: while the window is in front, "Sway in front" already does, and a window left
+    /// behind other apps must not stop switching unseen.
+    var holdsTracking: Bool { step == .cameraCheck || step == .calibrating }
 
     // MARK: Moves
 

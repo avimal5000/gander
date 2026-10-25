@@ -29,10 +29,18 @@ extension AppModel {
                 self?.toggleFocusLock()
             }
             shortcutMessage = nil
+            isShortcutRegistered = true
         } catch {
             shortcutMessage = Self.shortcutMessage(for: error, shortcut: shortcut)
+            isShortcutRegistered = false
             SwayLogger.tracking.info("The Focus Lock shortcut could not be registered")
         }
+    }
+
+    /// The menu warns only while the chosen shortcut doesn't work. A refused change in Settings, with the previous
+    /// shortcut registered again, is told in Settings alone.
+    var menuShortcutMessage: String? {
+        focusLockShortcut != nil && !isShortcutRegistered ? shortcutMessage : nil
     }
 
     /// Replaces the Focus Lock shortcut (`nil` removes it). The new one is registered first; on success it is saved
@@ -47,6 +55,7 @@ extension AppModel {
             saveFocusLockShortcut(nil)
             focusLockShortcut = nil
             shortcutMessage = nil
+            isShortcutRegistered = false
             return true
         }
         do {
@@ -55,20 +64,27 @@ extension AppModel {
             }
         } catch {
             shortcutMessage = Self.shortcutMessage(for: error, shortcut: shortcut)
-            restore(previous)
+            isShortcutRegistered = restore(previous)
             return false
         }
         saveFocusLockShortcut(shortcut)
         focusLockShortcut = shortcut
         shortcutMessage = nil
+        isShortcutRegistered = true
         return true
     }
 
     /// A failed registration leaves the action without a shortcut, so register the previous one again.
-    private func restore(_ previous: HotKeyShortcut?) {
-        guard let previous else { return }
-        try? hotKeys.register(previous, for: .toggleFocusLock) { [weak self] in
-            self?.toggleFocusLock()
+    /// - Returns: whether the previous shortcut is registered again.
+    private func restore(_ previous: HotKeyShortcut?) -> Bool {
+        guard let previous else { return false }
+        do {
+            try hotKeys.register(previous, for: .toggleFocusLock) { [weak self] in
+                self?.toggleFocusLock()
+            }
+            return true
+        } catch {
+            return false
         }
     }
 

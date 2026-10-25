@@ -17,6 +17,7 @@ extension AppModel {
         } else {
             defaults.removeObject(forKey: DefaultsKey.cameraDeviceID)
         }
+        refreshPredictedCamera()
         refreshActiveCalibration()
         guard streamTask != nil else {
             // A camera check that could not start gets another try with the camera just chosen.

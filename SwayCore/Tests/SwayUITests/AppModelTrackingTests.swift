@@ -102,7 +102,7 @@ struct AppModelTrackingTests {
         #expect(context == SwitchContext(focusedDisplay: right, isFocusLocked: false, targets: nil))
     }
 
-    @Test func noOtherRequestStartsWhileOneIsInFlightAndTheDeciderIsToldItIsLocked() async {
+    @Test func noOtherRequestStartsWhileOneIsInFlightAndTheDeciderKeepsItsCooldown() async {
         let h = await trackingHarness()
         defer { h.tearDown() }
         h.focus.holdFocusRequests()
@@ -116,7 +116,9 @@ struct AppModelTrackingTests {
         feed(h, at: 1.5)
         feed(h, at: 1.6)
 
-        #expect(h.engine.lastRecorder?.contexts.suffix(2).map(\.isFocusLocked) == [true, true])
+        // Not a lock: a lock would cancel the cooldown that follows a switch.
+        #expect(h.engine.lastRecorder?.contexts.suffix(2).map(\.isFocusLocked) == [false, false])
+        #expect(h.engine.lastRecorder?.contexts.suffix(2).map(\.focusedDisplay) == [right, right])
         #expect(h.focus.focusCalls == [right])
         h.focus.release()
         await h.settleSwitch()

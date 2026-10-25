@@ -157,15 +157,24 @@ extension AppModel {
     }
 
     /// A calibration run completed: fit and save the profile, then say how well it separates the displays. A failed fit
-    /// saves nothing. The gate window's report is untouched.
+    /// saves nothing, and neither does a fit that left out a display: the fitter drops a display it saw the face on too
+    /// rarely, and a calibration without one of the connected displays could never be used for them. The gate window's
+    /// report is untouched.
     func finishCalibration(from trace: PoseTrace) {
-        switch fitAndSave(trace) {
+        let traced = trace.layout ?? layout
+        let names = DisplayLabeler.labels(for: traced)
+        let name = { (id: DisplayID) in names[id] ?? self.displayName(for: id) }
+        switch fit(trace) {
         case .failure(let failure):
             setupResult = .failed(failure.text)
-        case .success:
-            let analysis = analyzer.analyze(trace, thresholds: .default)
-            let names = DisplayLabeler.labels(for: trace.layout ?? layout)
-            setupResult = SetupResult(analysis: analysis, name: { names[$0] ?? self.displayName(for: $0) })
+        case .success(let profile):
+            let missing = traced.displays.map(\.id).filter { !profile.displayIDs.contains($0) }
+            if !missing.isEmpty {
+                setupResult = .missingDisplays(missing.map(name))
+            } else {
+                saveToLibrary(profile)
+                setupResult = SetupResult(analysis: analyzer.analyze(trace, thresholds: .default), name: name)
+            }
         }
         saveCalibrationTrace(trace)
     }

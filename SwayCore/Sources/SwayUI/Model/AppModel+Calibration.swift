@@ -28,10 +28,15 @@ extension AppModel {
 
     /// Fits a Vision-angles profile from `trace` and saves it in the library. A failed fit saves nothing.
     func fitAndSave(_ trace: PoseTrace) -> Result<CalibrationProfile, FitFailure> {
+        let result = fit(trace)
+        if case .success(let profile) = result { saveToLibrary(profile) }
+        return result
+    }
+
+    /// Fits a Vision-angles profile from `trace` without saving it.
+    func fit(_ trace: PoseTrace) -> Result<CalibrationProfile, FitFailure> {
         do {
-            let profile = try engine.fitProfile(from: trace, features: .visionAngles, rounds: nil)
-            saveToLibrary(profile)
-            return .success(profile)
+            return .success(try engine.fitProfile(from: trace, features: .visionAngles, rounds: nil))
         } catch let error as CalibrationError {
             log.info("Calibration fit failed: \(String(describing: error), privacy: .public)")
             return .failure(FitFailure(text: error.userMessage))
@@ -64,12 +69,15 @@ extension AppModel {
     // MARK: Resolution
 
     /// The name of the camera the calibration is looked up for: the running camera, else the one capture would pick
-    /// (CONTRACT 6.1: the selected device if connected, else the first built-in, else the first device).
+    /// (CONTRACT 6.1, asked of the camera service so the two never disagree).
     var trackingCameraName: String? {
-        if let running = status.device?.name { return running }
-        return devices.first { $0.id == selectedCameraID }?.name
-            ?? devices.first(where: \.isBuiltIn)?.name
-            ?? devices.first?.name
+        status.device?.name ?? predictedCameraName
+    }
+
+    /// Re-asks the camera service which device capture would open, assigning only on a change.
+    func refreshPredictedCamera() {
+        let name = camera.resolvedDevice(for: selectedCameraID)?.name
+        if name != predictedCameraName { predictedCameraName = name }
     }
 
     /// Re-resolves the active calibration for the current layout, camera, and library. When it changes, the decider

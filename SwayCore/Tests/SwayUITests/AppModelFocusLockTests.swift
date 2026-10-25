@@ -179,6 +179,7 @@ struct AppModelFocusLockTests {
         #expect(hotKeys.registered[.toggleFocusLock] == another, "The old shortcut is registered again")
         #expect(storedShortcut(h) == another)
         #expect(h.model.shortcutMessage?.contains("already used by another app") == true)
+        #expect(h.model.menuBanner != .shortcut(h.model.shortcutMessage ?? ""), "Settings says it; the menu needn't")
         hotKeys.press()
         #expect(h.model.focusLocked, "The old shortcut still works")
     }
@@ -195,6 +196,7 @@ struct AppModelFocusLockTests {
         #expect(h.model.focusLockShortcut == nil)
         #expect(hotKeys.registered.isEmpty)
         #expect(h.model.shortcutMessage == "The Focus Lock shortcut could not be set up.")
+        #expect(h.model.menuShortcutMessage == nil, "The user chose no shortcut, so the menu has nothing to warn about")
     }
 
     @Test func clearingRemovesTheShortcutAndTheMessage() {

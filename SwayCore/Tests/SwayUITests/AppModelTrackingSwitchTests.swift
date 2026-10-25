@@ -58,6 +58,45 @@ struct AppModelTrackingSwitchTests {
         #expect(h.model.trackingStatus == .noFace)
     }
 
+    @Test func theCalibrationIsLookedUpForTheCameraCaptureActuallyOpens() async {
+        // No camera chosen, and capture opens the external camera (the system default, say with the lid closed), not
+        // the built-in one. Only the external camera is calibrated.
+        let h = Harness.make(
+            calibrated: true, calibrationCameras: [Fixtures.externalCamera.name], capturePicks: Fixtures.externalCamera,
+            trackingSaved: true)
+        defer { h.tearDown() }
+
+        let running = await waitUntil { h.model.status.isRunning }
+        #expect(running, "Starts at launch: the calibration fits the camera capture will open")
+        #expect(h.model.status.device == Fixtures.externalCamera)
+        await h.model.cameraOperation?.value
+        #expect(h.pose.startCount == 1)
+        #expect(h.pose.stopCount == 0, "No start-stop loop between the guessed and the running camera")
+
+        // A screen lock suspends capture; the calibration still fits, so the session stays and resumes by itself.
+        h.pose.emit(.status(.suspended(.screenLocked)))
+        let suspended = await waitUntil { !h.model.status.isRunning }
+        #expect(suspended)
+        await h.model.cameraOperation?.value
+        #expect(h.model.activeCalibration != nil)
+        #expect(h.pose.stopCount == 0)
+        #expect(h.pose.startCount == 1)
+    }
+
+    @Test func aCameraConnectingLaterIsNoticed() async {
+        let h = Harness.make(calibrated: true, calibrationCameras: [Fixtures.externalCamera.name])
+        defer { h.tearDown() }
+        h.camera.setDevices([Fixtures.builtInCamera])
+        h.model.refreshEnvironment()
+        await h.model.selectCamera(Fixtures.externalCamera.id)
+        #expect(h.model.activeCalibration == nil, "The chosen camera is not connected yet")
+
+        h.camera.setDevices([Fixtures.builtInCamera, Fixtures.externalCamera])
+        h.notifications.post(name: Notification.Name("AVCaptureDeviceWasConnectedNotification"), object: nil)
+        #expect(h.model.predictedCameraName == Fixtures.externalCamera.name)
+        #expect(h.model.activeCalibration != nil)
+    }
+
     @Test func launchingWithTrackingSavedOnButNothingCalibratedKeepsTheCameraOff() async {
         let h = Harness.make(autoRun: true, trackingSaved: true)
         defer { h.tearDown() }

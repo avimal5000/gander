@@ -35,7 +35,16 @@ extension AppModel {
         ) { [weak self] _ in
             MainActor.assumeIsolated { self?.pollFocusedDisplay() }
         }
-        notificationObservers = [terminate, resign, become] + windowKeyChanges
+        // A camera connected or disconnected (a late USB camera at login, a dock unplugged): the camera capture would
+        // pick, and so the calibration that fits, may have changed. AVFoundation's notification names, spelled out
+        // because this module does not import AVFoundation; they may arrive on any thread.
+        let cameraChanges = ["AVCaptureDeviceWasConnectedNotification", "AVCaptureDeviceWasDisconnectedNotification"]
+            .map { name in
+                center.addObserver(forName: Notification.Name(name), object: nil, queue: .main) { [weak self] _ in
+                    MainActor.assumeIsolated { self?.refreshEnvironment() }
+                }
+            }
+        notificationObservers = [terminate, resign, become] + windowKeyChanges + cameraChanges
         workspaceObservers = [activation]
     }
 

@@ -150,7 +150,7 @@ struct SetupFlowTests {
     }
 
     @Test func trackingHoldsOnTheCameraCheckTheCalibrationAndTheResult() {
-        let holding: [SetupFlow.Step] = [.cameraCheck, .calibrating, .result]
+        let holding: [SetupFlow.Step] = [.cameraCheck, .calibrating]
         for step in [SetupFlow.Step.cameraAccess, .accessibility, .cameraCheck, .calibrating, .result] {
             #expect(flow(at: step).holdsTracking == holding.contains(step), "\(step)")
         }

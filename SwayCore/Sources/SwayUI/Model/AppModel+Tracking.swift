@@ -120,8 +120,12 @@ extension AppModel {
     /// Runs one tracked sample through the decider with the loop's focus and holds, and acts on its decision.
     func processTracking(_ sample: PoseSample) {
         guard isTrackingActive else { return }
+        // Sway's own request in flight is not a lock: a lock cancels the decider's cooldown, which must run from the
+        // switch. The loop already reports the target as focused and refuses a second request.
+        let hold = trackingHold
         let context = SwitchContext(
-            focusedDisplay: loop.focusedDisplay, isFocusLocked: trackingHold != nil, targets: trackedTargets)
+            focusedDisplay: loop.focusedDisplay, isFocusLocked: hold != nil && hold != .switching,
+            targets: trackedTargets)
         guard let decision = decider?.process(sample, context: context) else { return }
         trackDwell(decision, at: sample.timestamp)
         updateLookSummary(decision.classification)

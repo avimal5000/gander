@@ -611,10 +611,38 @@ struct AppModelSetupTests {
                 + "Try moving the camera, then calibrate again.")
     }
 
-    @Test func insufficientDataReadsAsGoWithoutNamingAPair() async {
+    @Test func insufficientDataSuggestsCalibratingAgain() async {
         let result = await result(for: Fixtures.analysis(visionVerdict: .insufficientData))
-        #expect(result?.quality == .good)
-        #expect(result?.text == "Calibration looks good.")
+        #expect(result?.quality == .fair)
+        #expect(
+            result?.text
+                == "Calibration saved, but Sway saw your face only briefly on some displays. "
+                + "If switching feels unreliable, calibrate again.")
+    }
+
+    @Test func aFitThatLeftOutADisplaySavesNothingAndNamesIt() async {
+        // Three displays, but the fitter kept only two: the face was seen too rarely on the third.
+        let h = Harness.make(layout: Fixtures.threeDisplays)
+        defer { h.tearDown() }
+        h.engine.setFitResult(.success(Fixtures.profile(layout: Fixtures.twoDisplays)))
+        await h.openSetupOnCameraCheck()
+
+        await h.completeCalibration()
+
+        let far = DisplayLabeler.labels(for: Fixtures.threeDisplays)[Fixtures.far.id] ?? ""
+        #expect(h.model.setupResult?.isSaved == false)
+        #expect(
+            h.model.setupResult?.text
+                == "Sway couldn't see your face well enough while you looked at \(far). "
+                + "Make sure the camera sees you from every display, then calibrate again.")
+        #expect(h.model.library.profiles.isEmpty)
+        #expect(h.model.activeCalibration == nil)
+    }
+
+    @Test func missingDisplaysAreListedInPlainEnglish() {
+        #expect(SetupResult.listed(["A"]) == "A")
+        #expect(SetupResult.listed(["A", "B"]) == "A and B")
+        #expect(SetupResult.listed(["A", "B", "C"]) == "A, B, and C")
     }
 
     @Test func theVisionAnglesVerdictDecidesNotTheOverallOne() async {
@@ -921,7 +949,7 @@ struct AppModelSetupTests {
         return h
     }
 
-    @Test func trackingHoldsWhileTheWindowIsOnTheCameraCheckTheCalibrationAndTheResult() async {
+    @Test func trackingHoldsOnTheCameraCheckAndTheCalibrationButNotOnAResultLeftBehind() async {
         let h = await switchingHarness()
         defer { h.tearDown() }
         #expect(h.model.isTrackingActive)
@@ -939,11 +967,20 @@ struct AppModelSetupTests {
         h.runCalibration()
         await h.model.cameraOperation?.value
         #expect(h.model.setupFlow?.step == .result)
-        #expect(!h.model.isTrackingActive, "The result holds")
+        #expect(h.model.isTrackingActive, "The result step doesn't hold by itself")
+        h.appState.isActive = true
+        h.notifications.post(name: NSWindow.didBecomeKeyNotification, object: nil)
         h.clock.advance(by: 1)
         h.feed()
         await h.settleSwitch()
-        #expect(h.focus.focusCalls.isEmpty)
+        #expect(h.focus.focusCalls.isEmpty, "Held while the window is in front")
+
+        h.appState.isActive = false
+        h.notifications.post(name: NSWindow.didResignKeyNotification, object: nil)
+        h.clock.advance(by: 1)
+        h.feed()
+        await h.settleSwitch()
+        #expect(h.focus.focusCalls == [right], "A result left behind other apps doesn't stop switching")
     }
 
     @Test func trackingResumesWhenTheWindowCloses() async {

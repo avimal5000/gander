@@ -146,6 +146,8 @@ public final class CameraCaptureService: FrameSource {   // may be @unchecked Se
 - **Selection** (a pure internal function, unit-tested): use the preferred ID if it is connected, else the
   first built-in device, else `AVCaptureDevice.default(for: .video)`. With no device at all, throw
   `CameraError.noDevice`. An unknown preferred ID falls back silently (log at `.info`).
+- **`resolvedDevice(for:)`** (M4 review fix, a `FrameSource` requirement with a default for fakes): the device the
+  selection rule picks right now, or `nil`. Lists devices only; never touches the camera or prompts.
 - **Authorization.** `authorizationStatus()` maps `AVCaptureDevice.authorizationStatus(for: .video)`.
   `requestAuthorization()` calls `requestAccess` only when the status is `.notDetermined`. `start` never
   prompts; it throws `.notAuthorized` unless already authorized.
@@ -586,8 +588,10 @@ windows. The menu gets a "Focus Test Window…" item (SF Symbol `rectangle.2.swa
 - **Active calibration:** `library.resolve(for: layout, cameraName: trackingCameraName)`, recomputed on launch, on a
   layout change, when the selected or running camera changes, and when the library changes.
   - `trackingCameraName` is `status.device?.name` while the camera runs. Otherwise it is the name of the camera
-    capture would pick: the selected device if connected, else the first built-in device, else the first device
-    (CONTRACT 6.1's selection rule, as far as `SwayUI` can see it).
+    capture would pick, asked of the camera service: `FrameSource.resolvedDevice(for: selectedCameraID)` (review
+    fix: a guess made in `SwayUI` disagreed with capture's system-default fallback, which start-stop-looped the
+    camera or stopped it at the first screen lock). It is refreshed with the device list, on a camera choice, and
+    when AVFoundation posts a camera connect or disconnect (observed by notification name).
 - Every successful fit (gate test, opened trace, and in M5 the Setup window) saves into the library instead of
   replacing a single profile. A failed fit keeps the library unchanged and shows the message as before.
 - The single-profile staleness (`isCalibrationStale`) goes away: "no calibration fits" replaces it.
@@ -630,8 +634,10 @@ DisplayID?)?`, `inFlight: DisplayID?`, `epoch: Int`.
 
 *Per live sample* (`AppModel+Tracking`), when tracking is active: Tracking on, no gate test or setup run, an active
 calibration, and a decider.
-1. Process with `SwitchContext(focusedDisplay: loop.focusedDisplay, isFocusLocked: holdReason != nil, targets:
-   trackedTargets)`. `holdReason` is the first that applies of:
+1. Process with `SwitchContext(focusedDisplay: loop.focusedDisplay, isFocusLocked: holdReason != nil &&
+   holdReason != .switching, targets: trackedTargets)`. Sway's own request in flight is not a lock (review fix: a
+   lock cancels the decider's cooldown, which must run from the switch; the loop already reports the target as
+   focused and refuses a second request). `holdReason` is the first that applies of:
    - `.focusLock` (Focus Lock on);
    - `.swayInFront` (Sway is the active app);
    - `.focusTest` (a Focus Test countdown or request is running);
@@ -671,7 +677,8 @@ Sway's last window closes, Sway stays the active app with nothing in front, and 
 - **Shortcut:** `focusLockShortcut: HotKeyShortcut?`, saved under `sway.focusLockShortcut`: an absent key means
   `.focusLockDefault`; the JSON of a shortcut means that shortcut; an empty `Data` means none.
 - At launch, register it with `hotKeys.register(_, for: .toggleFocusLock) { [weak self] in self?.toggleFocusLock() }`.
-  On `HotKeyError`, keep `shortcutMessage` for the menu banner and Settings:
+  On `HotKeyError`, keep `shortcutMessage` for Settings, and for the menu banner while the chosen shortcut is not
+  registered (a refused change in Settings, with the previous shortcut registered again, is told in Settings only):
   - `.shortcutInUse`: "<shortcut> is already used by another app. Choose another shortcut in Settings.";
   - otherwise: "The Focus Lock shortcut could not be set up."
 - `setFocusLockShortcut(_ shortcut: HotKeyShortcut?) -> Bool` for M5: registers the new one first (or unregisters for
@@ -747,17 +754,23 @@ No public API change. New window IDs `"setup"` and `"settings"`, launch-guarded 
     cancelled."). Show "Look at the dot on <display>" and the step count. A layout change or losing the camera
     cancels it, as for the gate test.
   - **Result:** fit with `engine.fitProfile(from:features: .visionAngles, rounds: nil)`.
+    - When the fitted profile lacks any display of the traced layout (the fitter drops a display with too few face
+      samples), save nothing and say "Sway couldn't see your face well enough while you looked at <A>. Make sure the
+      camera sees you from every display, then calibrate again." (review fix: such a calibration can never cover the
+      connected displays).
     - On success, save it into the library, analyze the trace with `analyzer.analyze(_, thresholds: .default)`, and
       show the Vision-angles verdict: `go` → "Calibration looks good."; `marginal` → "Calibration saved. <A> and
       <B> are close together, so switching between them may be slower." (the weakest pair); `noGo` →
       "Calibration saved, but <A> and <B> are hard to tell apart. Try moving the camera, then calibrate again.";
-      `insufficientData` → as `go` with no pair named.
+      `insufficientData` → "Calibration saved, but Sway saw your face only briefly on some displays. If switching
+      feels unreliable, calibrate again." (Fair).
     - On a fit failure, save nothing and show the F10 message.
     - **Start tracking** sets Tracking on (a user action, so it is saved) and closes the window. **Calibrate again**
       returns to the camera check.
   - In DEBUG, save the calibration trace like a gate trace. It never replaces the gate window's report.
-- Closing the window mid-calibration cancels it. Tracking holds while the window is on the camera check,
-  calibrating, or result step.
+- Closing the window mid-calibration cancels it. Tracking holds while the window is on the camera check or
+  calibrating step. The result step does not hold (review fix): in front, "Sway in front" holds anyway; left behind
+  other apps, it must not stop switching unseen.
 
 **2. Settings window (SPEC F21, D31, D33).** `Window("Sway Settings", id: "settings")`.
 - **General:** "Open Sway at login" toggle. It reads `loginItem.status` when the window appears and after each

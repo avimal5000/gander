@@ -83,6 +83,7 @@ extension AppModel {
         isRecordingShortcut = true
         shortcutRecordingHint = nil
         hotKeys.unregister(.toggleFocusLock)
+        isShortcutRegistered = false
         environment.keyMonitor.start { [weak self] press in
             self?.handleRecordedKey(press) ?? false
         }

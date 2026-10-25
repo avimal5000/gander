@@ -47,8 +47,12 @@ public final class AppModel {
     var status: CaptureStatus = .stopped
     /// Camera permission as last read.
     var authorization: CameraAuthorization
-    /// Connected video devices; refreshed whenever a menu or window appears.
+    /// Connected video devices; refreshed whenever a menu or window appears and when a camera connects or disconnects.
     var devices: [CameraDevice] = []
+    /// The camera capture would open for `selectedCameraID` right now (`FrameSource.resolvedDevice`), refreshed with
+    /// `devices`. Asking the camera service keeps it identical to capture's own rule, so the calibration looked up
+    /// while stopped is the one that fits once the camera runs.
+    var predictedCameraName: String?
     /// The user's preferred camera (`nil` means the default, built-in first). Persisted under `sway.cameraDeviceID`.
     var selectedCameraID: String?
     /// The Tracking switch: on means tracking, off is Paused with the camera off (SPEC D26). Only the user's own
@@ -162,8 +166,11 @@ public final class AppModel {
     var focusLocked = false
     /// The global shortcut that toggles Focus Lock; `nil` means none.
     var focusLockShortcut: HotKeyShortcut?
-    /// Why the shortcut could not be registered, for the menu banner and Settings.
+    /// Why the shortcut could not be registered, for Settings, and for the menu banner while the chosen shortcut is not
+    /// working.
     var shortcutMessage: String?
+    /// True while `focusLockShortcut` is registered with the system (it isn't while recording a new one).
+    var isShortcutRegistered = false
 
     // MARK: Focus test
 
@@ -303,6 +310,7 @@ public final class AppModel {
         let storedSensitivity = Self.storedSensitivity(in: defaults)
         self.layout = initialLayout
         self.devices = camera.availableDevices()
+        self.predictedCameraName = camera.resolvedDevice(for: defaults.string(forKey: DefaultsKey.cameraDeviceID))?.name
         self.library = storedLibrary.library
         self.sensitivity = storedSensitivity
         self.focusLockShortcut = Self.storedFocusLockShortcut(in: defaults)
@@ -355,8 +363,7 @@ public final class AppModel {
     var currentCameraName: String? {
         status.device?.name
             ?? runningCameraName
-            ?? devices.first(where: { $0.id == selectedCameraID })?.name
-            ?? devices.first(where: \.isBuiltIn)?.name
+            ?? predictedCameraName
     }
 
     /// The status text, plus " · <camera name>" while the camera runs, for the popover.
@@ -369,10 +376,12 @@ public final class AppModel {
     /// True when the camera session exists (running, starting, suspended, or recovering).
     var isCameraActive: Bool { streamTask != nil }
 
-    /// Re-reads the camera list and permission. Called whenever a menu or window appears.
+    /// Re-reads the camera list and permission. Called whenever a menu or window appears, and when a camera connects
+    /// or disconnects.
     func refreshEnvironment() {
         let previousAuthorization = authorization
         devices = camera.availableDevices()
+        refreshPredictedCamera()
         authorization = camera.authorizationStatus()
         if authorization == .authorized, permissionPrompt == .denied || permissionPrompt == .restricted {
             permissionPrompt = nil

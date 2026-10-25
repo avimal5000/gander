@@ -11,7 +11,7 @@ extension AppModel {
             displayCount: layout.displays.count,
             hasCalibration: activeCalibration != nil,
             accessibilityTrusted: isAccessibilityTrusted,
-            shortcutMessage: shortcutMessage,
+            shortcutMessage: menuShortcutMessage,
             cameraWithoutCalibration: cameraWithoutCalibration
         )
     }

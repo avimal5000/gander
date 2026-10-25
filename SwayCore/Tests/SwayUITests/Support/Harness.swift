@@ -31,6 +31,8 @@ struct Harness {
     /// - Parameters:
     ///   - autoRun: when true the fake pose source reports `.starting` and `.running` on every start by itself.
     ///   - calibrated: seeds the calibration library with a profile for `layout` for each of `calibrationCameras`.
+    ///   - capturePicks: the camera capture opens when none is selected (the system default with no built-in in
+    ///     use); the fake pose source then runs it.
     ///   - appActive: whether Sway counts as the active app at launch.
     ///   - trackingSaved: seeds `sway.trackingEnabled` as if the user had left Tracking on.
     ///   - seed: writes anything else into the defaults before the model launches.
@@ -43,6 +45,7 @@ struct Harness {
         trusted: Bool = true,
         calibrated: Bool = false,
         calibrationCameras: [String?] = [Fixtures.builtInCamera.name],
+        capturePicks: CameraDevice? = nil,
         trackingSaved: Bool = false,
         appActive: Bool = false,
         hotKeys: FakeHotKeys = FakeHotKeys(),
@@ -58,9 +61,10 @@ struct Harness {
         if trackingSaved { defaults.set(true, forKey: DefaultsKey.trackingEnabled) }
         seed(defaults)
         let camera = FakeFrameSource(
-            authorization: authorization, devices: [Fixtures.builtInCamera, Fixtures.externalCamera]
+            authorization: authorization, devices: [Fixtures.builtInCamera, Fixtures.externalCamera],
+            fallbackDevice: capturePicks
         )
-        let pose = FakePoseSource(autoRunDevice: autoRun ? Fixtures.builtInCamera : nil)
+        let pose = FakePoseSource(autoRunDevice: capturePicks ?? (autoRun ? Fixtures.builtInCamera : nil))
         let displays = FakeDisplayProvider(layout: layout)
         let store = FakeTraceStore()
         let analyzer = FakeAnalyzer(analysis: analysis)
