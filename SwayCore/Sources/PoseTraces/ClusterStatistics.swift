@@ -17,7 +17,7 @@ struct ClusterStatistics: Equatable {
 
     init(points: [FeaturePoint]) {
         count = points.count
-        guard count > 0 else {
+        guard !points.isEmpty else {
             meanX = 0
             meanY = 0
             varianceXX = 0

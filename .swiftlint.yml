@@ -13,6 +13,7 @@ disabled_rules:
   - line_length          # swift-format enforces 120
   - identifier_name      # allows x, y, id, dx in math code
   - todo
+  - closure_parameter_position  # swift-format wraps long closure headers onto the next line; it owns layout
 opt_in_rules:
   - force_unwrapping
   - empty_count
@@ -20,6 +21,9 @@ opt_in_rules:
   - contains_over_first_not_nil
 force_unwrapping:
   severity: warning
+function_parameter_count:
+  warning: 7                    # private analysis helpers take explicit values rather than ad-hoc structs
+  error: 8
 type_body_length:
   warning: 400
 file_length:
