@@ -3,8 +3,9 @@
 Phase: **M4 + M5** (end-to-end loop + calibration and settings), built together per SPEC D24. Updated by the
 orchestrator.
 
-**Current state:** branch `feat/19-m4-m5-loop-calibration`. SPEC, CONTRACT, the shared types, and the
-`SystemIntegration` stub are done (b9933fa). Builders are running.
+**Current state:** M4 + M5 are built, reviewed, and in **PR #47** (branch `feat/19-m4-m5-loop-calibration`). CI is
+green: 984 tests, SwiftLint 0 violations, privacy guard passed. **Waiting on the user's hardware checks** (SPEC §9),
+then merge. PR #47 includes the docs commit from #46, so #46 can be closed.
 
 ## History
 
@@ -40,7 +41,7 @@ orchestrator.
 | Builders | Done | All three. builder-system and builder-ui-m4 stopped once at the account's usage limit (reset 14:20) and resumed with their work intact. Full `xcodebuild test`: 980 tests, zero warnings |
 | Integrate into the app target | Done | `AppComposition` passes `CarbonHotKeyCenter()` and `MainAppLoginItem()`. Full `xcodebuild test`: 810 tests, zero warnings |
 | Review pass (Opus) | Done | No blockers. Six findings, all fixed by the orchestrator: (1) Setup could call a calibration good after the fitter dropped a display it rarely saw the face on, which can never cover the connected displays: now nothing is saved and the display is named; (2) the camera the calibration is looked up for was guessed in `SwayUI` and could disagree with capture's system-default fallback (start-stop loop, or tracking dying at the first screen lock): now asked of the camera service (`FrameSource.resolvedDevice`), and camera connects/disconnects refresh it; (3) Sway's own request in flight no longer locks the decider, which had cancelled the 0.75 s anti-flap cooldown; (4) Setup's result step no longer holds tracking unseen; (5) a late USB camera at login is noticed; (6) the menu warns about the shortcut only while the chosen one isn't working. +4 tests |
-| Verification, PR, CI | Running | Full `xcodebuild test`: 984 tests, zero warnings; lint and guard clean |
+| Verification, PR, CI | Done | Full `xcodebuild test`: 984 tests, zero warnings; lint and guard clean. PR #47 opened; CI green (SwiftLint 0 violations in 172 files, 984 tests). User notified |
 
 ## Builder agents
 
