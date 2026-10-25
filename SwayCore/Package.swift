@@ -12,6 +12,7 @@ let featureModules = [
     "SwayUI",
     "SwitchEngine",
     "FocusControl",
+    "SystemIntegration",
 ]
 
 // Test resources, per module. SwitchEngineTests replays the user's recorded M1 gate trace (numeric only).

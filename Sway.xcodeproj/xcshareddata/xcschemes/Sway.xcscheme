@@ -109,6 +109,16 @@
                ReferencedContainer = "container:SwayCore">
             </BuildableReference>
          </TestableReference>
+         <TestableReference
+            skipped = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "SystemIntegrationTests"
+               BuildableName = "SystemIntegrationTests"
+               BlueprintName = "SystemIntegrationTests"
+               ReferencedContainer = "container:SwayCore">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
    </TestAction>
    <LaunchAction

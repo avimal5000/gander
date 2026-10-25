@@ -1,4 +1,4 @@
-# Sway: Engineering Contract (phase M2 + M3)
+# Sway: Engineering Contract (phase M4 + M5)
 
 Builders follow this document exactly. SPEC.md says *what* to build; this file says *where and how*. PLAN.md
 is background only. If anything here is wrong or missing, **stop and report**. Do not invent your own version.
@@ -50,13 +50,15 @@ Sway/                          repo root
 | `SwayUI` | builder-ui | `AppModel`, all scenes and views, gate test flow, overlays, switch preview, Focus Test window | + SwiftUI, AppKit, Charts, Observation |
 | `SwitchEngine` (M2) | builder-engine | Calibration profile fitting, pose classification, switch state machine | Foundation only (+ os) |
 | `FocusControl` (M3) | builder-focus | Last-used window per display, focus switching via Accessibility | + AppKit, ApplicationServices, CoreGraphics |
+| `SystemIntegration` (M4) | builder-system | Global shortcut (Carbon hot key) and the login item | + AppKit, Carbon, ServiceManagement |
 
 PLAN.md's `CalibrationModel` and `SwitchDecider` live together in `SwitchEngine`, so the engine-level tests over
 recorded traces can exercise both without a cross-module import. Its `WindowTracker` and `FocusController` live
 together in `FocusControl` for the same reason.
 
-Planned for later milestones (do **not** create now): `SwaySettings` (settings, hotkey; M4–M5) and
-`TrackingPipeline` (M4). They will follow the same rules.
+M4 + M5 keep the tracking loop, settings, and setup inside `SwayUI` (they are `AppModel` state and its pure
+helpers), and put the two system services (global shortcut, login item) in `SystemIntegration`. The `SwaySettings`
+and `TrackingPipeline` modules planned earlier are not created.
 
 ## 3. Dependency rules
 
@@ -110,6 +112,11 @@ The source files in `SwayCore/Sources/SwayModels/` are the definitive API. Read 
 | `SwayPolicy.swift` | `SwayPolicy` constants, `SwayLog.logger(category:)` |
 | `Switching.swift` (M2) | `DisplayProfile`, `CalibrationProfile`, `CalibrationError`, `PoseClassification`, `SwitchSettings`, `SwitchContext`, `SwitchPhase`, `SwitchHoldReason`, `SwitchDecision`, protocols `SwitchDeciding`, `SwitchEngineMaking` |
 | `Focus.swift` (M3) | `WindowSummary`, `FocusMethod`, `FocusResult`, protocol `FocusControlling` |
+| `CalibrationLibrary.swift` (M5) | `CalibrationKey`, `CalibrationMatch`, `CalibrationLibrary`; `CalibrationProfile.key`, `.displayIDs`, `.restricted(to:)` |
+| `SwitchSensitivity.swift` (M5) | `SwitchSensitivity` (hold time and confidence level → `SwitchSettings`) |
+| `SystemIntegration.swift` (M4, M5) | `HotKeyShortcut`, `HotKeyAction`, `HotKeyError`, protocol `HotKeyRegistering`; `LoginItemStatus`, `LoginItemError`, protocol `LoginItemControlling` |
+
+`SwayPolicy.maxTrackedDisplays` is now 3 (SPEC D22).
 
 Semantics that the code cannot express:
 - **Angles** are degrees everywhere. Vision gives radians, so convert in `PoseEstimator`.
@@ -557,6 +564,238 @@ windows. The menu gets a "Focus Test Window…" item (SF Symbol `rectangle.2.swa
   - the trust poll runs only while visible;
 - the onboarding button calls `requestTrust` and opens the deep link.
 
+#### 6.5.2 M4 additions to `SwayUI` (builder-ui-m4)
+
+**Public API change (exact):**
+```swift
+@MainActor @Observable public final class AppModel {
+    public init(camera: any FrameSource, poseSource: any PoseSource, displays: any DisplayProviding,
+                traceStore: any TraceStoring, analyzer: any SeparabilityAnalyzing,
+                engine: any SwitchEngineMaking, focus: any FocusControlling,
+                hotKeys: any HotKeyRegistering, loginItem: any LoginItemControlling,
+                defaults: UserDefaults = .standard)
+}
+```
+`loginItem` is only stored in M4; M5 uses it. New `UserDefaults` keys (all JSON with `.iso8601` dates unless noted):
+`sway.calibrationLibrary`, `sway.trackingEnabled` (Bool), `sway.switchSensitivity`, `sway.focusLockShortcut`.
+
+**1. Calibration library (SPEC D25).**
+- `AppModel` keeps a `CalibrationLibrary`, persisted under `sway.calibrationLibrary` after every change.
+- **Migration at launch:** if that key is absent and `sway.calibrationProfile` holds a profile that decodes with the
+  current format version, start the library with it, persist the library, and remove the old key.
+- **Active calibration:** `library.resolve(for: layout, cameraName: trackingCameraName)`, recomputed on launch, on a
+  layout change, when the selected or running camera changes, and when the library changes.
+  - `trackingCameraName` is `status.device?.name` while the camera runs. Otherwise it is the name of the camera
+    capture would pick: the selected device if connected, else the first built-in device, else the first device
+    (CONTRACT 6.1's selection rule, as far as `SwayUI` can see it).
+- Every successful fit (gate test, opened trace, and in M5 the Setup window) saves into the library instead of
+  replacing a single profile. A failed fit keeps the library unchanged and shows the message as before.
+- The single-profile staleness (`isCalibrationStale`) goes away: "no calibration fits" replaces it.
+
+**2. Tracking switch (SPEC D23, D26, F18).**
+- `liveEnabled` becomes `trackingEnabled`. The menu and the Pose Debug window show it as a **Tracking** switch.
+- **Saved choice:** user actions (the switch, and in M5 "Start tracking") write `sway.trackingEnabled`. Automatic
+  changes (a camera failure or an unexpected end of stream turns tracking off) do **not** write it, so the next
+  launch restores the user's choice.
+- **Launch:** `init` reads the saved choice. When it is true, schedule one camera reconcile right after `init` (a
+  `Task` on the main actor), so tracking starts without any window.
+- `wantsCamera` is `gateRunState != .idle || (trackingEnabled && activeCalibration != nil && layout has at least 2
+  displays)`. M5 adds the Setup window's camera steps.
+- When the active calibration appears or disappears while Tracking is on (layout or camera change), reconcile the
+  camera, so it starts or stops.
+- Turning Tracking on before camera permission is decided shows the explanation (F2); the pending intent resumes
+  tracking once granted, as it did for Live.
+
+**3. Tracking loop (SPEC F16, D28, D29).** Split into a pure internal struct `TrackingLoop` (its own file, fully
+unit tested) and an `AppModel+Tracking.swift` extension that feeds it and does the I/O.
+
+*`TrackingLoop` state:* `polled: DisplayID?` (last accepted poll), `override: (display: DisplayID, before:
+DisplayID?)?`, `inFlight: DisplayID?`, `epoch: Int`.
+- `focusedDisplay` is `inFlight ?? override?.display ?? polled`.
+- `isFocusing` is `inFlight != nil`.
+- `beginAttempt(_ display:)`: only when `inFlight == nil`. Remembers `before = focusedDisplay` (as it was), sets
+  `inFlight = display`, and increments `epoch`.
+- `finishAttempt(_ display:, result:)`: clears `inFlight` and increments `epoch`. Then:
+  - `.focused` → `polled = display`, `override = nil`;
+  - `.noWindow` or `.failed` → `override = (display, before)`;
+  - `.notTrusted` → nothing else changes.
+- `pollStarted() -> Int` returns the current `epoch`.
+- `pollFinished(_ display:, epoch:)` ignores the result if `epoch` changed or an attempt is in flight. Otherwise:
+  - with an override, a result equal to `override.before` keeps the override (that focus is already known); any
+    other result clears the override and becomes `polled`;
+  - without an override, the result becomes `polled`.
+- `lookChanged(to classification:, enterMargin:)` clears the override when the classification is `.display` with a
+  `best` other than the override's display and `margin >= enterMargin` (the look moved on).
+- `reset()` clears everything and increments `epoch`.
+
+*Per live sample* (`AppModel+Tracking`), when tracking is active: Tracking on, no gate test or setup run, an active
+calibration, and a decider.
+1. Process with `SwitchContext(focusedDisplay: loop.focusedDisplay, isFocusLocked: holdReason != nil, targets:
+   trackedTargets)`. `holdReason` is the first that applies of:
+   - `.focusLock` (Focus Lock on);
+   - `.swayInFront` (Sway is the active app);
+   - `.focusTest` (a Focus Test countdown or request is running);
+   - `.switching` (`loop.isFocusing`).
+2. Keep `previewDecision`, the dwell start, and the latency as the preview did. Then call
+   `loop.lookChanged(to: decision.classification, enterMargin:)` with the current settings' enter margin.
+3. On `decision.switchTo = D`:
+   - Not trusted (`isAccessibilityTrusted` false) → no request; the status shows Needs Accessibility.
+   - Else `loop.beginAttempt(D)`, then `focus.focus(display: D, in: layout)` in a `Task`. On completion (ignored if
+     tracking stopped or the loop was reset since), `loop.finishAttempt(D, result:)`, add a switch-log entry, and
+     log once at info level (category `"tracking"`): outcome, app name, display name, method, ms. **Never titles.**
+     `.notTrusted` also sets `isAccessibilityTrusted = false`.
+- `trackedTargets`: the first `SwayPolicy.maxTrackedDisplays` displays of the current layout, in layout order, that
+  the active calibration profiles. `nil` when that is every display the profile has.
+- The decider is `engine.makeDecider(profile: activeCalibration.profile, settings: sensitivity.switchSettings())`,
+  rebuilt (and `loop.reset()`) when the active calibration changes, when a tracking stream starts, and when the
+  sensitivity changes. `sensitivity` is read from `sway.switchSensitivity` (default `SwitchSensitivity.default`);
+  M5 adds the controls.
+- Reset the decider and the loop on a layout change, a stream restart, or the camera stopping (as the preview did).
+
+*Focused-display poll* (the `focusedDisplayPollInterval`, 1 s; an injected tick like `focusTick`, so tests call
+`trackingTick()`):
+- runs only while the camera runs for tracking;
+- each tick: refresh `isAccessibilityTrusted = focus.isTrusted()`; then, unless a poll is still running, start one:
+  `let epoch = loop.pollStarted()`, `await focus.focusedDisplay(in: layout)`, then `loop.pollFinished(_, epoch:)`;
+- also poll at once on `NSWorkspace.didActivateApplicationNotification` (observed through an injected notification
+  center, `environment.workspaceNotificationCenter`).
+
+*Sway in front:* `isAppActive`, initialized from an injected `environment.isAppActive()` and updated from
+`NSApplication.didBecomeActiveNotification` / `didResignActiveNotification` on `environment.notificationCenter`.
+
+**4. Focus Lock (SPEC F17, D27).**
+- `focusLocked` (not saved; off at launch) and `toggleFocusLock()`. The Pose Debug "Simulate Focus Lock" toggle
+  becomes the real Focus Lock.
+- **Shortcut:** `focusLockShortcut: HotKeyShortcut?`, saved under `sway.focusLockShortcut`: an absent key means
+  `.focusLockDefault`; the JSON of a shortcut means that shortcut; an empty `Data` means none.
+- At launch, register it with `hotKeys.register(_, for: .toggleFocusLock) { [weak self] in self?.toggleFocusLock() }`.
+  On `HotKeyError`, keep `shortcutMessage` for the menu banner and Settings:
+  - `.shortcutInUse`: "<shortcut> is already used by another app. Choose another shortcut in Settings.";
+  - otherwise: "The Focus Lock shortcut could not be set up."
+- `setFocusLockShortcut(_ shortcut: HotKeyShortcut?) -> Bool` for M5: registers the new one first (or unregisters for
+  `nil`); on success saves it and clears the message, on failure keeps the previous shortcut registered and
+  returns false with the message set.
+
+**5. Status (SPEC F19, D32).** A pure internal `TrackingStatus` enum (its own file) with a pure constructor from a
+snapshot struct (camera authorization, camera `CaptureStatus`, `trackingEnabled`, gate or setup running, display
+count, whether a calibration fits, Accessibility, Focus Lock, face). The cases, priority, symbols, and lines are
+exactly SPEC F19's table. Each case has `symbol` and `line`. `MenuBarLabel` uses them.
+- "Camera busy" is chosen when the interruption text says another app is using the camera.
+- The status line in the popover appends " · <camera name>" while the camera runs.
+- **Test:** every case's symbol resolves with `NSImage(systemSymbolName:accessibilityDescription:)`.
+
+**6. Menu (SPEC F19).** Layout exactly as SPEC F19's list.
+- Banners, at most one, in this order: camera permission; first setup (the library is empty); needs calibration
+  (Tracking on, 2+ displays, nothing fits); needs Accessibility (Tracking on, calibrated, not trusted; **Grant
+  Access…** as in the Focus Test window); `shortcutMessage`.
+- In M4, **Set Up…**, **Calibrate…**, and the needs-calibration button open the gate test window. M5 points them at
+  the Setup window.
+- The "Looking at" line must not redraw at the frame rate: store a small `LookSummary` value (`.off`, `.noFace`,
+  `.elsewhere`, `.display(name)`) and assign it only when it changes.
+- Keep the popover's height constant when tracking starts or stops (one line per row in every state).
+
+**7. Pose Debug.** The Switch preview section shows the real loop: "Focus: <display or Unknown>" from
+`loop.focusedDisplay`, the hold reason ("Focus Lock on", "Sway is in front", "Switching…") when the context is
+locked, and the switch log, now of real switches ("Focused <app> on <display> in <ms> ms, held <s> s", "No window on
+<display>", "Failed: <reason>"). The section's own focus calls are gone; only the loop calls `focus.focus`.
+
+**8. Gate test.** It holds tracking while it runs (as the preview did) and saves its profile into the library.
+`SwayPolicy.maxTrackedDisplays` is now 3: update the gate setup's "Sway v1 will track N displays" note and its
+tests so they show only for more than 3 displays.
+
+**9. Tests** (fakes for `HotKeyRegistering` and `LoginItemControlling` in the test target; a fake workspace
+notification center):
+- `TrackingLoop`, one test per rule above, including stale polls after an attempt, an override kept by a poll
+  equal to `before`, cleared by another poll and by a look elsewhere, and `.notTrusted`;
+- a held look fires exactly one `focus.focus(display:in:)` for the right display, and the log names app and display
+  (never the title);
+- no request while: Focus Lock on, Sway active, a Focus Test request running, a request in flight, not trusted;
+- a stream restart or layout change resets the loop; a late focus result after a reset is ignored;
+- `trackedTargets` with 2, 3, and 4 displays;
+- the poll runs only while tracking runs, and an app activation triggers one;
+- the library: migration from `sway.calibrationProfile`, saving after a gate fit, resolution after a layout change
+  and a camera change, the camera starting or stopping as a calibration appears or disappears;
+- launch with `sway.trackingEnabled = true` starts the camera without any window; automatic turn-offs do not
+  change the saved value;
+- Focus Lock: toggling, the hot key handler toggles, default and saved shortcuts, a registration failure message,
+  `setFocusLockShortcut` keeping the old shortcut on failure;
+- `TrackingStatus`: every row of the table and the priority between neighbors; every symbol resolves;
+- the "Looking at" line changes only when the summary changes.
+
+#### 6.5.3 M5 additions to `SwayUI` (builder-ui-m5, after builder-ui-m4)
+
+No public API change. New window IDs `"setup"` and `"settings"`, launch-guarded like the others.
+
+**1. Setup window (SPEC F20, D30).** `Window("Set Up Sway", id: "setup")`. A pure internal `SetupFlow` state machine
+(its own file, unit tested) decides the step from the facts; `AppModel+Setup.swift` drives it.
+- Steps: `.cameraAccess`, `.accessibility`, `.cameraCheck`, `.calibrating`, `.result`.
+  - Opening the window starts at the first step that applies: camera access unless authorized; Accessibility unless
+    trusted (or skipped this session); otherwise camera check. So a recalibration opens at the camera check.
+  - **Camera access:** the F2 explanation and button. When access is granted, move on.
+  - **Accessibility:** the F12 text, **Grant Access…** (`grantAccessibility()`), and **Skip for now**. Poll trust
+    once a second while this step shows; move on when granted.
+  - **Camera check:** the camera runs (`wantsCamera` includes "the Setup window is on the camera check or calibrating
+    step"). Show the camera picker, the advice text from SPEC F20, and a live hint from a pure `FramingAdvice`
+    function of the latest pose: no face → "Sway can't see your face yet."; `faceBounds.height < 0.18` → "Move a
+    little closer to the camera."; `> 0.6` → "Move back a little."; face center outside 0.2…0.8 on either axis →
+    "Center your face in the camera's view."; otherwise "Looks good." Refresh the hint at most five times a second.
+    **Start calibration** is enabled with 2 or more displays ("Connect a second display to calibrate." otherwise).
+  - **Calibrating:** the gate machinery with a purpose of `.calibration`: 2 rounds, 2.5 s hold, 1.5 s settle,
+    `includeLandmarks` false, the same overlays, Esc and Cancel (back to the camera check, with "Calibration
+    cancelled."). Show "Look at the dot on <display>" and the step count. A layout change or losing the camera
+    cancels it, as for the gate test.
+  - **Result:** fit with `engine.fitProfile(from:features: .visionAngles, rounds: nil)`.
+    - On success, save it into the library, analyze the trace with `analyzer.analyze(_, thresholds: .default)`, and
+      show the Vision-angles verdict: `go` → "Calibration looks good."; `marginal` → "Calibration saved. <A> and
+      <B> are close together, so switching between them may be slower." (the weakest pair); `noGo` →
+      "Calibration saved, but <A> and <B> are hard to tell apart. Try moving the camera, then calibrate again.";
+      `insufficientData` → as `go` with no pair named.
+    - On a fit failure, save nothing and show the F10 message.
+    - **Start tracking** sets Tracking on (a user action, so it is saved) and closes the window. **Calibrate again**
+      returns to the camera check.
+  - In DEBUG, save the calibration trace like a gate trace. It never replaces the gate window's report.
+- Closing the window mid-calibration cancels it. Tracking holds while the window is on the camera check,
+  calibrating, or result step.
+
+**2. Settings window (SPEC F21, D31, D33).** `Window("Sway Settings", id: "settings")`.
+- **General:** "Open Sway at login" toggle. It reads `loginItem.status` when the window appears and after each
+  change: on for `.enabled` and `.requiresApproval`. `.requiresApproval` adds "Allow Sway in System Settings >
+  General > Login Items." with **Open Login Items** (`loginItem.openSystemSettings()`); `.unavailable(text)` disables
+  the toggle and shows the text; a `LoginItemError` shows its message under the toggle.
+- **Switching:** "Hold time" slider over `SwitchSensitivity.dwellRange` in 0.05 s steps with its value ("0.40 s");
+  "Switch confidence" as a 5-step slider labelled Relaxed … Strict; **Restore Defaults**. Each change saves
+  `sway.switchSensitivity` and rebuilds the decider at once.
+- **Focus Lock shortcut:** shows the shortcut ("⌃⌥⌘L", or "None"). **Record Shortcut** → "Type a shortcut…": a local
+  key-down monitor (`NSEvent.addLocalMonitorForEvents`) in this window only, removed when recording ends. Esc
+  cancels. A pure helper maps the event's key code, modifier flags, and `charactersIgnoringModifiers` (uppercased;
+  names for Space, Return, Tab, Delete, Escape, arrows, and F1–F20) to a `HotKeyShortcut`. An invalid shortcut shows
+  "Use Control, Option, or Command with a key." While recording, the current shortcut is unregistered; it is
+  registered again if recording is cancelled. A new one goes through `setFocusLockShortcut`, and its failure message
+  shows here. **Reset to ⌃⌥⌘L** and **Clear**.
+- **Camera:** the camera picker.
+- **Calibrations:** one row per saved profile, newest first: its displays by name (from the current layout or
+  saved analysis names, else "Unknown display"), the camera, and the date. The active one (by key) says "In use".
+  **Delete** removes it at once (calibrating again restores it). **Calibrate…** opens the Setup window.
+
+**3. Prompts (SPEC F22, F23).** The menu's **Set Up…**, **Calibrate…**, and needs-calibration buttons open the Setup
+window. The needs-calibration banner says "New display setup. Calibrate so Sway can switch between them." with
+**Calibrate (about 20 s)…**; when the library has a calibration for these displays with another camera, it says
+"No calibration for <camera> yet." instead. The menu gets **Settings…** (SF Symbol `gearshape`) after Calibrate….
+
+**4. Tests:**
+- `SetupFlow`: each starting step from the facts, skipping, moving on when a permission is granted, cancel and
+  Calibrate again, and a fit failure;
+- `FramingAdvice`: every hint and its boundaries;
+- a full calibration on the injected clock: the overlays, 2 rounds × displays, no landmarks, a saved library entry,
+  the verdict texts, Start tracking saving `sway.trackingEnabled`;
+- the camera runs for the camera check and calibrating steps, and stops when the window closes (with Tracking off);
+- sensitivity: the slider values, saving, the decider rebuilt with the mapped settings, Restore Defaults;
+- the shortcut mapping helper (letters, digits, named keys, F-keys, invalid combinations), recording success,
+  cancel (the old shortcut registered again), a registration failure keeping the old one, Clear, Reset;
+- login item states and errors against a fake;
+- the calibration list: rows, "In use", Delete updating the library and the active calibration;
+- the banners' texts and the buttons opening the Setup window.
+
 ### 6.6 `SwitchEngine` (builder-engine, M2)
 
 **Public API (exact):**
@@ -814,6 +1053,59 @@ Everything else is `internal`.
 **Docs (issue #18):** `docs/focus-fallbacks.md` is orchestrator-owned and written from the builder's report:
 the fallback list, known limits, and a table for the user's Focus Test results.
 
+### 6.8 `SystemIntegration` (builder-system, M4)
+
+**Public API (exact):**
+```swift
+@MainActor public final class CarbonHotKeyCenter: HotKeyRegistering { public init() }
+@MainActor public final class MainAppLoginItem: LoginItemControlling { public init() }
+```
+Everything else is `internal`. One primary type per file.
+
+**`CarbonHotKeyCenter`** (Carbon `RegisterEventHotKey`; SPEC §6: no event tap, no monitor, no permission):
+- Install one event handler on `GetApplicationEventTarget()` for `kEventClassKeyboard` / `kEventHotKeyPressed`,
+  lazily on the first successful registration, and remove it when the last shortcut is unregistered and in `deinit`.
+  The C callback reads the `EventHotKeyID` (`GetEventParameter`, `kEventParamDirectObject`, `typeEventHotKeyID`)
+  and calls the matching action's handler. Carbon delivers these events on the main thread: use
+  `MainActor.assumeIsolated`, never `DispatchQueue.main.sync`.
+- Pass context to the callback without global mutable state: an `Unmanaged` reference to an internal box as
+  `userData`, or a `static let` lock-protected registry.
+- `register(_:for:handler:)`:
+  1. `!shortcut.isValid` → throw `.invalidShortcut` without touching Carbon.
+  2. Unregister the action's current shortcut, if any.
+  3. `RegisterEventHotKey(UInt32(keyCode), carbonModifiers, EventHotKeyID(signature: "SWAY", id: actionID),
+     GetApplicationEventTarget(), 0, &ref)`.
+  4. `eventHotKeyExistsErr` → `.shortcutInUse`; any other status but `noErr` → `.registrationFailed(status)`. On
+     failure the action has no shortcut.
+- `unregister(_:)`: `UnregisterEventHotKey` and forget the handler. Idempotent.
+- **Pure helpers** (tested): modifiers → Carbon flags (`controlKey`, `optionKey`, `shiftKey`, `cmdKey`); the
+  four-character signature as a `FourCharCode`; action ↔ hot key ID (1-based, stable per `HotKeyAction` case); an
+  `OSStatus` → `HotKeyError` mapper.
+
+**`MainAppLoginItem`** (`SMAppService.mainApp`):
+- `status` maps `SMAppService.mainApp.status`: `.enabled` → `.enabled`; `.requiresApproval` → `.requiresApproval`;
+  `.notRegistered` → `.disabled`; `.notFound` → `.unavailable("macOS can't find this copy of Sway. Move Sway to the
+  Applications folder, open it from there, and try again.")`; unknown values → `.unavailable("macOS reported an
+  unknown login item state.")`. The mapping is a pure function over an internal mirror enum.
+- `setEnabled(true)` calls `register()`, `setEnabled(false)` calls `unregister()`. A thrown error becomes
+  `LoginItemError(message:)` with a plain sentence that includes the system's description.
+- `openSystemSettings()` calls `SMAppService.openSystemSettingsLoginItems()`.
+
+**Concurrency:** both types are `@MainActor`. `@preconcurrency import Carbon` is allowed (comment why).
+
+**Logging:** category `"system"`: registration outcomes (the shortcut's display string, never other keys) and login
+item changes.
+
+**Tests** (pure parts only):
+- modifier flag mapping for each modifier and combinations;
+- the signature and action IDs (distinct, stable, round-trip);
+- the status mapper, including `eventHotKeyExistsErr`;
+- `register` with an invalid shortcut throws `.invalidShortcut`;
+- the login item status mapper for every case.
+
+**Never in tests:** register a real hot key (it would capture that key combination system-wide while tests run), or
+call `SMAppService` `register()` / `unregister()` (it would change the user's login items).
+
 ## 7. App entry point and composition (orchestrator-owned)
 
 `Sway/SwayApp.swift`:
@@ -829,7 +1121,8 @@ let camera = CameraCaptureService()
 let poseSource = LivePoseSource(frameSource: camera, estimator: VisionPoseEstimator())
 AppModel(camera: camera, poseSource: poseSource, displays: ScreenDisplayTracker(),
          traceStore: FileTraceStore(), analyzer: SeparabilityAnalyzer(),
-         engine: PoseSwitchEngine(), focus: AXFocusController())
+         engine: PoseSwitchEngine(), focus: AXFocusController(),
+         hotKeys: CarbonHotKeyCenter(), loginItem: MainAppLoginItem())
 ```
 
 ## 8. Concurrency (Swift 6 language mode, complete checking)
@@ -851,7 +1144,7 @@ AppModel(camera: camera, poseSource: poseSource, displays: ScreenDisplayTracker(
 - Formatting: 4-space indent, 120 columns. `xcrun swift-format` with the repo's `.swift-format` must be clean.
 - Doc comments (`///`) on every public symbol and on non-obvious internal logic.
 - No force unwraps or `try!` outside tests. No `print`; use `SwayLog.logger(category:)` with categories
-  `camera`, `pose`, `traces`, `displays`, `ui`, `engine`, `focus`.
+  `camera`, `pose`, `traces`, `displays`, `ui`, `engine`, `focus`, `tracking` (the M4 loop in `SwayUI`), `system`.
 - `UserDefaults` keys are prefixed `sway.`. User-facing strings are plain English, sentence case.
 - Tests use Swift Testing (`import Testing`, `@Suite`, `@Test`, `#expect`) and are named for the behavior.
 
@@ -872,6 +1165,10 @@ AppModel(camera: camera, poseSource: poseSource, displays: ScreenDisplayTracker(
     unsigned verification builds never keep it.
   - No Screen Recording is needed: window owners and bounds from `CGWindowList` don't require it, and titles
     come from Accessibility.
+  - No Input Monitoring is needed (M4): the Focus Lock shortcut is a Carbon hot key, which macOS delivers without
+    any permission.
+  - Login item (M5): `SMAppService.mainApp` needs no entitlement. macOS may ask the user to approve it in System
+    Settings > General > Login Items, and it works reliably only for a copy of the app in `/Applications`.
 
 ## 11. Privacy rules (enforced by `scripts/privacy-guard.sh` in CI)
 
@@ -881,8 +1178,10 @@ The shipped code in `Sway/` and `SwayCore/Sources/` may not mention these, not e
   `CGImageDestination`, `pngData` / `jpegData` / `tiffRepresentation`, etc.
 - cursor movement or input events (M3, PLAN.md "the cursor never moves"): `CGWarpMouseCursorPosition`,
   `CGDisplayMoveCursorToPoint`, `CGAssociateMouseAndMouseCursorPosition`, `CGEventPost`,
-  `CGEventCreateMouseEvent`, `CGEventCreateKeyboardEvent`, event taps, and `NSEvent` global monitors. Local
-  monitors inside Sway's own windows are fine;
+  `CGEventCreateMouseEvent`, `CGEventCreateKeyboardEvent`, event taps, `NSEvent` global monitors, and IOKit HID
+  input (`IOHIDManager`). Local monitors inside Sway's own windows are fine (the gate overlay's Esc and, in M5, the
+  shortcut recorder while it records). The Carbon hot key (`RegisterEventHotKey`) is allowed: macOS delivers only
+  the registered combination;
 - private window-server or Accessibility APIs: `_AXUIElementGetWindow`, `CGSSetFrontProcess`,
   `_SLPSSetFrontProcess`, and similar.
 
@@ -899,6 +1198,7 @@ Tests must **never**:
 - prompt for Accessibility, or raise, activate, or focus any window (`requestTrust()` and
   `focus(display:in:)` are off limits);
 - run real Vision unguarded: tests that do skip when `CI` is set.
+- register a real global hot key, or call `SMAppService` `register()` / `unregister()` (M4, M5);
 - leave files outside `temporaryDirectory`. A `UserDefaults` suite in tests uses an absolute path under
   `temporaryDirectory` as its suite name (stored as `<path>.plist`); a plain name leaves a file in
   `~/Library/Preferences`.

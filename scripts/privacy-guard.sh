@@ -19,7 +19,7 @@ PATTERNS=(
   # The cursor is never moved, and Sway neither synthesizes nor captures input events
   'CGWarpMouseCursorPosition' 'CGDisplayMoveCursorToPoint' 'CGAssociateMouseAndMouseCursorPosition'
   'CGEventPost' 'CGEventCreateMouseEvent' 'CGEventCreateKeyboardEvent' 'CGEventTapCreate' 'CGEvent\.tapCreate'
-  'NSEvent\.addGlobalMonitorForEvents'
+  'NSEvent\.addGlobalMonitorForEvents' 'IOHIDManager'
   # No private window-server or Accessibility APIs
   '_AXUIElementGetWindow' 'CGSSetFrontProcess' '_SLPSSetFrontProcess' 'SLPSSetFrontProcess' 'SLSSetFrontProcess'
 )
