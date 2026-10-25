@@ -10,6 +10,10 @@ struct AppModelEnvironment {
     var now: @Sendable () -> Date
     var system: any SystemInteracting
     var overlay: any GateOverlayPresenting
+    /// The edge glow and the Focus Lock notice (SPEC F27, F28).
+    var feedback: any FeedbackPresenting
+    /// Whether the system asks for less motion (Reduce Motion). Read each time a glow or notice is shown.
+    var reduceMotion: @MainActor () -> Bool
     /// Where `NSApplication` posts become-active, resign-active, and will-terminate, and `NSWindow` posts key-window
     /// changes.
     var notificationCenter: NotificationCenter
@@ -41,6 +45,8 @@ struct AppModelEnvironment {
             now: { Date() },
             system: AppKitSystemInteractions(),
             overlay: GateOverlayController(),
+            feedback: FeedbackOverlayController(),
+            reduceMotion: { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion },
             notificationCenter: .default,
             workspaceNotificationCenter: NSWorkspace.shared.notificationCenter,
             // Active with no key window (its last window just closed) doesn't count: nothing of Sway's is in front,

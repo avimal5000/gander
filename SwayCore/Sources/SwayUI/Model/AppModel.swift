@@ -160,6 +160,17 @@ public final class AppModel {
     /// Why the last key press could not be a shortcut.
     var shortcutRecordingHint: String?
 
+    // MARK: Appearance
+
+    /// The accent the user chose (SPEC D35); read by every window's root view to tint it. Saved under
+    /// `sway.accentChoice`.
+    var accentChoice: AccentChoice = .sway
+    /// Whether a held switch flashes the edge glow on the display that gets focus (SPEC D38). Saved under
+    /// `sway.edgeGlowEnabled`.
+    var edgeGlowEnabled = true
+    /// Whether the Focus Lock shortcut shows a notice (SPEC D39). Saved under `sway.focusLockNoticeEnabled`.
+    var focusLockNoticeEnabled = true
+
     // MARK: Focus Lock
 
     /// Focus Lock (SPEC D27): the camera stays on and no switch fires. Not saved; off at launch.
@@ -315,6 +326,9 @@ public final class AppModel {
         self.sensitivity = storedSensitivity
         self.focusLockShortcut = Self.storedFocusLockShortcut(in: defaults)
         self.trackingEnabled = defaults.bool(forKey: DefaultsKey.trackingEnabled)
+        self.accentChoice = AccentChoice.stored(in: defaults)
+        self.edgeGlowEnabled = Self.storedFlag(DefaultsKey.edgeGlowEnabled, in: defaults)
+        self.focusLockNoticeEnabled = Self.storedFlag(DefaultsKey.focusLockNoticeEnabled, in: defaults)
         self.isAppActive = environment.isAppActive()
         self.displayLabels = DisplayLabeler.labels(for: initialLayout)
         self.enterMargin = storedSensitivity.switchSettings().enterMargin
@@ -356,8 +370,12 @@ public final class AppModel {
             ))
     }
 
-    /// SF Symbol for the menu bar label.
+    /// SF Symbol for the status line's glyph (the menu bar itself shows ``menuBarGlyph``).
     var menuBarSymbol: String { trackingStatus.symbol }
+
+    /// Which of the four Swing mark states the menu bar icon shows (SPEC F25). A function of ``trackingStatus``, so it
+    /// changes only when the status does, never at the frame rate.
+    var menuBarGlyph: MenuBarGlyph { MenuBarGlyph(trackingStatus) }
 
     /// Name of the camera in use or about to be used.
     var currentCameraName: String? {

@@ -40,15 +40,15 @@ The user made the M6 design decisions (SPEC D34–D41) and picked icon option A,
 | Decisions | Done | SPEC D34–D41 (2026-10-25): native look with a user-chosen accent; icon A "Swing"; menu bar mark with state badges; edge glow and Focus Lock notice, each on by default with a Settings switch; welcome step; restrained motion |
 | SPEC / CONTRACT | Done | SPEC F24–F29, §8–§9; CONTRACT §6.5.4 |
 | App icon + AccentColor asset | Done | `scripts/make-appicon.swift` renders option A "Swing" at every size (thicker strokes at 16 and 32 px) into `AppIcon.appiconset`; the AccentColor's dark variant is now Sway green's dark value `0x6FAF84` |
-| Builder | Running | builder-ui-m6 |
-| Review pass (Opus) | Pending | |
+| Builder | Done | builder-ui-m6. Full `xcodebuild test`: 1073 tests, zero warnings |
+| Review pass (Opus) | Running | |
 | Verification, PR, CI | Pending | |
 
 ## Builder agents
 
 | Agent | Module | Task | Model | Status | Report |
 |---|---|---|---|---|---|
-| builder-ui-m6 | `SwayUI` | Theme and accent, menu bar icon, welcome step, edge glow, Focus Lock notice, motion, Appearance settings (CONTRACT §6.5.4; issues #28–#32) | Sonnet | Running | |
+| builder-ui-m6 | `SwayUI` | Theme and accent, menu bar icon, welcome step, edge glow, Focus Lock notice, motion, Appearance settings (CONTRACT §6.5.4; issues #28–#32) | Sonnet | **Done** | 583 SwayUI tests (89 new, none regressed); lint and guard clean. Accepted interpretations: the menu bar mark is fitted to a 15 pt area by its visual bounds (mapping the whole 100-unit square would make it 9 pt wide); `Harness.openSetup()` presses Get Started on the welcome; the notice shows on the main display when tracking is off. **Orchestrator change:** the asset-catalog accent color is removed, because under macOS's Multicolor setting it showed through and "Match macOS" still looked green (the builder flagged it) |
 
 ### Earlier phases (done)
 

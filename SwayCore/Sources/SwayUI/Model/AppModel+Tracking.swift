@@ -187,6 +187,8 @@ extension AppModel {
         let display = displayName(for: target)
         appendSwitchLog(SwitchPreviewPresentation.logText(for: result, display: display, held: held))
         logSwitch(result, display: display)
+        // The glow marks a switch that really moved focus, and only Sway's own tracking requests come through here.
+        if case .focused = result { showEdgeGlow(on: target) }
     }
 
     private func appendSwitchLog(_ text: String) {

@@ -5,10 +5,13 @@ import SwayModels
 @testable import SwayUI
 
 extension Harness {
-    /// Opens the Set Up Sway window as the menu would: the request first, then the window appearing.
-    func openSetup() {
+    /// Opens the Set Up Sway window as the menu would: the request first, then the window appearing. With an empty
+    /// library the window opens on the welcome step; unless `welcome` is set, **Get Started** is pressed, so the
+    /// tests of the steps after it see the first step that applies.
+    func openSetup(welcome: Bool = false) {
         model.noteWindowRequested(SwayWindowID.setup)
         model.setupWindowDidAppear()
+        if !welcome { model.getStartedFromSetup() }
     }
 
     /// Opens the window on the camera check and reports the camera running.

@@ -2,8 +2,8 @@ import AppKit
 import SwayModels
 import SwiftUI
 
-/// The Sway Settings window (SPEC F21, D33): login item, switching, the Focus Lock shortcut, the camera, and the
-/// saved calibrations. A regular window, because SwiftUI's `Settings` scene cannot be opened reliably from a menu bar
+/// The Sway Settings window (SPEC F21, D33): appearance, login item, switching, the Focus Lock shortcut, the camera,
+/// and the saved calibrations. A regular window, because SwiftUI's `Settings` scene cannot be opened reliably from a menu bar
 /// app on macOS 14.
 struct SettingsView: View {
     let model: AppModel
@@ -12,6 +12,7 @@ struct SettingsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
+                AppearanceSettingsSection(model: model)
                 GeneralSettingsSection(model: model)
                 SwitchingSettingsSection(model: model)
                 ShortcutSettingsSection(model: model)
@@ -21,6 +22,7 @@ struct SettingsView: View {
             .padding(20)
         }
         .frame(width: 520, height: 640)
+        .tint(model.accentChoice.tint)
         .onAppear { model.settingsWindowDidAppear() }
         .onDisappear { model.settingsWindowDidDisappear() }
         .launchGuarded(id: SwayWindowID.settings, model: model)
@@ -39,6 +41,46 @@ struct SettingsView: View {
         model.noteWindowRequested(SwayWindowID.setup)
         openWindow(id: SwayWindowID.setup)
         NSApp.activate()
+    }
+}
+
+/// The accent color, the edge glow, and the Focus Lock notice (SPEC F24, F27, F28). Each change saves and applies at
+/// once.
+private struct AppearanceSettingsSection: View {
+    let model: AppModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Appearance")
+                .font(.headline)
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Accent color")
+                Picker("Accent color", selection: accentBinding) {
+                    ForEach(AccentChoice.allCases) { choice in
+                        Text(choice.title).tag(choice)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+            }
+            Toggle("Glow on the display that gets focus", isOn: glowBinding)
+                .toggleStyle(.switch)
+            Toggle("Show a notice when the shortcut toggles Focus Lock", isOn: noticeBinding)
+                .toggleStyle(.switch)
+        }
+        .swayCard()
+    }
+
+    private var accentBinding: Binding<AccentChoice> {
+        Binding(get: { model.accentChoice }, set: { model.setAccentChoice($0) })
+    }
+
+    private var glowBinding: Binding<Bool> {
+        Binding(get: { model.edgeGlowEnabled }, set: { model.setEdgeGlowEnabled($0) })
+    }
+
+    private var noticeBinding: Binding<Bool> {
+        Binding(get: { model.focusLockNoticeEnabled }, set: { model.setFocusLockNoticeEnabled($0) })
     }
 }
 

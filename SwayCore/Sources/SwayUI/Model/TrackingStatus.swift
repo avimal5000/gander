@@ -87,7 +87,8 @@ enum TrackingStatus: Equatable {
         }
     }
 
-    /// The menu bar symbol (placeholders until the M6 design pass, SPEC D32).
+    /// The status's SF Symbol (SPEC F19), for the popover's status line. The menu bar icon is the Swing mark instead
+    /// (`MenuBarGlyph`, SPEC D37).
     var symbol: String {
         switch self {
         case .cameraBlocked, .cameraFailed, .cameraBusy: "exclamationmark.triangle"

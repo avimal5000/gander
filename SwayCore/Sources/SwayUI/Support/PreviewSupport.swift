@@ -102,7 +102,8 @@ enum PreviewSupport {
         let defaults = UserDefaults(suiteName: "sway.preview") ?? .standard
         for key in [
             DefaultsKey.calibrationProfile, DefaultsKey.calibrationLibrary, DefaultsKey.trackingEnabled,
-            DefaultsKey.switchSensitivity, DefaultsKey.focusLockShortcut,
+            DefaultsKey.switchSensitivity, DefaultsKey.focusLockShortcut, DefaultsKey.accentChoice,
+            DefaultsKey.edgeGlowEnabled, DefaultsKey.focusLockNoticeEnabled,
         ] {
             defaults.removeObject(forKey: key)
         }
@@ -119,6 +120,7 @@ enum PreviewSupport {
             defaults: defaults,
             environment: AppModelEnvironment(
                 clock: { 0 }, now: { Date() }, system: PreviewSystem(), overlay: PreviewOverlay(),
+                feedback: PreviewFeedback(), reduceMotion: { false },
                 notificationCenter: NotificationCenter(), workspaceNotificationCenter: NotificationCenter(),
                 isAppActive: { false }, gateTickInterval: nil, focusTickInterval: nil, trackingTickInterval: nil,
                 setupTickInterval: nil, keyMonitor: PreviewKeyMonitor(), cameraStartTimeout: 10
@@ -146,13 +148,15 @@ enum PreviewSupport {
         return model
     }
 
-    /// A model with the Set Up Sway window open on `step`. The result step shows a good calibration.
+    /// A model with the Set Up Sway window open on `step`. The welcome step shows with an empty library, as on first
+    /// setup; the result step shows a good calibration.
     @MainActor
     static func setupModel(step: SetupFlow.Step) -> AppModel {
         let model = Self.model(withProfile: step == .result)
         model.noteWindowRequested(SwayWindowID.setup)
         model.isAccessibilityTrusted = true
         model.setupWindowDidAppear()
+        if step != .welcome { model.getStartedFromSetup() }
         if step == .result {
             model.mutateSetup { $0.startCalibration() }
             model.mutateSetup { $0.calibrationFinished() }
@@ -274,6 +278,12 @@ private struct PreviewDecider: SwitchDeciding {
     }
 
     mutating func reset() {}
+}
+
+@MainActor
+private final class PreviewFeedback: FeedbackPresenting {
+    func showGlow(on display: DisplayInfo, animated: Bool) {}
+    func showNotice(_ text: String, symbol: String, on display: DisplayInfo, animated: Bool) {}
 }
 
 @MainActor

@@ -825,7 +825,8 @@ Behavior (switching, holds, camera rules, calibration) does not change.
   `tint: Color?` is `SwayPalette.green` for `.sway` and `nil` for `.system`.
 - Every window's root view and the menu popover apply `.tint(model.accentChoice.tint)`: menu, Pose Debug, gate test,
   Focus Test, Setup, Settings. Text and glyphs that used `SwayPalette.accent(for:)` keep it.
-- The asset catalog's AccentColor (orchestrator) is forest green, for system surfaces SwiftUI does not tint.
+- The app has **no** asset-catalog accent color (orchestrator): with one, macOS's Multicolor setting would show it
+  through, so "Match macOS" would still look green. Without it, Match macOS is exactly the system accent.
 
 **2. The Swing mark and the menu bar icon (SPEC F25, D36, D37).**
 - `SwayMarkGeometry`: the mark in a 100 × 100 unit square: an arc `M 24 40 Q 50 86 76 40` (quadratic), a start point
