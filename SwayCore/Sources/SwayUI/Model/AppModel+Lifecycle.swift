@@ -16,7 +16,25 @@ extension AppModel {
             [weak self] _ in
             MainActor.assumeIsolated { self?.applicationDidResignActive() }
         }
-        notificationObservers = [terminate, resign]
+        let become = center.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: nil) {
+            [weak self] _ in
+            MainActor.assumeIsolated { self?.applicationDidBecomeActive() }
+        }
+        // Any of Sway's windows (the menu included) gaining or losing key status. Closing Sway's last window leaves it
+        // active with nothing in front, which must release the hold.
+        let windowKeyChanges = [NSWindow.didBecomeKeyNotification, NSWindow.didResignKeyNotification].map { name in
+            center.addObserver(forName: name, object: nil, queue: nil) { [weak self] _ in
+                MainActor.assumeIsolated { self?.refreshSwayInFront() }
+            }
+        }
+        // Another app came to the front: ask where focus is now. Posted on the main thread by AppKit.
+        let activation = environment.workspaceNotificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: nil
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.pollFocusedDisplay() }
+        }
+        notificationObservers = [terminate, resign, become] + windowKeyChanges
+        workspaceObservers = [activation]
     }
 
     /// Follows the display layout; a change during a gate test cancels it.
@@ -33,29 +51,52 @@ extension AppModel {
     func layoutDidChange(_ newLayout: DisplayLayout) {
         guard newLayout != layout else { return }
         layout = newLayout
-        // Display identities may have changed, so a dwell or a simulated focus no longer means anything.
-        resetSwitchPreview()
+        displayLabels = DisplayLabeler.labels(for: newLayout)
+        // Display identities may have changed, so a dwell or the believed focus no longer means anything. A changed
+        // calibration rebuilds the decider; an unchanged one still needs its targets and a clean loop.
+        if !refreshActiveCalibration() {
+            updateTrackedTargets()
+            resetTracking()
+            if isPollingFocus { pollFocusedDisplay() }
+        }
         if gateRunState != .idle {
             cancelGateTest(reason: "The display arrangement changed, so the gate test was cancelled.")
         }
     }
 
+    /// Sway became the active app; automatic switching holds while its menu or a window is in front.
+    func applicationDidBecomeActive() {
+        refreshSwayInFront()
+    }
+
+    /// Re-reads whether Sway is in front, assigning only on a change.
+    func refreshSwayInFront() {
+        let inFront = environment.isAppActive()
+        if inFront != isAppActive { isAppActive = inFront }
+    }
+
     /// The overlays hide the gate window, so Esc is the way out; if the app loses focus Esc stops working and the
     /// test is no longer meaningful, so cancel it.
     func applicationDidResignActive() {
+        refreshSwayInFront()
         guard gateRunState == .running else { return }
         cancelGateTest(reason: "The gate test was cancelled because Sway was no longer the active app.")
     }
 
     /// Best effort at quit: close overlays and ask the camera to stop. The process exiting also ends capture.
+    ///
+    /// Tracking is turned off in memory only: the saved choice (`sway.trackingEnabled`) is the user's, so the next
+    /// launch restores it.
     func applicationWillTerminate() {
         if gateRunState != .idle {
             gateSession?.cancel()
             endGate(message: nil)
         }
-        liveEnabled = false
+        trackingEnabled = false
+        resetTracking()
         streamTask?.cancel()
         streamTask = nil
+        syncTrackingActivity()
         stopFocusTest()
         let poseSource = poseSource
         let camera = camera
@@ -71,7 +112,7 @@ extension AppModel {
             gateSession?.cancel()
             endGate(message: nil)
         }
-        liveEnabled = false
+        trackingEnabled = false
         layoutTask?.cancel()
         stopFocusTest()
         await reconcileCamera().value

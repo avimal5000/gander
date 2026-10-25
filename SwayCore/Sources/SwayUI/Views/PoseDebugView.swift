@@ -28,7 +28,7 @@ struct PoseDebugView: View {
             header
             CameraPermissionView(model: model)
             HStack(spacing: 20) {
-                LiveCameraToggle(model: model)
+                TrackingToggle(model: model)
                 CameraPickerView(model: model)
                     .frame(maxWidth: 320)
             }
@@ -83,6 +83,6 @@ private struct LiveFaceBox: View {
 
 #if DEBUG
 #Preview("Pose Debug with live guess") {
-    PoseDebugView(model: PreviewSupport.model(live: true, withAnalysis: true, withProfile: true))
+    PoseDebugView(model: PreviewSupport.model(tracking: true, withAnalysis: true, withProfile: true))
 }
 #endif

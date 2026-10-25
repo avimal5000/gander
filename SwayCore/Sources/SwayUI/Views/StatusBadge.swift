@@ -1,9 +1,11 @@
 import SwayModels
 import SwiftUI
 
-/// A colored dot plus the camera status line.
+/// A colored dot plus the status line.
 struct StatusBadge: View {
     let model: AppModel
+    /// The popover keeps one line, so it never changes height when the status or camera name changes.
+    var lineLimit = 2
 
     var body: some View {
         HStack(spacing: 6) {
@@ -13,19 +15,20 @@ struct StatusBadge: View {
                 .accessibilityHidden(true)
             Text(model.statusLine)
                 .font(.callout)
-                .lineLimit(2)
+                .lineLimit(lineLimit)
+                .truncationMode(.tail)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Camera status: \(model.statusLine)")
+        .accessibilityLabel("Status: \(model.statusLine)")
     }
 
     private var color: Color {
-        switch model.status {
-        case .running: SwayPalette.forest
-        case .starting, .suspended: SwayPalette.amber
-        case .interrupted, .failed: SwayPalette.brick
-        case .stopped: Color.secondary
+        switch model.trackingStatus.tone {
+        case .active: SwayPalette.forest
+        case .attention: SwayPalette.amber
+        case .problem: SwayPalette.brick
+        case .idle: Color.secondary
         }
     }
 }

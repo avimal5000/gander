@@ -38,7 +38,10 @@ final class FakePoseSource: PoseSource {
         let device = state.withLock { state -> CameraDevice? in
             state.continuation?.finish()
             state.continuation = continuation
-            return state.autoRunDevice
+            guard let fallback = state.autoRunDevice else { return nil }
+            // Run the camera that was asked for when it is a known one, as the real source does.
+            let known = [Fixtures.builtInCamera, Fixtures.externalCamera]
+            return known.first { $0.id == configuration.cameraDeviceID } ?? fallback
         }
         if let device {
             continuation.yield(.status(.starting))

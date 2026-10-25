@@ -3,7 +3,7 @@ import SwayModels
 
 @testable import SwayUI
 
-/// An `AppModel` wired to fakes for every collaborator, with a manual clock and no gate timer.
+/// An `AppModel` wired to fakes for every collaborator, with a manual clock and no timers.
 @MainActor
 struct Harness {
     let model: AppModel
@@ -14,15 +14,25 @@ struct Harness {
     let analyzer: FakeAnalyzer
     let engine: FakeSwitchEngine
     let focus: FakeFocus
+    let hotKeys: FakeHotKeys
+    let loginItem: FakeLoginItem
     let system: FakeSystem
     let overlay: FakeOverlay
     let clock: TestClock
+    let appState: FakeAppState
+    /// Where `NSApplication` notifications are posted.
     let notifications: NotificationCenter
+    /// Where `NSWorkspace` notifications are posted.
+    let workspace: NotificationCenter
     let defaults: UserDefaults
     private let suiteName: String
 
     /// - Parameters:
     ///   - autoRun: when true the fake pose source reports `.starting` and `.running` on every start by itself.
+    ///   - calibrated: seeds the calibration library with a profile for `layout` for each of `calibrationCameras`.
+    ///   - appActive: whether Sway counts as the active app at launch.
+    ///   - trackingSaved: seeds `sway.trackingEnabled` as if the user had left Tracking on.
+    ///   - seed: writes anything else into the defaults before the model launches.
     static func make(
         authorization: CameraAuthorization = .authorized,
         layout: DisplayLayout = Fixtures.twoDisplays,
@@ -30,10 +40,22 @@ struct Harness {
         savedCameraID: String? = nil,
         analysis: GateAnalysis = Fixtures.analysis(),
         trusted: Bool = true,
-        suiteName: String = Harness.temporarySuiteName()
+        calibrated: Bool = false,
+        calibrationCameras: [String?] = [Fixtures.builtInCamera.name],
+        trackingSaved: Bool = false,
+        appActive: Bool = false,
+        hotKeys: FakeHotKeys = FakeHotKeys(),
+        suiteName: String = Harness.temporarySuiteName(),
+        seed: (UserDefaults) -> Void = { _ in }
     ) -> Harness {
         guard let defaults = UserDefaults(suiteName: suiteName) else { fatalError("Cannot create test defaults") }
         if let savedCameraID { defaults.set(savedCameraID, forKey: DefaultsKey.cameraDeviceID) }
+        if calibrated {
+            let profiles = calibrationCameras.map { Fixtures.profile(layout: layout, cameraName: $0) }
+            Harness.seedLibrary(profiles, into: defaults)
+        }
+        if trackingSaved { defaults.set(true, forKey: DefaultsKey.trackingEnabled) }
+        seed(defaults)
         let camera = FakeFrameSource(
             authorization: authorization, devices: [Fixtures.builtInCamera, Fixtures.externalCamera]
         )
@@ -43,28 +65,37 @@ struct Harness {
         let analyzer = FakeAnalyzer(analysis: analysis)
         let engine = FakeSwitchEngine()
         let focus = FakeFocus(trusted: trusted)
+        let loginItem = FakeLoginItem()
         let system = FakeSystem()
         let overlay = FakeOverlay()
         let clock = TestClock()
+        let appState = FakeAppState()
+        appState.isActive = appActive
         let notifications = NotificationCenter()
+        let workspace = NotificationCenter()
         let environment = AppModelEnvironment(
             clock: clock.reading,
             now: { Date(timeIntervalSince1970: 1_700_000_000) },
             system: system,
             overlay: overlay,
             notificationCenter: notifications,
+            workspaceNotificationCenter: workspace,
+            isAppActive: { [appState] in appState.isActive },
             gateTickInterval: nil,
             focusTickInterval: nil,
+            trackingTickInterval: nil,
             cameraStartTimeout: 10
         )
         let model = AppModel(
             camera: camera, poseSource: pose, displays: displays, traceStore: store, analyzer: analyzer,
-            engine: engine, focus: focus, defaults: defaults, environment: environment
+            engine: engine, focus: focus, hotKeys: hotKeys, loginItem: loginItem, defaults: defaults,
+            environment: environment
         )
         return Harness(
             model: model, camera: camera, pose: pose, displays: displays, store: store, analyzer: analyzer,
-            engine: engine, focus: focus, system: system, overlay: overlay, clock: clock,
-            notifications: notifications, defaults: defaults, suiteName: suiteName
+            engine: engine, focus: focus, hotKeys: hotKeys, loginItem: loginItem, system: system, overlay: overlay,
+            clock: clock, appState: appState, notifications: notifications, workspace: workspace,
+            defaults: defaults, suiteName: suiteName
         )
     }
 
@@ -83,17 +114,34 @@ struct Harness {
         return directory.appendingPathComponent(UUID().uuidString).path
     }
 
+    /// Writes a calibration library holding `profiles` (newest first) into `defaults`.
+    static func seedLibrary(_ profiles: [CalibrationProfile], into defaults: UserDefaults) {
+        let library = CalibrationLibrary(profiles: profiles)
+        guard let data = try? AppModel.encoder().encode(library) else { fatalError("Cannot encode the library") }
+        defaults.set(data, forKey: DefaultsKey.calibrationLibrary)
+    }
+
+    /// The library as stored in the defaults, or `nil` when absent.
+    func storedLibrary() -> CalibrationLibrary? {
+        guard let data = defaults.data(forKey: DefaultsKey.calibrationLibrary) else { return nil }
+        return try? AppModel.decoder().decode(CalibrationLibrary.self, from: data)
+    }
+
     /// Builds a second model on the same defaults suite, as after a relaunch (optionally on another layout).
-    func relaunchedModel(layout: DisplayLayout = Fixtures.twoDisplays) -> AppModel {
+    func relaunchedModel(
+        layout: DisplayLayout = Fixtures.twoDisplays, pose: FakePoseSource = FakePoseSource(),
+        hotKeys: FakeHotKeys = FakeHotKeys()
+    ) -> AppModel {
         let environment = AppModelEnvironment(
             clock: clock.reading, now: { Date() }, system: FakeSystem(), overlay: FakeOverlay(),
-            notificationCenter: NotificationCenter(), gateTickInterval: nil, focusTickInterval: nil,
+            notificationCenter: NotificationCenter(), workspaceNotificationCenter: NotificationCenter(),
+            isAppActive: { false }, gateTickInterval: nil, focusTickInterval: nil, trackingTickInterval: nil,
             cameraStartTimeout: 10
         )
         return AppModel(
-            camera: camera, poseSource: FakePoseSource(), displays: FakeDisplayProvider(layout: layout),
-            traceStore: store, analyzer: analyzer, engine: engine, focus: focus, defaults: defaults,
-            environment: environment
+            camera: camera, poseSource: pose, displays: FakeDisplayProvider(layout: layout),
+            traceStore: store, analyzer: analyzer, engine: engine, focus: focus, hotKeys: hotKeys,
+            loginItem: FakeLoginItem(), defaults: defaults, environment: environment
         )
     }
 

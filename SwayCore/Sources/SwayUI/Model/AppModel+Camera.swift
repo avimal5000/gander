@@ -1,21 +1,14 @@
 import Foundation
 import SwayModels
 
-// Camera lifecycle. The pose source runs only while the live toggle is on or a gate test is running; every start
-// and stop goes through one serial chain of operations so rapid toggling can never leave the camera in a state
-// that disagrees with the latest request.
+// Camera lifecycle. The pose source runs only while Tracking is on and a calibration fits, or a gate test is running;
+// every start and stop goes through one serial chain of operations so rapid toggling can never leave the camera in a
+// state that disagrees with the latest request.
 extension AppModel {
     // MARK: User actions
 
-    /// Handles the live camera toggle. Turning it on may first show the permission explanation.
-    func setLiveEnabled(_ enabled: Bool) async {
-        guard enabled != liveEnabled else { return }
-        liveEnabled = enabled
-        if !enabled, pendingIntent == .live { pendingIntent = nil }
-        await reconcileCamera().value
-    }
-
-    /// Chooses the camera, persists the choice (`nil` means default), and restarts capture if it is running.
+    /// Chooses the camera, persists the choice (`nil` means default), and restarts capture if it is running. The
+    /// calibration is looked up per camera, so the active calibration may change.
     func selectCamera(_ id: String?) async {
         guard id != selectedCameraID else { return }
         selectedCameraID = id
@@ -24,6 +17,7 @@ extension AppModel {
         } else {
             defaults.removeObject(forKey: DefaultsKey.cameraDeviceID)
         }
+        refreshActiveCalibration()
         guard streamTask != nil else { return }
         await enqueueCameraWork { await $0.restartPoseSource() }.value
     }
@@ -49,12 +43,14 @@ extension AppModel {
         enqueueCameraWork { await $0.performCameraReconcile() }
     }
 
-    /// True when the live toggle or a gate test needs frames.
-    var wantsCamera: Bool { liveEnabled || gateRunState != .idle }
+    /// True when a gate test needs frames, or Tracking is on with a calibration that fits two or more displays.
+    var wantsCamera: Bool {
+        gateRunState != .idle || (trackingEnabled && activeCalibration != nil && layout.displays.count >= 2)
+    }
 
     /// The configuration the pose source should run with right now. Landmarks cost a second Vision request per
     /// frame, so they are on exactly while a gate test needs the camera (including its camera-start phase) and
-    /// off for Live (SPEC D15).
+    /// off for Tracking (SPEC D15).
     var desiredConfiguration: PoseSourceConfiguration {
         PoseSourceConfiguration(cameraDeviceID: selectedCameraID, includeLandmarks: gateRunState != .idle)
     }
@@ -62,7 +58,7 @@ extension AppModel {
     func performCameraReconcile() async {
         if wantsCamera {
             if streamTask != nil {
-                // A running stream is kept unless it was started with another configuration, for example Live
+                // A running stream is kept unless it was started with another configuration, for example Tracking
                 // without landmarks when a gate test begins (or the gate test's stream once it has ended).
                 if activeConfiguration != desiredConfiguration { await restartPoseSource() }
                 return
@@ -107,11 +103,12 @@ extension AppModel {
 
         status = .starting
         clearLiveReadings()
+        statusDidChange()
         let configuration = desiredConfiguration
         do {
             let stream = try await poseSource.start(configuration)
             activeConfiguration = configuration
-            if liveEnabled { rebuildDecider() }
+            rebuildDecider()
             beginConsuming(stream)
             return true
         } catch let error as CameraError {
@@ -133,6 +130,7 @@ extension AppModel {
         } else {
             status = .failed(error)
         }
+        statusDidChange()
     }
 
     /// Stops the pose source and tears down the stream consumer. Keeps a `.failed` status visible.
@@ -152,18 +150,35 @@ extension AppModel {
         liveGuessFeatureSet = nil
         history.reset()
         readout = LiveReadout()
-        resetSwitchPreview()
+        resetTracking()
+        statusDidChange()
         #if DEBUG
         finishRecordingIfNeeded()
         #endif
     }
 
+    /// The camera status changed: its device may change which calibration applies, and whether the focused display
+    /// needs polling.
+    func statusDidChange() {
+        refreshActiveCalibration()
+        syncTrackingActivity()
+    }
+
     /// Resets intent state after a start attempt failed. Runs inside the camera chain, so it must not wait on it.
+    ///
+    /// The Tracking switch is turned off in memory (never in `UserDefaults`) except when the camera is blocked by its
+    /// permission: then it stays on, so the status says "Camera access needed" and tracking resumes once access is
+    /// granted. While the permission is still undecided, the explanation holds the request as a pending intent.
     private func cameraStartFailed(gateWanted: Bool) {
-        if permissionPrompt == .explanation {
-            pendingIntent = gateWanted ? .gateTest : .live
+        switch permissionPrompt {
+        case .explanation:
+            pendingIntent = gateWanted ? .gateTest : .tracking
+            trackingEnabled = false
+        case .denied, .restricted:
+            break
+        case nil:
+            trackingEnabled = false
         }
-        liveEnabled = false
         if gateWanted {
             let text = permissionPrompt == nil ? gateStartFailureText() : nil
             endGate(message: text.map(UserMessage.error))
@@ -210,7 +225,8 @@ extension AppModel {
         activeConfiguration = nil
         if status.isRunning || status == .starting { status = .stopped }
         clearLiveReadings()
-        liveEnabled = false
+        trackingEnabled = false
+        statusDidChange()
         if gateRunState != .idle {
             abortGate("The camera stopped unexpectedly. Run the test again.")
         }
@@ -233,7 +249,7 @@ extension AppModel {
         history.append(sample)
         if readout.isDue(for: sample) { readout = LiveReadout(sample: sample, fps: history.fps) }
         updateLiveClassification(for: sample.pose)
-        processSwitchPreview(sample)
+        processTracking(sample)
         #if DEBUG
         recorder.append(sample)
         #endif
@@ -243,16 +259,16 @@ extension AppModel {
         }
     }
 
-    /// Forgets the latest pose, the plot history, the live guess, and the preview's dwell and simulated focus
-    /// (camera stopped, restarted, or interrupted).
+    /// Forgets the latest pose, the plot history, the live guess, and the tracking loop's dwell and focus (camera
+    /// stopped, restarted, or interrupted).
     private func clearLiveReadings() {
         latestSample = nil
-        hasFace = false
+        if hasFace { hasFace = false }
         liveClassification = nil
         liveGuessFeatureSet = nil
         history.reset()
         readout = LiveReadout()
-        resetSwitchPreview()
+        resetTracking()
     }
 
     private func handleStatus(_ newStatus: CaptureStatus) {
@@ -262,9 +278,12 @@ extension AppModel {
         } else {
             clearLiveReadings()
         }
+        statusDidChange()
         reactToStatusDuringGate(newStatus)
         if case .failed = newStatus {
-            liveEnabled = false
+            // An automatic turn-off: the saved choice stays, so the next launch tries again.
+            trackingEnabled = false
+            statusDidChange()
             reconcileCamera()
         }
     }

@@ -88,19 +88,24 @@ enum PreviewSupport {
     /// A model wired to fakes.
     ///
     /// - Parameters:
-    ///   - live: simulates a running camera with a face.
+    ///   - tracking: simulates Tracking on with a running camera and a face.
     ///   - withAnalysis: adopts a report.
-    ///   - withProfile: adopts a calibration profile for the Switch preview.
+    ///   - withProfile: saves a calibration for the preview displays in the library.
     ///   - focusTrusted: opens the Focus Test window's state with Accessibility granted (`true`) or not (`false`);
     ///     `nil` leaves the window closed.
     @MainActor
     static func model(
-        live: Bool = false, withAnalysis: Bool = false, showReport: Bool = false, withProfile: Bool = false,
+        tracking: Bool = false, withAnalysis: Bool = false, showReport: Bool = false, withProfile: Bool = false,
         focusTrusted: Bool? = nil
     ) -> AppModel {
-        // Previews share one defaults suite; start each from a blank slate so a stored profile never leaks in.
+        // Previews share one defaults suite; start each from a blank slate so stored state never leaks in.
         let defaults = UserDefaults(suiteName: "sway.preview") ?? .standard
-        defaults.removeObject(forKey: DefaultsKey.calibrationProfile)
+        for key in [
+            DefaultsKey.calibrationProfile, DefaultsKey.calibrationLibrary, DefaultsKey.trackingEnabled,
+            DefaultsKey.switchSensitivity, DefaultsKey.focusLockShortcut,
+        ] {
+            defaults.removeObject(forKey: key)
+        }
         let model = AppModel(
             camera: PreviewFrameSource(),
             poseSource: PreviewPoseSource(),
@@ -108,11 +113,14 @@ enum PreviewSupport {
             traceStore: PreviewTraceStore(),
             analyzer: PreviewAnalyzer(),
             engine: PreviewEngine(),
-            focus: PreviewFocus(trusted: focusTrusted ?? false),
+            focus: PreviewFocus(trusted: focusTrusted ?? tracking),
+            hotKeys: PreviewHotKeys(),
+            loginItem: PreviewLoginItem(),
             defaults: defaults,
             environment: AppModelEnvironment(
                 clock: { 0 }, now: { Date() }, system: PreviewSystem(), overlay: PreviewOverlay(),
-                notificationCenter: NotificationCenter(), gateTickInterval: nil, focusTickInterval: nil,
+                notificationCenter: NotificationCenter(), workspaceNotificationCenter: NotificationCenter(),
+                isAppActive: { false }, gateTickInterval: nil, focusTickInterval: nil, trackingTickInterval: nil,
                 cameraStartTimeout: 10
             )
         )
@@ -123,8 +131,9 @@ enum PreviewSupport {
         if withProfile {
             model.refitCalibration(from: trace())
         }
-        if live {
-            model.liveEnabled = true
+        if tracking {
+            model.trackingEnabled = true
+            model.isAccessibilityTrusted = true
             model.rebuildDecider()
             model.handle(.status(.running(camera)))
             for step in 0..<150 {
@@ -250,6 +259,21 @@ private struct PreviewDecider: SwitchDeciding {
     }
 
     mutating func reset() {}
+}
+
+@MainActor
+private final class PreviewHotKeys: HotKeyRegistering {
+    func register(
+        _ shortcut: HotKeyShortcut, for action: HotKeyAction, handler: @escaping @MainActor () -> Void
+    ) throws(HotKeyError) {}
+    func unregister(_ action: HotKeyAction) {}
+}
+
+@MainActor
+private final class PreviewLoginItem: LoginItemControlling {
+    var status: LoginItemStatus { .disabled }
+    func setEnabled(_ enabled: Bool) throws(LoginItemError) {}
+    func openSystemSettings() {}
 }
 
 private struct PreviewFocus: FocusControlling {

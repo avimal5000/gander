@@ -2,8 +2,8 @@ import AppKit
 import SwayModels
 import SwiftUI
 
-/// The "Switch preview" section of the Pose Debug window (SPEC F11): what the decider sees and would do, with a
-/// simulated focus. Nothing here moves real focus.
+/// The "Switch preview" section of the Pose Debug window (SPEC F11): what the decider sees and does, with the real
+/// focus the tracking loop believes in and the real switches it made.
 struct SwitchPreviewView: View {
     @Bindable var model: AppModel
     @Environment(\.openWindow) private var openWindow
@@ -12,7 +12,7 @@ struct SwitchPreviewView: View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Switch preview")
                 .font(.headline)
-            if model.calibrationProfile == nil {
+            if model.activeCalibration == nil {
                 missingProfile
             } else {
                 preview
@@ -23,9 +23,12 @@ struct SwitchPreviewView: View {
 
     private var missingProfile: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(SwitchPreviewPresentation.noProfile)
-                .font(.callout)
-                .foregroundStyle(.secondary)
+            Text(
+                model.library.profiles.isEmpty
+                    ? SwitchPreviewPresentation.noProfile : SwitchPreviewPresentation.noMatchingProfile
+            )
+            .font(.callout)
+            .foregroundStyle(.secondary)
             Button("Open Gate Test\u{2026}") {
                 model.noteWindowRequested(SwayWindowID.gateTest)
                 openWindow(id: SwayWindowID.gateTest)
@@ -38,23 +41,25 @@ struct SwitchPreviewView: View {
     private var preview: some View {
         let names = DisplayLabeler.labels(for: model.layout)
         let name: (DisplayID) -> String = { names[$0] ?? model.displayName(for: $0) }
-        if model.isCalibrationStale {
-            Label(SwitchPreviewPresentation.stale, systemImage: "exclamationmark.triangle.fill")
-                .font(.callout)
-                .foregroundStyle(SwayPalette.amber)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        if !model.liveEnabled {
-            Text(SwitchPreviewPresentation.cameraOff)
+        if !model.trackingEnabled {
+            Text(SwitchPreviewPresentation.trackingOff)
                 .font(.callout)
                 .foregroundStyle(.secondary)
+        } else if !model.isAccessibilityTrusted {
+            Label(SwitchPreviewPresentation.needsAccessibility, systemImage: "hand.raised")
+                .font(.callout)
+                .foregroundStyle(SwayPalette.amber)
         }
         classificationRow(name)
         phaseRow(name)
-        Text(SwitchPreviewPresentation.simulatedFocusText(model.simulatedFocus, name: name))
+        Text(SwitchPreviewPresentation.focusText(model.trackingFocus, name: name))
             .font(.callout.weight(.medium))
-        Toggle("Simulate Focus Lock", isOn: $model.simulateFocusLock)
-            .toggleStyle(.switch)
+        if let hold = model.trackingHold {
+            Label(hold.text, systemImage: "pause.circle")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+        }
+        FocusLockToggle(model: model)
         log
     }
 
@@ -92,7 +97,7 @@ struct SwitchPreviewView: View {
 
     private var log: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("Would-be switches")
+            Text("Switches")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
                 .textCase(.uppercase)
@@ -106,7 +111,7 @@ struct SwitchPreviewView: View {
                     Text(entry.time, format: .dateTime.hour().minute().second())
                         .font(.callout.monospacedDigit())
                         .foregroundStyle(.secondary)
-                    Text(SwitchPreviewPresentation.logText(entry))
+                    Text(entry.text)
                         .font(.callout)
                 }
                 .accessibilityElement(children: .combine)
@@ -117,7 +122,7 @@ struct SwitchPreviewView: View {
 
 #if DEBUG
 #Preview("Switch preview, calibrated") {
-    SwitchPreviewView(model: PreviewSupport.model(live: true, withAnalysis: true, withProfile: true))
+    SwitchPreviewView(model: PreviewSupport.model(tracking: true, withAnalysis: true, withProfile: true))
         .padding()
         .frame(width: 520)
 }

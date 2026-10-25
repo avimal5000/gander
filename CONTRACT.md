@@ -660,8 +660,10 @@ calibration, and a decider.
 - also poll at once on `NSWorkspace.didActivateApplicationNotification` (observed through an injected notification
   center, `environment.workspaceNotificationCenter`).
 
-*Sway in front:* `isAppActive`, initialized from an injected `environment.isAppActive()` and updated from
-`NSApplication.didBecomeActiveNotification` / `didResignActiveNotification` on `environment.notificationCenter`.
+*Sway in front:* `isAppActive`, read from an injected `environment.isAppActive()` at launch and again on
+`NSApplication.didBecomeActiveNotification` / `didResignActiveNotification` and `NSWindow.didBecomeKeyNotification` /
+`didResignKeyNotification` on `environment.notificationCenter`. Live, it is "active **and** has a key window": after
+Sway's last window closes, Sway stays the active app with nothing in front, and switching must not hold then.
 
 **4. Focus Lock (SPEC F17, D27).**
 - `focusLocked` (not saved; off at launch) and `toggleFocusLock()`. The Pose Debug "Simulate Focus Lock" toggle

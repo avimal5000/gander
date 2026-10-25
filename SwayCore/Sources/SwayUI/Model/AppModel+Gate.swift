@@ -26,6 +26,9 @@ extension AppModel {
         }
 
         gateRunState = .startingCamera
+        // Tracking holds while the gate test steers the camera.
+        resetTracking()
+        syncTrackingActivity()
         gateCameraDeadline = environment.clock() + environment.cameraStartTimeout
         startGateTimer()
         await reconcileCamera().value
@@ -34,7 +37,7 @@ extension AppModel {
     }
 
     /// Aborts the test (Cancel button, Esc, closing the gate window). Removes the overlays and puts the camera
-    /// back to what the live toggle says.
+    /// back to what the Tracking switch says.
     func cancelGateTest(reason: String? = nil) {
         guard gateRunState != .idle else { return }
         gateSession?.cancel()
@@ -165,6 +168,7 @@ extension AppModel {
         gateSession = nil
         gateProgress = nil
         gateRunState = .idle
+        syncTrackingActivity()
         environment.overlay.dismiss()
         if let message { gateMessage = message }
     }

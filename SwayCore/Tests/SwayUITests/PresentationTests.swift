@@ -7,28 +7,11 @@ import Testing
 
 @Suite("Status presentation")
 struct StatusPresentationTests {
-    @Test(arguments: [
-        (CaptureStatus.stopped, false, "eye.slash"),
-        (CaptureStatus.starting, false, "eye"),
-        (CaptureStatus.running(nil), true, "eye.fill"),
-        (CaptureStatus.running(nil), false, "eye.trianglebadge.exclamationmark"),
-        (CaptureStatus.suspended(.screenLocked), false, "pause.circle"),
-        (CaptureStatus.interrupted("busy"), false, "exclamationmark.triangle"),
-        (CaptureStatus.failed(.noDevice), false, "exclamationmark.triangle"),
-    ])
-    func menuBarSymbolFollowsTheContract(status: CaptureStatus, hasFace: Bool, symbol: String) {
-        #expect(status.menuBarSymbol(hasFace: hasFace) == symbol)
-    }
-
-    @Test func statusLineNamesTheStateAndTheCamera() {
-        #expect(CaptureStatus.stopped.statusLine(cameraName: "Cam") == "Camera off")
-        #expect(CaptureStatus.starting.statusLine(cameraName: "Cam") == "Starting camera\u{2026}")
-        #expect(
-            CaptureStatus.running(Fixtures.builtInCamera).statusLine(cameraName: nil)
-                == "Running \u{00B7} FaceTime HD Camera")
-        #expect(CaptureStatus.running(nil).statusLine(cameraName: "Cam") == "Running \u{00B7} Cam")
-        #expect(CaptureStatus.running(nil).statusLine(cameraName: nil) == "Running")
-        #expect(CaptureStatus.suspended(.screenLocked).statusLine(cameraName: nil) == "Suspended: screen locked")
+    @Test func captureStatusSummariesNameTheState() {
+        #expect(CaptureStatus.stopped.summary == "Camera off")
+        #expect(CaptureStatus.starting.summary == "Starting camera\u{2026}")
+        #expect(CaptureStatus.running(nil).summary == "Running")
+        #expect(CaptureStatus.suspended(.screenLocked).summary == "Suspended: screen locked")
         #expect(CaptureStatus.suspended(.systemSleep).summary == "Suspended: system asleep")
         #expect(CaptureStatus.suspended(.displaysAsleep).summary == "Suspended: displays asleep")
         #expect(CaptureStatus.interrupted("Camera disconnected").summary == "Interrupted: Camera disconnected")
@@ -151,7 +134,7 @@ struct SwitchPreviewWordingTests {
         #expect(phase(.idle, names) == "Watching")
         #expect(phase(.dwelling(display: Fixtures.right.id, progress: 0.4), names) == "Dwelling on Right")
         #expect(phase(.coolingDown(until: 3), names) == "Cooling down")
-        #expect(phase(.locked, names) == "Focus lock is on")
+        #expect(phase(.locked, names) == "Switching is held")
     }
 
     @Test func theDwellBarOnlyExistsWhileDwelling() {
@@ -162,15 +145,38 @@ struct SwitchPreviewWordingTests {
         #expect(SwitchPreviewPresentation.dwellProgress(nil) == nil)
     }
 
-    @Test func theSimulatedFocusNamesTheDisplayOrSaysUnknown() {
+    @Test func theFocusLineNamesTheDisplayOrSaysUnknown() {
+        #expect(SwitchPreviewPresentation.focusText(Fixtures.left.id, name: names) == "Focus: Left")
+        #expect(SwitchPreviewPresentation.focusText(nil, name: names) == "Focus: Unknown")
+    }
+
+    @Test func theHoldReasonsReadAsInTheContract() {
+        #expect(TrackingHold.focusLock.text == "Focus Lock on")
+        #expect(TrackingHold.swayInFront.text == "Sway is in front")
+        #expect(TrackingHold.switching.text == "Switching\u{2026}")
+        #expect(TrackingHold.focusTest.text == "Focus Test running")
+    }
+
+    @Test func theSwitchLogNamesTheAppAndTheDisplayNeverTheTitle() {
+        let window = Fixtures.window(7, app: "Safari", title: "Secret page")
+        let focused = FocusResult.focused(window, method: .accessibilityRaise, milliseconds: 120)
+        let text = SwitchPreviewPresentation.logText(for: focused, display: "Right", held: 0.4)
+        #expect(text == "Focused Safari on Right in 120 ms, held 0.40 s")
+        #expect(!text.contains("Secret"))
         #expect(
-            SwitchPreviewPresentation.simulatedFocusText(Fixtures.left.id, name: names) == "Focus (simulated): Left")
-        #expect(SwitchPreviewPresentation.simulatedFocusText(nil, name: names) == "Focus (simulated): Unknown")
+            SwitchPreviewPresentation.logText(for: .noWindow(Fixtures.right.id), display: "Right", held: 0.4)
+                == "No window on Right")
+        #expect(
+            SwitchPreviewPresentation.logText(
+                for: .failed(window, reason: "Focus did not move to Safari"), display: "Right", held: 0)
+                == "Failed: Focus did not move to Safari")
+        #expect(
+            SwitchPreviewPresentation.logText(for: .notTrusted, display: "Right", held: 0)
+                == "Accessibility permission needed")
     }
 
     @Test func theMessagesMatchTheContract() {
         #expect(SwitchPreviewPresentation.noProfile == "Run the gate test to calibrate.")
-        #expect(SwitchPreviewPresentation.stale.hasPrefix("Displays changed since calibration"))
         #expect(
             CalibrationError.tooFewDisplays.userMessage
                 == "Not enough face samples on at least two displays to calibrate. Run the gate test with your face visible."
@@ -206,13 +212,15 @@ struct LiveContentVisibilityTests {
         #expect(!WindowVisibility.showsLiveContent(isVisible: true, isMiniaturized: false, isClosing: true))
     }
 
-    @Test func menuReadoutIsOneLineInEveryState() {
-        #expect(
-            MenuReadout.make(pose: Fixtures.pose(yaw: 12.34, pitch: -3), isRunning: true)
-                == .angles(yaw: "+12.3\u{00B0}", pitch: "-3.0\u{00B0}"))
-        #expect(MenuReadout.make(pose: nil, isRunning: true) == .noFace)
-        // Camera off: dashes instead of no line, so the popover keeps its height.
-        #expect(MenuReadout.make(pose: nil, isRunning: false) == .angles(yaw: "\u{2014}", pitch: "\u{2014}"))
-        #expect(MenuReadout.placeholder == .angles(yaw: "\u{2014}", pitch: "\u{2014}"))
+    @Test func theLookLineIsOneShortLineInEveryState() {
+        let label: (DisplayID) -> String = { $0 == Fixtures.left.id ? "Left" : "Right" }
+        #expect(LookSummary(Fixtures.classification(best: Fixtures.right.id), label: label) == .display("Right"))
+        #expect(LookSummary(Fixtures.classification(.elsewhere), label: label) == .elsewhere)
+        #expect(LookSummary(.noFace, label: label) == .noFace)
+        #expect(LookSummary.display("Right").text == "Looking at Right")
+        #expect(LookSummary.elsewhere.text == "Looking elsewhere")
+        #expect(LookSummary.noFace.text == "No face")
+        // Camera off: a dash instead of no line, so the popover keeps its height.
+        #expect(LookSummary.off.text == "\u{2014}")
     }
 }

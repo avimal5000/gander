@@ -1,12 +1,10 @@
 import Foundation
 
-/// One would-be switch in the Switch preview log (SPEC F11). Display names only: nothing about windows.
+/// One real switch in the Switch preview log (SPEC F11, F16). The text names the app and display, never a window
+/// title.
 struct SwitchLogEntry: Identifiable, Equatable {
     let id: Int
-    /// Wall-clock time of the switch.
+    /// Wall-clock time the result arrived.
     let time: Date
-    /// Label of the display the decider would have switched to.
-    let displayName: String
-    /// Seconds from the first sample of the dwell to the sample that completed it.
-    let latency: TimeInterval
+    let text: String
 }

@@ -55,7 +55,7 @@ struct CameraPermissionView: View {
                 + "Frames are processed in memory and never saved or sent anywhere. macOS will ask for permission next."
         case .denied:
             "Open System Settings, go to Privacy & Security > Camera, and switch Sway on. "
-                + "Then turn the camera on again here."
+                + "Tracking then resumes by itself."
         case .restricted:
             "A device policy or parental control prevents Sway from using the camera on this Mac. "
                 + "Open System Settings > Privacy & Security > Camera to see what is allowed."

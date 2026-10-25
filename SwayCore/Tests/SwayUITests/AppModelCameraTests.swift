@@ -10,20 +10,20 @@ import Testing
 struct AppModelCameraTests {
     // MARK: Start and stop
 
-    @Test func turningLiveOnStartsThePoseSourceAndOffStopsIt() async {
-        let h = Harness.make(autoRun: true)
+    @Test func turningTrackingOnStartsThePoseSourceAndOffStopsIt() async {
+        let h = Harness.make(autoRun: true, calibrated: true)
         defer { h.tearDown() }
 
-        await h.model.setLiveEnabled(true)
-        #expect(h.model.liveEnabled)
+        await h.model.setTrackingEnabled(true)
+        #expect(h.model.trackingEnabled)
         #expect(h.pose.startCount == 1)
         let running = await waitUntil { h.model.status.isRunning }
         #expect(running)
-        #expect(h.model.statusLine == "Running \u{00B7} FaceTime HD Camera")
+        #expect(h.model.statusLine == "No face \u{00B7} FaceTime HD Camera")
         #expect(h.model.menuBarSymbol == "eye.trianglebadge.exclamationmark")
 
-        await h.model.setLiveEnabled(false)
-        #expect(!h.model.liveEnabled)
+        await h.model.setTrackingEnabled(false)
+        #expect(!h.model.trackingEnabled)
         #expect(h.pose.stopCount >= 1)
         #expect(h.model.status == .stopped)
         #expect(h.model.latestSample == nil)
@@ -32,31 +32,33 @@ struct AppModelCameraTests {
     }
 
     @Test func theConfigurationCarriesTheSelectedCameraAndDefaultFrameRate() async {
-        let h = Harness.make(autoRun: true, savedCameraID: Fixtures.externalCamera.id)
+        let h = Harness.make(
+            autoRun: true, savedCameraID: Fixtures.externalCamera.id, calibrated: true,
+            calibrationCameras: [Fixtures.externalCamera.name])
         defer { h.tearDown() }
 
-        await h.model.setLiveEnabled(true)
+        await h.model.setTrackingEnabled(true)
         #expect(h.pose.configurations == [PoseSourceConfiguration(cameraDeviceID: "cam-external")])
         #expect(h.pose.configurations.first?.frameRate == SwayPolicy.defaultFrameRate)
     }
 
     @Test func nothingStartsUntilSomethingAsksForTheCamera() {
-        let h = Harness.make(autoRun: true)
+        let h = Harness.make(autoRun: true, calibrated: true)
         defer { h.tearDown() }
         #expect(h.pose.startCount == 0)
         #expect(h.model.status == .stopped)
-        #expect(!h.model.liveEnabled)
+        #expect(!h.model.trackingEnabled)
     }
 
     @Test func queuedCameraWorkEvaluatesTheLatestRequestWhenItRuns() async {
-        let h = Harness.make(autoRun: true)
+        let h = Harness.make(autoRun: true, calibrated: true)
         defer { h.tearDown() }
 
-        h.model.liveEnabled = true
+        h.model.trackingEnabled = true
         let first = h.model.reconcileCamera()
-        h.model.liveEnabled = false
+        h.model.trackingEnabled = false
         let second = h.model.reconcileCamera()
-        h.model.liveEnabled = true
+        h.model.trackingEnabled = true
         let third = h.model.reconcileCamera()
         await first.value
         await second.value
@@ -69,11 +71,11 @@ struct AppModelCameraTests {
 
     // MARK: Events
 
-    @Test func samplesUpdateTheLatestPoseHistoryAndFrameRate() {
-        let h = Harness.make()
+    @Test func samplesUpdateTheLatestPoseHistoryAndFrameRate() async {
+        let h = Harness.make(calibrated: true)
         defer { h.tearDown() }
 
-        h.reportRunning()
+        await h.startTracking()
         for index in 0..<60 {
             h.model.handle(.sample(Fixtures.sample(at: Double(index) / 15, yaw: Double(index))))
         }
@@ -89,7 +91,7 @@ struct AppModelCameraTests {
     }
 
     @Test func textReadoutsRefreshFiveTimesASecondAndAFaceChangeAtOnce() {
-        let h = Harness.make()
+        let h = Harness.make(calibrated: true)
         defer { h.tearDown() }
 
         h.reportRunning()
@@ -110,21 +112,21 @@ struct AppModelCameraTests {
     }
 
     @Test func eventsFlowFromTheStreamIntoTheModel() async {
-        let h = Harness.make(autoRun: true)
+        let h = Harness.make(autoRun: true, calibrated: true)
         defer { h.tearDown() }
 
-        await h.model.setLiveEnabled(true)
+        await h.model.setTrackingEnabled(true)
         _ = await waitUntil { h.model.status.isRunning }
         h.pose.emit(.sample(Fixtures.sample(at: 1, yaw: 12)))
         let arrived = await waitUntil { h.model.latestSample?.pose?.yaw == 12 }
         #expect(arrived)
     }
 
-    @Test func leavingTheRunningStateClearsTheLiveNumbers() {
-        let h = Harness.make()
+    @Test func leavingTheRunningStateClearsTheLiveNumbers() async {
+        let h = Harness.make(calibrated: true)
         defer { h.tearDown() }
 
-        h.reportRunning()
+        await h.startTracking()
         h.run(frames: 5, dt: 0.1)
         #expect(h.model.latestSample != nil)
 
@@ -139,30 +141,33 @@ struct AppModelCameraTests {
         #expect(h.model.menuBarSymbol == "exclamationmark.triangle")
     }
 
-    @Test func aFailedStatusSwitchesTheToggleOffAndStopsTheSource() async {
-        let h = Harness.make(autoRun: true)
+    @Test func aFailedStatusSwitchesTrackingOffInMemoryAndKeepsTheSavedChoice() async {
+        let h = Harness.make(autoRun: true, calibrated: true)
         defer { h.tearDown() }
 
-        await h.model.setLiveEnabled(true)
+        await h.model.setTrackingEnabled(true)
         _ = await waitUntil { h.model.status.isRunning }
         h.pose.emit(.status(.failed(.runtimeFailure("sensor died"))))
-        _ = await waitUntil { !h.model.liveEnabled }
+        _ = await waitUntil { !h.model.trackingEnabled }
         await h.model.cameraOperation?.value
 
-        #expect(!h.model.liveEnabled)
+        #expect(!h.model.trackingEnabled)
         #expect(h.pose.stopCount >= 1)
         #expect(h.model.status == .failed(.runtimeFailure("sensor died")))
-        #expect(h.model.statusLine == "Failed: sensor died")
+        #expect(h.model.statusLine == "Camera unavailable")
+        #expect(h.model.menuBarSymbol == "exclamationmark.triangle")
+        // The user's choice is untouched: the next launch tries again.
+        #expect(h.defaults.bool(forKey: "sway.trackingEnabled"))
     }
 
-    @Test func theRealCamerasRecoverableStatusesKeepTheToggleOn() async {
+    @Test func theRealCamerasRecoverableStatusesKeepTrackingOn() async {
         // What CameraCaptureService reports through LivePoseSource for sleep, a stall and an unplug, each followed
-        // by recovery. None of these may switch Live off or restart the source; only `.failed` does.
-        let h = Harness.make()
+        // by recovery. None of these may switch Tracking off or restart the source; only `.failed` does.
+        let h = Harness.make(calibrated: true)
         defer { h.tearDown() }
         let camera = Fixtures.builtInCamera
 
-        await h.model.setLiveEnabled(true)
+        await h.model.setTrackingEnabled(true)
         for status: CaptureStatus in [
             .starting, .running(camera), .running(camera),
             .suspended(.systemSleep), .starting, .running(camera),
@@ -175,7 +180,7 @@ struct AppModelCameraTests {
         await h.model.cameraOperation?.value
 
         #expect(settled)
-        #expect(h.model.liveEnabled)
+        #expect(h.model.trackingEnabled)
         #expect(h.model.isCameraActive)
         #expect(h.pose.startCount == 1)
         #expect(h.pose.stopCount == 0)
@@ -184,10 +189,10 @@ struct AppModelCameraTests {
     @Test func aLateStoppedFromTheStoppedStreamDoesNotHideTheFailure() async {
         // After a cancel, AsyncStream can still deliver what the source yielded from `stop()`. That `.stopped` must
         // not replace the failure on screen.
-        let h = Harness.make(autoRun: true)
+        let h = Harness.make(autoRun: true, calibrated: true)
         defer { h.tearDown() }
 
-        await h.model.setLiveEnabled(true)
+        await h.model.setTrackingEnabled(true)
         _ = await waitUntil { h.model.status.isRunning }
         let generation = h.model.streamGeneration
         h.model.handleStreamEvent(.status(.failed(.runtimeFailure("sensor died"))), generation: generation)
@@ -202,10 +207,12 @@ struct AppModelCameraTests {
     }
 
     @Test func eventsFromTheStreamOfAnEarlierRunAreIgnoredAfterARestart() async {
-        let h = Harness.make(autoRun: true)
+        let h = Harness.make(
+            autoRun: true, calibrated: true,
+            calibrationCameras: [Fixtures.builtInCamera.name, Fixtures.externalCamera.name])
         defer { h.tearDown() }
 
-        await h.model.setLiveEnabled(true)
+        await h.model.setTrackingEnabled(true)
         _ = await waitUntil { h.model.status.isRunning }
         let first = h.model.streamGeneration
         await h.model.selectCamera("cam-external")
@@ -215,29 +222,30 @@ struct AppModelCameraTests {
 
         h.model.handleStreamEvent(.status(.stopped), generation: first)
         #expect(h.model.status.isRunning)
-        #expect(h.model.liveEnabled)
+        #expect(h.model.trackingEnabled)
 
         h.model.handleStreamEvent(.status(.interrupted("Camera disconnected")), generation: second)
         #expect(h.model.status == .interrupted("Camera disconnected"))
     }
 
-    @Test func aStreamThatEndsOnItsOwnTurnsTheToggleOff() async {
-        let h = Harness.make(autoRun: true)
+    @Test func aStreamThatEndsOnItsOwnTurnsTrackingOffInMemory() async {
+        let h = Harness.make(autoRun: true, calibrated: true)
         defer { h.tearDown() }
 
-        await h.model.setLiveEnabled(true)
+        await h.model.setTrackingEnabled(true)
         _ = await waitUntil { h.model.status.isRunning }
         h.pose.finishStream()
-        let off = await waitUntil { !h.model.liveEnabled }
+        let off = await waitUntil { !h.model.trackingEnabled }
         #expect(off)
         #expect(!h.model.isCameraActive)
         #expect(h.model.status == .stopped)
+        #expect(h.defaults.bool(forKey: "sway.trackingEnabled"))
     }
 
     // MARK: Camera selection
 
     @Test func theSelectedCameraIsPersistedAndRestored() async {
-        let h = Harness.make()
+        let h = Harness.make(calibrated: true)
         defer { h.tearDown() }
         #expect(h.model.selectedCameraID == nil)
 
@@ -251,10 +259,12 @@ struct AppModelCameraTests {
     }
 
     @Test func changingTheCameraWhileRunningRestartsOnTheNewDevice() async {
-        let h = Harness.make(autoRun: true)
+        let h = Harness.make(
+            autoRun: true, calibrated: true,
+            calibrationCameras: [Fixtures.builtInCamera.name, Fixtures.externalCamera.name])
         defer { h.tearDown() }
 
-        await h.model.setLiveEnabled(true)
+        await h.model.setTrackingEnabled(true)
         _ = await waitUntil { h.model.status.isRunning }
         await h.model.selectCamera("cam-external")
 
@@ -266,7 +276,7 @@ struct AppModelCameraTests {
     }
 
     @Test func changingTheCameraWhileOffDoesNotStartIt() async {
-        let h = Harness.make(autoRun: true)
+        let h = Harness.make(autoRun: true, calibrated: true)
         defer { h.tearDown() }
 
         await h.model.selectCamera("cam-external")
@@ -274,7 +284,7 @@ struct AppModelCameraTests {
     }
 
     @Test func refreshingReadsDevicesAndPermission() {
-        let h = Harness.make(authorization: .notDetermined)
+        let h = Harness.make(authorization: .notDetermined, calibrated: true)
         defer { h.tearDown() }
         #expect(h.model.devices.map(\.id) == ["cam-builtin", "cam-external"])
 
@@ -288,64 +298,69 @@ struct AppModelCameraTests {
     // MARK: Permission
 
     @Test func aFirstRunShowsTheExplanationInsteadOfStarting() async {
-        let h = Harness.make(authorization: .notDetermined, autoRun: true)
+        let h = Harness.make(authorization: .notDetermined, autoRun: true, calibrated: true)
         defer { h.tearDown() }
 
-        await h.model.setLiveEnabled(true)
+        await h.model.setTrackingEnabled(true)
         #expect(h.model.permissionPrompt == .explanation)
         #expect(h.pose.startCount == 0)
         #expect(h.camera.requestCount == 0)
-        #expect(!h.model.liveEnabled)
-        #expect(h.model.pendingIntent == .live)
+        #expect(!h.model.trackingEnabled)
+        #expect(h.model.pendingIntent == .tracking)
     }
 
     @Test func continuingAfterTheExplanationAsksTheSystemThenStarts() async {
-        let h = Harness.make(authorization: .notDetermined, autoRun: true)
+        let h = Harness.make(authorization: .notDetermined, autoRun: true, calibrated: true)
         defer { h.tearDown() }
 
-        await h.model.setLiveEnabled(true)
+        await h.model.setTrackingEnabled(true)
         await h.model.continueAfterPermissionExplanation()
 
         #expect(h.camera.requestCount == 1)
         #expect(h.model.authorization == .authorized)
         #expect(h.model.permissionPrompt == nil)
-        #expect(h.model.liveEnabled)
+        #expect(h.model.trackingEnabled)
         #expect(h.pose.startCount == 1)
     }
 
     @Test func decliningTheSystemPromptShowsHowToEnableAccess() async {
-        let h = Harness.make(authorization: .notDetermined, autoRun: true)
+        let h = Harness.make(authorization: .notDetermined, autoRun: true, calibrated: true)
         defer { h.tearDown() }
         h.camera.setAuthorizationAfterRequest(.denied)
 
-        await h.model.setLiveEnabled(true)
+        await h.model.setTrackingEnabled(true)
         await h.model.continueAfterPermissionExplanation()
 
         #expect(h.model.permissionPrompt == .denied)
         #expect(h.pose.startCount == 0)
-        #expect(!h.model.liveEnabled)
+        // Tracking stays on, blocked: the status asks for camera access, and access granted later resumes it.
+        #expect(h.model.trackingEnabled)
+        #expect(h.model.trackingStatus == .cameraBlocked)
+        #expect(h.model.statusLine == "Camera access needed")
     }
 
     @Test func notNowDropsTheRequest() async {
-        let h = Harness.make(authorization: .notDetermined, autoRun: true)
+        let h = Harness.make(authorization: .notDetermined, autoRun: true, calibrated: true)
         defer { h.tearDown() }
 
-        await h.model.setLiveEnabled(true)
+        await h.model.setTrackingEnabled(true)
+        #expect(h.defaults.bool(forKey: "sway.trackingEnabled"), "The user flipped the switch")
         h.model.dismissPermissionPrompt()
         #expect(h.model.permissionPrompt == nil)
         #expect(h.model.pendingIntent == nil)
+        #expect(!h.defaults.bool(forKey: "sway.trackingEnabled"), "Declining is the user's choice too")
         await h.model.continueAfterPermissionExplanation()
         #expect(h.camera.requestCount == 0)
     }
 
     @Test func deniedAccessShowsInstructionsAndTheSettingsButtonOpensThePrivacyPane() async {
-        let h = Harness.make(authorization: .denied)
+        let h = Harness.make(authorization: .denied, calibrated: true)
         defer { h.tearDown() }
 
-        await h.model.setLiveEnabled(true)
+        await h.model.setTrackingEnabled(true)
         #expect(h.model.permissionPrompt == .denied)
         #expect(h.pose.startCount == 0)
-        #expect(!h.model.liveEnabled)
+        #expect(h.model.trackingEnabled)
 
         h.model.openCameraPrivacySettings()
         #expect(h.system.openedSettingsCount == 1)
@@ -355,68 +370,73 @@ struct AppModelCameraTests {
     }
 
     @Test func restrictedAccessCannotBeFixedHere() async {
-        let h = Harness.make(authorization: .restricted)
+        let h = Harness.make(authorization: .restricted, calibrated: true)
         defer { h.tearDown() }
 
-        await h.model.setLiveEnabled(true)
+        await h.model.setTrackingEnabled(true)
         #expect(h.model.permissionPrompt == .restricted)
         #expect(h.pose.startCount == 0)
     }
 
     @Test func aNotAuthorizedErrorWithAStaleAuthorizedStatusStillShowsInstructions() async {
-        let h = Harness.make(authorization: .authorized)
+        let h = Harness.make(authorization: .authorized, calibrated: true)
         defer { h.tearDown() }
         h.pose.setStartError(.notAuthorized)
 
-        await h.model.setLiveEnabled(true)
+        await h.model.setTrackingEnabled(true)
         #expect(h.pose.startCount == 1)
         #expect(h.model.permissionPrompt == .denied)
-        #expect(!h.model.liveEnabled)
+        #expect(h.model.trackingEnabled)
     }
 
     @Test func otherStartupErrorsBecomeAFailedStatus() async {
-        let h = Harness.make()
+        let h = Harness.make(calibrated: true)
         defer { h.tearDown() }
         h.pose.setStartError(.noDevice)
 
-        await h.model.setLiveEnabled(true)
+        await h.model.setTrackingEnabled(true)
         #expect(h.model.status == .failed(.noDevice))
-        #expect(!h.model.liveEnabled)
+        #expect(!h.model.trackingEnabled)
         #expect(h.model.permissionPrompt == nil)
         #expect(h.model.menuBarSymbol == "exclamationmark.triangle")
     }
 
     @Test func grantingAccessInSystemSettingsClearsTheInstructions() async {
-        let h = Harness.make(authorization: .denied)
+        let h = Harness.make(authorization: .denied, calibrated: true)
         defer { h.tearDown() }
 
-        await h.model.setLiveEnabled(true)
+        await h.model.setTrackingEnabled(true)
         #expect(h.model.permissionPrompt == .denied)
+        #expect(h.pose.startCount == 0)
         h.camera.setAuthorization(.authorized)
         h.model.refreshEnvironment()
         #expect(h.model.permissionPrompt == nil)
+        // The switch was left on, blocked: granting access starts the camera without another click.
+        await h.model.cameraOperation?.value
+        #expect(h.pose.startCount == 1)
     }
 
     // MARK: Application lifecycle
 
     @Test func terminationStopsTheCamera() async {
-        let h = Harness.make(autoRun: true)
+        let h = Harness.make(autoRun: true, calibrated: true)
         defer { h.tearDown() }
 
-        await h.model.setLiveEnabled(true)
+        await h.model.setTrackingEnabled(true)
         _ = await waitUntil { h.model.status.isRunning }
 
         h.notifications.post(name: NSApplication.willTerminateNotification, object: nil)
-        #expect(!h.model.liveEnabled)
+        #expect(!h.model.trackingEnabled)
+        #expect(h.defaults.bool(forKey: "sway.trackingEnabled"), "Quitting is not the user's choice")
         let stopped = await waitUntil { h.pose.stopCount >= 1 && h.camera.stopCount >= 1 }
         #expect(stopped)
     }
 
     @Test func quitSwitchesTheCameraOffBeforeTerminating() async {
-        let h = Harness.make(autoRun: true)
+        let h = Harness.make(autoRun: true, calibrated: true)
         defer { h.tearDown() }
 
-        await h.model.setLiveEnabled(true)
+        await h.model.setTrackingEnabled(true)
         _ = await waitUntil { h.model.status.isRunning }
         await h.model.quit()
 
@@ -429,7 +449,7 @@ struct AppModelCameraTests {
     // MARK: Windows
 
     @Test func aWindowRequestLastsUntilTheWindowCloses() {
-        let h = Harness.make()
+        let h = Harness.make(calibrated: true)
         defer { h.tearDown() }
 
         #expect(!h.model.hasWindowRequest(SwayWindowID.poseDebug))

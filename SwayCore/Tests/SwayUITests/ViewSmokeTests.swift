@@ -15,16 +15,44 @@ struct ViewSmokeTests {
         return renderer.cgImage != nil
     }
 
-    @Test func menuContentRendersOffAndLive() {
-        let off = Harness.make()
-        defer { off.tearDown() }
-        #expect(renders(MenuContentView(model: off.model), width: 300, height: 400))
+    @Test func menuContentRendersInEveryBannerState() async {
+        let first = Harness.make()
+        defer { first.tearDown() }
+        #expect(first.model.menuBanner == .firstSetup)
+        #expect(renders(MenuContentView(model: first.model), width: 300, height: 500), "First setup")
 
-        let live = Harness.make()
-        defer { live.tearDown() }
-        live.reportRunning()
-        live.run(frames: 10, dt: 0.1)
-        #expect(renders(MenuContentView(model: live.model), width: 300, height: 400))
+        let tracking = Harness.make(calibrated: true)
+        defer { tracking.tearDown() }
+        await tracking.startTracking()
+        tracking.run(frames: 10, dt: 0.1)
+        #expect(tracking.model.menuBanner == nil)
+        #expect(renders(MenuContentView(model: tracking.model), width: 300, height: 500), "Tracking")
+
+        let noAccess = Harness.make(trusted: false, calibrated: true)
+        defer { noAccess.tearDown() }
+        await noAccess.startTracking()
+        #expect(noAccess.model.menuBanner == .needsAccessibility)
+        #expect(renders(MenuContentView(model: noAccess.model), width: 300, height: 500), "Needs Accessibility")
+
+        let unknown = Harness.make(
+            layout: Fixtures.threeDisplays, trackingSaved: true,
+            seed: {
+                Harness.seedLibrary([Fixtures.profile()], into: $0)
+            })
+        defer { unknown.tearDown() }
+        #expect(unknown.model.menuBanner == .needsCalibration)
+        #expect(renders(MenuContentView(model: unknown.model), width: 300, height: 500), "Needs calibration")
+
+        let failed = Harness.make(calibrated: true, hotKeys: failingHotKeys())
+        defer { failed.tearDown() }
+        #expect(failed.model.menuBanner == .shortcut("The Focus Lock shortcut could not be set up."))
+        #expect(renders(MenuContentView(model: failed.model), width: 300, height: 500), "Shortcut message")
+    }
+
+    private func failingHotKeys() -> FakeHotKeys {
+        let hotKeys = FakeHotKeys()
+        hotKeys.failures = [(HotKeyShortcut.focusLockDefault, .registrationFailed(-1))]
+        return hotKeys
     }
 
     @Test func poseDebugRendersWithoutAndWithAnAnalysis() {
@@ -59,9 +87,9 @@ struct ViewSmokeTests {
 
     @Test func permissionBannersRenderForEveryPrompt() async {
         for authorization in [CameraAuthorization.notDetermined, .denied, .restricted] {
-            let h = Harness.make(authorization: authorization)
+            let h = Harness.make(authorization: authorization, calibrated: true)
             defer { h.tearDown() }
-            await h.model.setLiveEnabled(true)
+            await h.model.setTrackingEnabled(true)
             #expect(h.model.permissionPrompt != nil)
             #expect(renders(CameraPermissionView(model: h.model), width: 300, height: 300))
         }
@@ -83,9 +111,9 @@ struct ViewSmokeTests {
         #expect(renders(SwitchPreviewView(model: h.model), width: 520, height: 400), "Not calibrated")
 
         h.openTrace()
-        #expect(renders(SwitchPreviewView(model: h.model), width: 520, height: 400), "Calibrated, camera off")
+        #expect(renders(SwitchPreviewView(model: h.model), width: 520, height: 400), "Calibrated, tracking off")
 
-        await h.startLive()
+        await h.startTracking()
         h.engine.script.set { sample, _ in
             Fixtures.decision(
                 switchTo: sample.timestamp > 2 ? Fixtures.right.id : nil,
@@ -96,11 +124,16 @@ struct ViewSmokeTests {
         h.model.handle(.sample(Fixtures.sample(at: 1)))
         #expect(renders(SwitchPreviewView(model: h.model), width: 520, height: 400), "Dwelling")
         h.model.handle(.sample(Fixtures.sample(at: 3)))
+        await h.settleSwitch()
+        #expect(!h.model.switchLog.isEmpty)
         #expect(renders(SwitchPreviewView(model: h.model), width: 520, height: 500), "With a logged switch")
 
+        h.model.setFocusLock(true)
+        #expect(renders(SwitchPreviewView(model: h.model), width: 520, height: 500), "Focus Lock on")
+
         h.model.layoutDidChange(Fixtures.threeDisplays)
-        #expect(h.model.isCalibrationStale)
-        #expect(renders(SwitchPreviewView(model: h.model), width: 520, height: 500), "Stale")
+        #expect(h.model.activeCalibration == nil)
+        #expect(renders(SwitchPreviewView(model: h.model), width: 520, height: 500), "No calibration fits")
     }
 
     @Test func focusTestRendersGrantedNotGrantedAndBusy() async {
