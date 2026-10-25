@@ -33,6 +33,8 @@ extension AppModel {
     func layoutDidChange(_ newLayout: DisplayLayout) {
         guard newLayout != layout else { return }
         layout = newLayout
+        // Display identities may have changed, so a dwell or a simulated focus no longer means anything.
+        resetSwitchPreview()
         if gateRunState != .idle {
             cancelGateTest(reason: "The display arrangement changed, so the gate test was cancelled.")
         }
@@ -54,6 +56,7 @@ extension AppModel {
         liveEnabled = false
         streamTask?.cancel()
         streamTask = nil
+        stopFocusTest()
         let poseSource = poseSource
         let camera = camera
         Task {
@@ -70,6 +73,7 @@ extension AppModel {
         }
         liveEnabled = false
         layoutTask?.cancel()
+        stopFocusTest()
         await reconcileCamera().value
         await camera.stop()
     }

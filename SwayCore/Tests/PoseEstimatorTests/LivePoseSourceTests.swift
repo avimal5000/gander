@@ -147,6 +147,57 @@ struct LivePoseSourceTests {
         #expect(estimator.estimatedTimestamps == [3])
     }
 
+    @Test(arguments: [true, false])
+    func includeLandmarksFromTheConfigurationReachesTheEstimator(includeLandmarks: Bool) async throws {
+        let frames = FakeFrameSource()
+        let estimator = FakePoseEstimator()
+        let source = LivePoseSource(frameSource: frames, estimator: estimator)
+
+        let stream = try await source.start(PoseSourceConfiguration(includeLandmarks: includeLandmarks))
+        frames.emitFrame(timestamp: 1)
+        frames.emitFrame(timestamp: 2)
+        await source.stop()
+        _ = await drain(stream)
+
+        #expect(estimator.receivedIncludeLandmarks == [includeLandmarks, includeLandmarks])
+    }
+
+    @Test func landmarksAreOffByDefault() async throws {
+        let frames = FakeFrameSource()
+        let estimator = FakePoseEstimator()
+        let source = LivePoseSource(frameSource: frames, estimator: estimator)
+
+        let stream = try await source.start(PoseSourceConfiguration())
+        frames.emitFrame(timestamp: 1)
+        await source.stop()
+        _ = await drain(stream)
+
+        #expect(estimator.receivedIncludeLandmarks == [false])
+    }
+
+    @Test func aRestartWithADifferentIncludeLandmarksValueUsesTheNewOne() async throws {
+        let frames = FakeFrameSource()
+        let estimator = FakePoseEstimator()
+        let source = LivePoseSource(frameSource: frames, estimator: estimator)
+
+        let first = try await source.start(PoseSourceConfiguration(includeLandmarks: false))
+        let firstHandler = try #require(frames.frameHandler)
+        frames.emitFrame(timestamp: 1)
+        let second = try await source.start(PoseSourceConfiguration(includeLandmarks: true))
+        frames.emitFrame(timestamp: 2)
+        // The first run's handler is retired, so it does not estimate with the old value either.
+        firstHandler(CameraFrame(pixelBuffer: TestPixelBuffer.blank(), timestamp: 3))
+        let third = try await source.start(PoseSourceConfiguration(includeLandmarks: false))
+        frames.emitFrame(timestamp: 4)
+        await source.stop()
+        _ = await drain(first)
+        _ = await drain(second)
+        _ = await drain(third)
+
+        #expect(estimator.estimatedTimestamps == [1, 2, 4])
+        #expect(estimator.receivedIncludeLandmarks == [false, true, false])
+    }
+
     @Test(arguments: [CameraAuthorization.notDetermined, .denied, .restricted])
     func unauthorizedStartThrowsAndNeverStartsTheFrameSource(authorization: CameraAuthorization) async {
         let frames = FakeFrameSource(authorization: authorization)

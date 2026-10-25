@@ -1,9 +1,9 @@
-import Foundation
 import SwayModels
 
-// SKELETON STUB (orchestrator). The SwitchEngine builder replaces this file. See CONTRACT.md.
-
-/// Calibration fitting, pose classification, and the switch state machine.
+/// Calibration fitting, pose classification, and the switch state machine (SPEC M2, CONTRACT section 6.6).
+///
+/// A stateless facade over three internal pieces: `ProfileFitter`, `PoseClassifier`, and
+/// `SwitchStateMachine`. Safe to share and to call from any thread.
 public struct PoseSwitchEngine: SwitchEngineMaking {
     public init() {}
 
@@ -12,7 +12,7 @@ public struct PoseSwitchEngine: SwitchEngineMaking {
         features: PoseFeatureSet,
         rounds: Set<Int>?
     ) throws -> CalibrationProfile {
-        throw CalibrationError.tooFewDisplays
+        try ProfileFitter().fit(from: trace, features: features, rounds: rounds)
     }
 
     public func classify(
@@ -20,18 +20,10 @@ public struct PoseSwitchEngine: SwitchEngineMaking {
         with profile: CalibrationProfile,
         settings: SwitchSettings
     ) -> PoseClassification {
-        .noFace
+        PoseClassifier(profile: profile, settings: settings).classify(pose)
     }
 
     public func makeDecider(profile: CalibrationProfile, settings: SwitchSettings) -> any SwitchDeciding {
-        StubDecider()
+        SwitchStateMachine(profile: profile, settings: settings)
     }
-}
-
-private struct StubDecider: SwitchDeciding {
-    mutating func process(_ sample: PoseSample, context: SwitchContext) -> SwitchDecision {
-        SwitchDecision(switchTo: nil, phase: .idle, reason: .noFace, classification: .noFace)
-    }
-
-    mutating func reset() {}
 }

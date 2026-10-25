@@ -5,11 +5,24 @@ import SwayModels
 import Vision
 import os
 
-/// Vision-based head pose estimation: face rectangles (roll, yaw, pitch) plus a landmark-geometry proxy.
+/// Vision-based head pose estimation: face rectangles (roll, yaw, pitch), plus a landmark-geometry proxy when
+/// the caller asks for it.
+///
+/// The landmark request is a second Vision pass per frame, so it only runs when `estimate(_:includeLandmarks:)`
+/// is called with `true` (the gate test). Live tracking passes `false` and uses Vision's angles alone.
 ///
 /// Every call builds its own Vision handler and requests, so no Vision object is shared between calls and
-/// concurrent use is safe. The pixel buffer is only used inside `estimate(_:)`; nothing is retained or written.
+/// concurrent use is safe. The pixel buffer is only used inside `estimate(_:includeLandmarks:)`; nothing is
+/// retained or written.
 public final class VisionPoseEstimator: PoseEstimating {
+    /// A Vision request this estimator can run on a frame.
+    enum PlannedRequest: Equatable {
+        /// `VNDetectFaceRectanglesRequest`: finds faces and gives roll, yaw, and pitch.
+        case faceRectangles
+        /// `VNDetectFaceLandmarksRequest`: the eye and nose outlines for the landmark-angle proxy.
+        case faceLandmarks
+    }
+
     private let logger = SwayLog.logger(category: "pose")
     /// Keys of warnings already logged, so a per-frame condition is logged once and not at frame rate.
     private let loggedKeys = OSAllocatedUnfairLock(initialState: Set<String>())
@@ -23,6 +36,16 @@ public final class VisionPoseEstimator: PoseEstimating {
 
     public init() {}
 
+    /// The requests to run for a frame, in order: face rectangles always, then landmarks only when asked for
+    /// (SPEC D15). Pure, so the landmark opt-out is unit-testable without running Vision.
+    static func requestPlan(includeLandmarks: Bool) -> [PlannedRequest] {
+        includeLandmarks ? [.faceRectangles, .faceLandmarks] : [.faceRectangles]
+    }
+
+    /// Estimates the pose of the largest face in `frame`; `nil` if there is none.
+    /// - Parameter includeLandmarks: when `false`, only the face-rectangles request runs and the pose's
+    ///   `landmarkYaw` / `landmarkPitch` are `nil`. When `true`, the landmarks request also runs on the largest
+    ///   face to fill them (they stay `nil` if its eye or nose outlines are missing).
     public func estimate(_ frame: CameraFrame, includeLandmarks: Bool) -> HeadPose? {
         let buffer = frame.pixelBuffer
         let handler = VNImageRequestHandler(cvPixelBuffer: buffer, orientation: .up, options: [:])
@@ -37,9 +60,14 @@ public final class VisionPoseEstimator: PoseEstimating {
         }
         guard let face = Self.largestFace(in: faceRequest.results ?? []) else { return nil }
 
-        let angles = landmarkAngles(
-            for: face, handler: handler, imageWidth: CVPixelBufferGetWidth(buffer),
-            imageHeight: CVPixelBufferGetHeight(buffer))
+        let angles: LandmarkGeometry.Angles?
+        if Self.requestPlan(includeLandmarks: includeLandmarks).contains(.faceLandmarks) {
+            angles = landmarkAngles(
+                for: face, handler: handler, imageWidth: CVPixelBufferGetWidth(buffer),
+                imageHeight: CVPixelBufferGetHeight(buffer))
+        } else {
+            angles = nil
+        }
         return makeHeadPose(from: face, landmarkAngles: angles)
     }
 

@@ -12,6 +12,8 @@ struct Harness {
     let displays: FakeDisplayProvider
     let store: FakeTraceStore
     let analyzer: FakeAnalyzer
+    let engine: FakeSwitchEngine
+    let focus: FakeFocus
     let system: FakeSystem
     let overlay: FakeOverlay
     let clock: TestClock
@@ -27,6 +29,7 @@ struct Harness {
         autoRun: Bool = false,
         savedCameraID: String? = nil,
         analysis: GateAnalysis = Fixtures.analysis(),
+        trusted: Bool = true,
         suiteName: String = "sway.ui.tests.\(UUID().uuidString)"
     ) -> Harness {
         guard let defaults = UserDefaults(suiteName: suiteName) else { fatalError("Cannot create test defaults") }
@@ -38,6 +41,8 @@ struct Harness {
         let displays = FakeDisplayProvider(layout: layout)
         let store = FakeTraceStore()
         let analyzer = FakeAnalyzer(analysis: analysis)
+        let engine = FakeSwitchEngine()
+        let focus = FakeFocus(trusted: trusted)
         let system = FakeSystem()
         let overlay = FakeOverlay()
         let clock = TestClock()
@@ -49,16 +54,17 @@ struct Harness {
             overlay: overlay,
             notificationCenter: notifications,
             gateTickInterval: nil,
+            focusTickInterval: nil,
             cameraStartTimeout: 10
         )
         let model = AppModel(
             camera: camera, poseSource: pose, displays: displays, traceStore: store, analyzer: analyzer,
-            defaults: defaults, environment: environment
+            engine: engine, focus: focus, defaults: defaults, environment: environment
         )
         return Harness(
             model: model, camera: camera, pose: pose, displays: displays, store: store, analyzer: analyzer,
-            system: system, overlay: overlay, clock: clock, notifications: notifications, defaults: defaults,
-            suiteName: suiteName
+            engine: engine, focus: focus, system: system, overlay: overlay, clock: clock,
+            notifications: notifications, defaults: defaults, suiteName: suiteName
         )
     }
 
@@ -67,15 +73,17 @@ struct Harness {
         defaults.removePersistentDomain(forName: suiteName)
     }
 
-    /// Builds a second model on the same defaults suite, as after a relaunch.
-    func relaunchedModel() -> AppModel {
+    /// Builds a second model on the same defaults suite, as after a relaunch (optionally on another layout).
+    func relaunchedModel(layout: DisplayLayout = Fixtures.twoDisplays) -> AppModel {
         let environment = AppModelEnvironment(
             clock: clock.reading, now: { Date() }, system: FakeSystem(), overlay: FakeOverlay(),
-            notificationCenter: NotificationCenter(), gateTickInterval: nil, cameraStartTimeout: 10
+            notificationCenter: NotificationCenter(), gateTickInterval: nil, focusTickInterval: nil,
+            cameraStartTimeout: 10
         )
         return AppModel(
-            camera: camera, poseSource: FakePoseSource(), displays: FakeDisplayProvider(layout: Fixtures.twoDisplays),
-            traceStore: store, analyzer: analyzer, defaults: defaults, environment: environment
+            camera: camera, poseSource: FakePoseSource(), displays: FakeDisplayProvider(layout: layout),
+            traceStore: store, analyzer: analyzer, engine: engine, focus: focus, defaults: defaults,
+            environment: environment
         )
     }
 

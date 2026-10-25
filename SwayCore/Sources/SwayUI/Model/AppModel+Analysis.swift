@@ -34,14 +34,25 @@ extension AppModel {
     }
 
     /// Reclassifies the latest pose under the best feature set's report.
+    ///
+    /// Landmark angles exist only during the gate test, so when the best set is the landmark one the live pose
+    /// usually lacks its features. The classifier then returns `nil` and the Vision-angles report is used instead.
     func updateLiveClassification(for pose: HeadPose?) {
-        let updated: DisplayClassification?
-        if let pose, let report = liveReport {
-            updated = analyzer.classify(pose, using: report)
-        } else {
-            updated = nil
+        var updated: DisplayClassification?
+        var usedFeatureSet: PoseFeatureSet?
+        if let pose, let analysis, let best = analysis.bestFeatureSet {
+            let candidates: [PoseFeatureSet] = best == .visionAngles ? [best] : [best, .visionAngles]
+            for featureSet in candidates {
+                guard let report = analysis.report(for: featureSet),
+                    let classification = analyzer.classify(pose, using: report)
+                else { continue }
+                updated = classification
+                usedFeatureSet = featureSet
+                break
+            }
         }
         if updated != liveClassification { liveClassification = updated }
+        if usedFeatureSet != liveGuessFeatureSet { liveGuessFeatureSet = usedFeatureSet }
     }
 
     /// Shows an open panel in the trace folder, then analyzes the chosen file.
@@ -57,6 +68,7 @@ extension AppModel {
             let trace = try traceStore.load(url)
             let result = analyzer.analyze(trace, thresholds: .default)
             adopt(result, trace: trace, source: .file(url))
+            refitCalibration(from: trace)
             traceSaveStatus = .none
             gateMessage = nil
             isShowingReport = true

@@ -60,6 +60,15 @@ struct VisionPoseEstimatorTests {
         #expect(results.allSatisfy { $0 == nil })
     }
 
+    @Test func withoutLandmarksOnlyTheFaceRectanglesRequestIsPlanned() {
+        #expect(VisionPoseEstimator.requestPlan(includeLandmarks: false) == [.faceRectangles])
+        #expect(!VisionPoseEstimator.requestPlan(includeLandmarks: false).contains(.faceLandmarks))
+    }
+
+    @Test func withLandmarksTheLandmarksRequestFollowsTheFaceRectangles() {
+        #expect(VisionPoseEstimator.requestPlan(includeLandmarks: true) == [.faceRectangles, .faceLandmarks])
+    }
+
     @Test func largestFaceIsTheOneWithTheBiggestBoundingBoxArea() {
         let small = observation(box: CGRect(x: 0.1, y: 0.1, width: 0.1, height: 0.1))
         let tall = observation(box: CGRect(x: 0.4, y: 0.2, width: 0.2, height: 0.5))

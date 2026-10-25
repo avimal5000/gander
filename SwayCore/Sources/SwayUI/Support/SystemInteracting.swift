@@ -7,6 +7,8 @@ import Foundation
 protocol SystemInteracting: AnyObject {
     /// Opens System Settings > Privacy & Security > Camera.
     func openCameraPrivacySettings()
+    /// Opens System Settings > Privacy & Security > Accessibility.
+    func openAccessibilityPrivacySettings()
     /// Selects `url` in a Finder window.
     func revealInFinder(_ url: URL)
     /// Replaces the general pasteboard contents with `string`.
@@ -25,8 +27,18 @@ final class AppKitSystemInteractions: SystemInteracting {
         string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Camera"
     )
 
+    /// Deep link to the Accessibility pane of Privacy & Security.
+    static let accessibilityPrivacyURL = URL(
+        string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
+    )
+
     func openCameraPrivacySettings() {
         guard let url = Self.cameraPrivacyURL else { return }
+        NSWorkspace.shared.open(url)
+    }
+
+    func openAccessibilityPrivacySettings() {
+        guard let url = Self.accessibilityPrivacyURL else { return }
         NSWorkspace.shared.open(url)
     }
 

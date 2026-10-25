@@ -570,7 +570,7 @@ state machine (for example `SwitchStateMachine: SwitchDeciding`), and the engine
    - `.visionAngles` → (`yaw`, `pitch`);
    - `.landmarkAngles` → (`landmarkYaw`, `landmarkPitch`), both non-nil.
 3. If no sample in the used segments has the features, throw `CalibrationError.featuresMissing(features)`.
-4. Keep displays with at least `GateThresholds.default.minFaceSamples` (30) points. If fewer than 2 remain, throw
+4. Keep displays with at least `GateThresholds.default.minFaceSamplesPerDisplay` (30) points. If fewer than 2 remain, throw
    `CalibrationError.tooFewDisplays`.
 5. Per kept display: the mean, and the sample standard deviation (n − 1) of each axis.
 6. Order the displays by the trace layout's order, followed by any display not in the layout, in order of first
@@ -607,25 +607,33 @@ state machine (for example `SwitchStateMachine: SwitchDeciding`), and the engine
   - `t` is `sample.timestamp`;
   - `c` is `classify(sample.pose, …)`;
   - `inTargets(D)` is `context.targets == nil || context.targets!.contains(D)`;
-  - `eligible(c, m)` is `c.kind == .display && c.margin >= m && inTargets(c.best!)`.
+  - `eligible(c, m)` is `c.kind == .display && c.margin >= m && inTargets(c.best!)`;
+  - `ε = 1e-6` s. Every time comparison allows it in the direction that meets the threshold. Timestamps are large
+    (about 3·10⁵ s of host uptime), so `t − start` for an exact 0.4 s can compute as 0.39999999996 and
+    would otherwise fire one frame late:
+    - a dwell is complete when `t − start >= dwell − ε`;
+    - a cooldown is over when `t >= until − ε`;
+    - a gap is exceeded when `t − lastSupport > maxGap + ε`.
 
 `process(sample, context)` runs these steps:
 0. If `t` is less than the last timestamp, `reset()` first (a new stream). Then record `t`.
 1. Compute `c`.
 2. **Focus lock.** If `context.isFocusLocked`: set the state to `idle` and return
    `(switchTo: nil, phase: .locked, reason: .focusLocked)`.
-3. **Cooldown.** If cooling down and `t < until`: return `(nil, .coolingDown(until), .coolingDown)`. Otherwise
-   set the state to `idle` and continue.
+3. **Cooldown.** If cooling down and the cooldown is not over: return `(nil, .coolingDown(until), .coolingDown)`.
+   Otherwise set the state to `idle` and continue.
 4. **Dwelling on D:**
    - (a) If `D == context.focusedDisplay`: set `idle` and continue at step 5.
+   - (a2) If the gap is exceeded (`t − lastSupport > maxGap + ε`, for example after a camera stall): set `idle`
+     and continue at step 5, which may start a fresh dwell on this sample.
    - (b) If `c.kind == .display && c.best == D && c.margin >= stayMargin && inTargets(D)`, then
      `lastSupport = t`:
-     - if `t − start >= dwell`: set the state to `coolingDown(t + cooldown)` and return
+     - if the dwell is complete (`t − start >= dwell − ε`): set the state to `coolingDown(t + cooldown)` and return
        `(switchTo: D, phase: .coolingDown(t + cooldown), reason: nil)`;
      - otherwise return `(nil, .dwelling(D, progress: min(1, (t − start) / dwell)), .dwelling)`.
    - (c) Else, if `eligible(c, enterMargin)` with a best E ≠ D: set `idle` and continue at step 5, which may
      start a dwell on E.
-   - (d) Else, if `t − lastSupport > maxGap`: set `idle` and return `(nil, .idle, holdReason(c))`.
+   - (d) Removed: (a2) now handles an exceeded gap.
    - (e) Otherwise return `(nil, .dwelling(D, progress), .dwelling)`. The dwell clock keeps running through
      short gaps, but a switch fires only on a supporting sample.
 5. **Idle**, checked in this order:
@@ -638,7 +646,8 @@ state machine (for example `SwitchStateMachine: SwitchDeciding`), and the engine
      `(nil, .dwelling(best, 0), .dwelling)`.
 
      If `dwell <= 0`, fire immediately instead, as in 4(b).
-- **`holdReason(c)`** uses the same mapping as step 5, without starting a dwell.
+- **`holdReason(c)`** uses the same mapping as step 5, without starting a dwell. If no reason applies (for example
+  `stayMargin > enterMargin`), it returns `.uncertain`.
 - **`reset()`** returns to `idle` and forgets the last timestamp.
 
 **Logging** uses category `"engine"`, at debug level only, and never per sample at info level.
@@ -659,9 +668,11 @@ state machine (for example `SwitchStateMachine: SwitchDeciding`), and the engine
   - each side of the elsewhere box;
   - no pose, low confidence, and missing landmarks give `.noFace`.
 - **State machine**, one test per rule:
-  - fires at exactly the first sample with `t − start >= dwell`;
+  - fires at exactly the first sample with `t − start >= dwell − ε`, including timestamps near 3·10⁵ s where
+    the exact difference rounds below `dwell`;
   - a glance shorter than the dwell never fires;
-  - a gap ≤ `maxGap` survives, and a longer one cancels;
+  - a gap ≤ `maxGap` survives, and a longer one cancels. Test both a run of non-supporting samples and a hole
+    in the stream (no samples for 3 s, then a supporting sample, which starts a fresh dwell and does not fire);
   - looking back at the focused display cancels;
   - hysteresis: a margin between stay and enter keeps a dwell going but cannot start one;
   - cooldown blocks;
@@ -740,7 +751,8 @@ Everything else is `internal`.
 - If that app is Sway, return `nil`.
 - If trusted: read the app's `kAXFocusedWindowAttribute`, then `kAXPositionAttribute` and `kAXSizeAttribute`.
   These are Quartz coordinates. Return the display assigned to that frame.
-- Otherwise: the display of that pid's frontmost normal window in the window list.
+- Otherwise, or when Accessibility cannot read the focused window or its frame: the display of that pid's
+  frontmost normal window in the window list. These read-only lookups use a 0.25 s messaging timeout.
 
 **`focus(display:in:)`**, the fallback list (issue #15):
 1. Not trusted → `.notTrusted`.
@@ -769,6 +781,8 @@ Everything else is `internal`.
 
    On success → `.focused(..., .appActivation, ...)`.
 6. Otherwise → `.failed(target, reason: "Focus did not move to <app>")`.
+7. If the calling task is cancelled between methods → `.failed(target, reason: "Cancelled")`. No further method
+   is tried, which lets a Focus Test countdown be cancelled.
 - `milliseconds` runs from step 2 to verification. The returned `WindowSummary` includes the AX title when it is
   known.
 - **Rules:**

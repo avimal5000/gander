@@ -1,9 +1,11 @@
 import CameraService
 import DisplayTracker
+import FocusControl
 import PoseEstimator
 import PoseTraces
 import SwayModels
 import SwayUI
+import SwitchEngine
 
 /// Builds the concrete object graph. The only place that knows every module's concrete types.
 @MainActor
@@ -16,7 +18,9 @@ enum AppComposition {
             poseSource: poseSource,
             displays: ScreenDisplayTracker(),
             traceStore: FileTraceStore(),
-            analyzer: SeparabilityAnalyzer()
+            analyzer: SeparabilityAnalyzer(),
+            engine: PoseSwitchEngine(),
+            focus: AXFocusController()
         )
     }
 }

@@ -19,6 +19,17 @@ struct PosePlotView: View {
         }
     }
 
+    /// What to say over an empty plot. Landmark angles exist only during the gate test, so a landmark plot of live
+    /// poses says so instead of waiting for a face that is already there.
+    private func placeholder(trail: [TrailPoint]) -> String? {
+        PlotPlaceholder.text(
+            featureSet: featureSet,
+            hasFacePoints: !model.history.points.isEmpty,
+            hasPlottedPoints: !trail.isEmpty,
+            isRunning: model.status.isRunning
+        )
+    }
+
     private var clusters: [PlotGeometry.ClusterShape] {
         guard let report = model.analysis?.report(for: featureSet) else { return [] }
         return PlotGeometry.ClusterShape.shapes(for: report, labels: model.analysisLabels)
@@ -55,9 +66,11 @@ struct PosePlotView: View {
             .chartLegend(clusters.isEmpty ? .hidden : .visible)
             .frame(height: 260)
             .overlay {
-                if trail.isEmpty {
-                    Text(model.status.isRunning ? "Waiting for a face\u{2026}" : "Turn the camera on to see live pose")
+                if let placeholder = placeholder(trail: trail) {
+                    Text(placeholder)
                         .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 24)
                 }
             }
             .accessibilityLabel("Plot of yaw versus pitch over the last ten seconds")

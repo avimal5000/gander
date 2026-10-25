@@ -36,6 +36,49 @@ struct AppModelAnalysisTests {
         #expect(h.analyzer.classifiedReports.last?.featureSet == .visionAngles)
     }
 
+    @Test func aBestLandmarkReportFallsBackToVisionWhenThePoseHasNoLandmarks() {
+        let h = Harness.make(analysis: Fixtures.analysis(best: .landmarkAngles))
+        defer { h.tearDown() }
+        h.analyzer.setClassification(nearLeft)
+        h.analyzer.setUnclassifiable(.landmarkAngles)
+        h.model.adopt(Fixtures.analysis(best: .landmarkAngles), trace: Fixtures.trace(), source: .gateTest)
+
+        h.feed(yaw: -20)
+
+        #expect(h.analyzer.classifiedReports.map(\.featureSet).suffix(2) == [.landmarkAngles, .visionAngles])
+        #expect(h.model.liveClassification == nearLeft)
+        #expect(h.model.liveGuessFeatureSet == .visionAngles)
+        #expect(h.model.liveGuessName == "Left")
+    }
+
+    @Test func aBestLandmarkReportIsUsedWhileTheLandmarksExist() {
+        let h = Harness.make(analysis: Fixtures.analysis(best: .landmarkAngles))
+        defer { h.tearDown() }
+        h.analyzer.setClassification(nearLeft)
+        h.model.adopt(Fixtures.analysis(best: .landmarkAngles), trace: Fixtures.trace(), source: .gateTest)
+        let before = h.analyzer.classifiedReports.count
+
+        h.feed()
+
+        #expect(h.analyzer.classifiedReports.count == before + 1)
+        #expect(h.analyzer.classifiedReports.last?.featureSet == .landmarkAngles)
+        #expect(h.model.liveGuessFeatureSet == .landmarkAngles)
+    }
+
+    @Test func aVisionReportThatCannotClassifyHasNoFallbackAndNoGuess() {
+        let h = Harness.make()
+        defer { h.tearDown() }
+        h.analyzer.setUnclassifiable(.visionAngles)
+        h.model.adopt(Fixtures.analysis(best: .visionAngles), trace: Fixtures.trace(), source: .gateTest)
+        let before = h.analyzer.classifiedReports.count
+
+        h.feed()
+
+        #expect(h.analyzer.classifiedReports.count == before + 1)
+        #expect(h.model.liveClassification == nil)
+        #expect(h.model.liveGuessFeatureSet == nil)
+    }
+
     @Test func noFaceMeansNoGuess() {
         let h = Harness.make()
         defer { h.tearDown() }

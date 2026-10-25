@@ -1,7 +1,8 @@
 import SwayModels
 import SwiftUI
 
-/// The Pose Debug window (SPEC F5/F6): live numbers, schematic face box, 10 s plot, and the live guess.
+/// The Pose Debug window (SPEC F5/F6/F11): live numbers, schematic face box, 10 s plot, the live guess, and the
+/// Switch preview.
 struct PoseDebugView: View {
     @Bindable var model: AppModel
 
@@ -28,6 +29,7 @@ struct PoseDebugView: View {
                 .swayCard()
                 PosePlotView(model: model)
                 LiveGuessView(model: model)
+                SwitchPreviewView(model: model)
                 #if DEBUG
                 RecordingControlsView(model: model)
                 #endif
@@ -59,6 +61,6 @@ struct PoseDebugView: View {
 
 #if DEBUG
 #Preview("Pose Debug with live guess") {
-    PoseDebugView(model: PreviewSupport.model(live: true, withAnalysis: true))
+    PoseDebugView(model: PreviewSupport.model(live: true, withAnalysis: true, withProfile: true))
 }
 #endif

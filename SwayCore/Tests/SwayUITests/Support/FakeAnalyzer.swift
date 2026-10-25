@@ -7,6 +7,8 @@ final class FakeAnalyzer: SeparabilityAnalyzing {
     struct State: Sendable {
         var analysis: GateAnalysis
         var classification: DisplayClassification?
+        /// Feature sets whose reports classify to `nil`, as when the pose lacks that set's features.
+        var unclassifiable: Set<PoseFeatureSet> = []
         var markdown = "FAKE MARKDOWN"
         var analyzedTraces: [PoseTrace] = []
         var analyzedThresholds: [GateThresholds] = []
@@ -27,6 +29,13 @@ final class FakeAnalyzer: SeparabilityAnalyzing {
         state.withLock { $0.classification = value }
     }
 
+    /// Makes `classify` return `nil` for reports of `featureSet`.
+    func setUnclassifiable(_ featureSet: PoseFeatureSet, _ value: Bool = true) {
+        state.withLock {
+            if value { $0.unclassifiable.insert(featureSet) } else { $0.unclassifiable.remove(featureSet) }
+        }
+    }
+
     func analyze(_ trace: PoseTrace, thresholds: GateThresholds) -> GateAnalysis {
         state.withLock {
             $0.analyzedTraces.append(trace)
@@ -38,7 +47,7 @@ final class FakeAnalyzer: SeparabilityAnalyzing {
     func classify(_ pose: HeadPose, using report: SeparabilityReport) -> DisplayClassification? {
         state.withLock {
             $0.classifiedReports.append(report)
-            return $0.classification
+            return $0.unclassifiable.contains(report.featureSet) ? nil : $0.classification
         }
     }
 

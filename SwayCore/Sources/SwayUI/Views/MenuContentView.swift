@@ -22,6 +22,9 @@ struct MenuContentView: View {
                 MenuRow(title: "Head-Pose Gate Test\u{2026}", systemImage: "scope") {
                     open(SwayWindowID.gateTest)
                 }
+                MenuRow(title: "Focus Test Window\u{2026}", systemImage: "rectangle.2.swap") {
+                    open(SwayWindowID.focusTest)
+                }
                 MenuRow(title: "Quit Sway", systemImage: "power") {
                     Task { await model.quit() }
                 }

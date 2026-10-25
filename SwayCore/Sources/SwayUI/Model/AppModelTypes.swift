@@ -5,6 +5,8 @@ import SwayModels
 enum DefaultsKey {
     /// Preferred camera's `CameraDevice.id`; absent means "default (built-in)".
     static let cameraDeviceID = "sway.cameraDeviceID"
+    /// The fitted `CalibrationProfile`, as JSON with ISO-8601 dates (SPEC F10, D17).
+    static let calibrationProfile = "sway.calibrationProfile"
 }
 
 /// What the camera permission banner should currently say.

@@ -73,4 +73,50 @@ enum Fixtures {
             ]
         )
     }
+
+    // MARK: Calibration and the switch preview
+
+    /// A Vision-angles profile for the two display layout: Left at -20 yaw, Right at +20.
+    static func profile(
+        layout: DisplayLayout = twoDisplays, createdAt: Date = Date(timeIntervalSince1970: 1_700_000_000)
+    )
+        -> CalibrationProfile
+    {
+        let profiles = layout.displays.enumerated().map { index, display in
+            DisplayProfile(
+                displayID: display.id, yaw: -20 + 40 * Double(index), pitch: 0, yawStd: 2, pitchStd: 1,
+                sampleCount: 100)
+        }
+        return CalibrationProfile(
+            features: .visionAngles, displays: profiles, yawScale: 2, pitchScale: 2.5,
+            layoutFingerprint: layout.fingerprint, cameraName: builtInCamera.name, createdAt: createdAt)
+    }
+
+    /// A classification pointing at `best` (or elsewhere / no face).
+    static func classification(
+        _ kind: PoseClassification.Kind = .display, best: DisplayID? = left.id, margin: Double = 0.6
+    ) -> PoseClassification {
+        if kind == .noFace { return .noFace }
+        let runnerUp = best == left.id ? right.id : left.id
+        return PoseClassification(
+            kind: kind, best: best, runnerUp: runnerUp, margin: kind == .display ? margin : 0, distances: [:])
+    }
+
+    /// A decision with sensible defaults: idle, looking at Left.
+    static func decision(
+        switchTo: DisplayID? = nil, phase: SwitchPhase = .idle, reason: SwitchHoldReason? = nil,
+        classification: PoseClassification = Fixtures.classification()
+    ) -> SwitchDecision {
+        SwitchDecision(switchTo: switchTo, phase: phase, reason: reason, classification: classification)
+    }
+
+    // MARK: Focus
+
+    static func window(
+        _ id: UInt32 = 1, app: String = "Safari", title: String? = "Secret page", on display: DisplayInfo = left
+    ) -> WindowSummary {
+        WindowSummary(
+            id: id, processID: Int32(id) + 100, appName: app, title: title, bounds: display.frame,
+            displayID: display.id)
+    }
 }
