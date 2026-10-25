@@ -5,40 +5,52 @@ import SwiftUI
 /// Switch preview.
 struct PoseDebugView: View {
     @Bindable var model: AppModel
+    /// False while the window is closed or minimized. SwiftUI keeps a closed window's views alive, and without this
+    /// they would keep redrawing for every camera frame (`WindowVisibility`).
+    @State private var showsLiveContent = true
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                header
-                CameraPermissionView(model: model)
-                HStack(spacing: 20) {
-                    LiveCameraToggle(model: model)
-                    CameraPickerView(model: model)
-                        .frame(maxWidth: 320)
-                }
-                HStack(alignment: .top, spacing: 24) {
-                    PoseReadoutView(model: model)
-                    VStack(alignment: .leading, spacing: 6) {
-                        FaceBoxView(faceBounds: model.latestSample?.pose?.faceBounds)
-                            .frame(maxWidth: 240)
-                        Text("Schematic camera frame. Sway never shows or stores video.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .swayCard()
-                PosePlotView(model: model)
-                LiveGuessView(model: model)
-                SwitchPreviewView(model: model)
-                #if DEBUG
-                RecordingControlsView(model: model)
-                #endif
+            if showsLiveContent {
+                content
             }
-            .padding(20)
         }
-        .frame(minWidth: 640, minHeight: 640)
+        // Bounds on both sides of each axis: the window's minimum size then comes from this frame alone. With only
+        // minimums, AppKit re-measured the whole content (plot included) on every update, once per camera frame.
+        .frame(minWidth: 640, maxWidth: .infinity, minHeight: 640, maxHeight: .infinity)
+        .background(WindowVisibilityReader { showsLiveContent = $0 })
         .onAppear { model.refreshEnvironment() }
         .launchGuarded(id: SwayWindowID.poseDebug, model: model)
+    }
+
+    private var content: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            header
+            CameraPermissionView(model: model)
+            HStack(spacing: 20) {
+                LiveCameraToggle(model: model)
+                CameraPickerView(model: model)
+                    .frame(maxWidth: 320)
+            }
+            HStack(alignment: .top, spacing: 24) {
+                PoseReadoutView(model: model)
+                VStack(alignment: .leading, spacing: 6) {
+                    LiveFaceBox(model: model)
+                        .frame(maxWidth: 240)
+                    Text("Schematic camera frame. Sway never shows or stores video.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .swayCard()
+            PosePlotView(model: model)
+            LiveGuessView(model: model)
+            SwitchPreviewView(model: model)
+            #if DEBUG
+            RecordingControlsView(model: model)
+            #endif
+        }
+        .padding(20)
     }
 
     private var header: some View {
@@ -50,13 +62,23 @@ struct PoseDebugView: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
-            Text(model.status.isRunning ? Formatting.fps(model.fps) : Formatting.missing)
+            Text(model.status.isRunning ? Formatting.fps(model.readout.fps) : Formatting.missing)
                 .font(.callout.monospacedDigit())
                 .foregroundStyle(.secondary)
                 .accessibilityLabel("Measured frame rate")
         }
     }
 
+}
+
+/// The face box at the frame rate. Its own view, so a new frame redraws the box and not the whole window, whose other
+/// per-frame parts (plot, switch preview) read the model themselves too.
+private struct LiveFaceBox: View {
+    let model: AppModel
+
+    var body: some View {
+        FaceBoxView(faceBounds: model.latestSample?.pose?.faceBounds)
+    }
 }
 
 #if DEBUG

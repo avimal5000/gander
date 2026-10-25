@@ -53,6 +53,9 @@ public final class AppModel {
     var hasFace = false
     /// Rolling 10 s of poses plus the measured frame rate.
     var history = PoseHistory()
+    /// The latest pose and frame rate as the text readouts show them, refreshed five times a second
+    /// (`LiveReadout`). Only replaced when due, so views reading it update at that rate, not the frame rate.
+    var readout = LiveReadout()
     /// Which feature set the debug plot shows.
     var plotFeatureSet: PoseFeatureSet = .visionAngles
 

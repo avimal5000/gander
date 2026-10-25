@@ -151,6 +151,7 @@ extension AppModel {
         liveClassification = nil
         liveGuessFeatureSet = nil
         history.reset()
+        readout = LiveReadout()
         resetSwitchPreview()
         #if DEBUG
         finishRecordingIfNeeded()
@@ -230,6 +231,7 @@ extension AppModel {
         let face = sample.pose != nil
         if face != hasFace { hasFace = face }
         history.append(sample)
+        if readout.isDue(for: sample) { readout = LiveReadout(sample: sample, fps: history.fps) }
         updateLiveClassification(for: sample.pose)
         processSwitchPreview(sample)
         #if DEBUG
@@ -249,6 +251,7 @@ extension AppModel {
         liveClassification = nil
         liveGuessFeatureSet = nil
         history.reset()
+        readout = LiveReadout()
         resetSwitchPreview()
     }
 

@@ -69,6 +69,17 @@ struct VisionPoseEstimatorTests {
         #expect(VisionPoseEstimator.requestPlan(includeLandmarks: true) == [.faceRectangles, .faceLandmarks])
     }
 
+    @Test func faceRequestsRunRevisionThreeAndSetItOnlyWhenTheDefaultDiffers() {
+        // A new request on this OS already runs revision 3 (or the override sets it).
+        let request = VNDetectFaceRectanglesRequest()
+        if let revision = VisionPoseEstimator.revisionOverride { request.revision = revision }
+        #expect(request.revision == VNDetectFaceRectanglesRequestRevision3)
+
+        #expect(VisionPoseEstimator.revisionOverride(preferred: 3, supported: [1, 2, 3], defaultRevision: 3) == nil)
+        #expect(VisionPoseEstimator.revisionOverride(preferred: 3, supported: [1, 2, 3, 4], defaultRevision: 4) == 3)
+        #expect(VisionPoseEstimator.revisionOverride(preferred: 3, supported: [1, 2], defaultRevision: 2) == nil)
+    }
+
     @Test func largestFaceIsTheOneWithTheBiggestBoundingBoxArea() {
         let small = observation(box: CGRect(x: 0.1, y: 0.1, width: 0.1, height: 0.1))
         let tall = observation(box: CGRect(x: 0.4, y: 0.2, width: 0.2, height: 0.5))

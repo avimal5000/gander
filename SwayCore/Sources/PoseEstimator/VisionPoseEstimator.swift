@@ -27,12 +27,19 @@ public final class VisionPoseEstimator: PoseEstimating {
     /// Keys of warnings already logged, so a per-frame condition is logged once and not at frame rate.
     private let loggedKeys = OSAllocatedUnfairLock(initialState: Set<String>())
 
-    /// Face-rectangle request revision 3 when the OS supports it (the first revision with pitch), else `nil`,
-    /// which leaves a new request at its latest revision.
-    private static let preferredRevision: Int? = {
-        let revision = Int(VNDetectFaceRectanglesRequestRevision3)
-        return VNDetectFaceRectanglesRequest.supportedRevisions.contains(revision) ? revision : nil
-    }()
+    /// The face-rectangle revision to set on each new request: revision 3 (the first with pitch) when the OS
+    /// supports it and new requests do not already default to it, else `nil` (leave the request as it is).
+    /// Setting a revision is not free (Vision re-reads its private revision table each time, about 3% of a core
+    /// at 15 fps), so the setter is skipped when it would change nothing.
+    static let revisionOverride: Int? = revisionOverride(
+        preferred: Int(VNDetectFaceRectanglesRequestRevision3),
+        supported: VNDetectFaceRectanglesRequest.supportedRevisions,
+        defaultRevision: VNDetectFaceRectanglesRequest.defaultRevision)
+
+    /// Pure form of `revisionOverride`, for tests.
+    static func revisionOverride(preferred: Int, supported: IndexSet, defaultRevision: Int) -> Int? {
+        supported.contains(preferred) && defaultRevision != preferred ? preferred : nil
+    }
 
     public init() {}
 
@@ -51,7 +58,7 @@ public final class VisionPoseEstimator: PoseEstimating {
         let handler = VNImageRequestHandler(cvPixelBuffer: buffer, orientation: .up, options: [:])
 
         let faceRequest = VNDetectFaceRectanglesRequest()
-        if let revision = Self.preferredRevision { faceRequest.revision = revision }
+        if let revision = Self.revisionOverride { faceRequest.revision = revision }
         do {
             try handler.perform([faceRequest])
         } catch {

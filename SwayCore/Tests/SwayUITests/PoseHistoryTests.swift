@@ -81,3 +81,33 @@ struct PoseHistoryTests {
         #expect(history.fps == 0)
     }
 }
+
+@Suite("Live readout")
+struct LiveReadoutTests {
+    @Test func theFirstSampleIsAlwaysDue() {
+        #expect(LiveReadout().isDue(for: Fixtures.sample(at: 3)))
+        #expect(LiveReadout().isDue(for: Fixtures.sample(at: 3, face: false)))
+    }
+
+    @Test func laterSamplesAreDueAfterTheRefreshInterval() {
+        let readout = LiveReadout(sample: Fixtures.sample(at: 10, yaw: 4), fps: 15)
+        #expect(readout.pose?.yaw == 4)
+        #expect(readout.fps == 15)
+        #expect(!readout.isDue(for: Fixtures.sample(at: 10.1)))
+        #expect(readout.isDue(for: Fixtures.sample(at: 10.25)))
+    }
+
+    @Test func aFaceAppearingOrDisappearingIsDueAtOnce() {
+        let withFace = LiveReadout(sample: Fixtures.sample(at: 10), fps: 15)
+        #expect(withFace.isDue(for: Fixtures.sample(at: 10.05, face: false)))
+        let withoutFace = LiveReadout(sample: Fixtures.sample(at: 10, face: false), fps: 15)
+        #expect(withoutFace.pose == nil)
+        #expect(withoutFace.isDue(for: Fixtures.sample(at: 10.05)))
+        #expect(!withoutFace.isDue(for: Fixtures.sample(at: 10.05, face: false)))
+    }
+
+    @Test func timeGoingBackwardsIsDue() {
+        let readout = LiveReadout(sample: Fixtures.sample(at: 10), fps: 15)
+        #expect(readout.isDue(for: Fixtures.sample(at: 2)))
+    }
+}

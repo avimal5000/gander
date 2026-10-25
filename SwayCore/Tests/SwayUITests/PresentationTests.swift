@@ -195,3 +195,24 @@ struct SwitchPreviewWordingTests {
         #expect(text(.visionAngles, true, true, true) == nil)
     }
 }
+
+@Suite("Live content visibility")
+struct LiveContentVisibilityTests {
+    @Test func liveContentShowsOnlyInAnOpenUnminimizedWindow() {
+        #expect(WindowVisibility.showsLiveContent(isVisible: true, isMiniaturized: false, isClosing: false))
+        #expect(!WindowVisibility.showsLiveContent(isVisible: false, isMiniaturized: false, isClosing: false))
+        #expect(!WindowVisibility.showsLiveContent(isVisible: true, isMiniaturized: true, isClosing: false))
+        // `willClose` arrives while the window still reports itself visible.
+        #expect(!WindowVisibility.showsLiveContent(isVisible: true, isMiniaturized: false, isClosing: true))
+    }
+
+    @Test func menuReadoutIsOneLineInEveryState() {
+        #expect(
+            MenuReadout.make(pose: Fixtures.pose(yaw: 12.34, pitch: -3), isRunning: true)
+                == .angles(yaw: "+12.3\u{00B0}", pitch: "-3.0\u{00B0}"))
+        #expect(MenuReadout.make(pose: nil, isRunning: true) == .noFace)
+        // Camera off: dashes instead of no line, so the popover keeps its height.
+        #expect(MenuReadout.make(pose: nil, isRunning: false) == .angles(yaw: "\u{2014}", pitch: "\u{2014}"))
+        #expect(MenuReadout.placeholder == .angles(yaw: "\u{2014}", pitch: "\u{2014}"))
+    }
+}
