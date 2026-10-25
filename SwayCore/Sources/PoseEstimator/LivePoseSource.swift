@@ -96,7 +96,7 @@ public final class LivePoseSource: PoseSource {
                 frameRate: configuration.frameRate,
                 frameHandler: { frame in
                     guard state.withLock({ $0.generation == generation }) else { return }
-                    let pose = estimator.estimate(frame)
+                    let pose = estimator.estimate(frame, includeLandmarks: configuration.includeLandmarks)
                     continuation.yield(.sample(PoseSample(timestamp: frame.timestamp, pose: pose)))
                 },
                 statusHandler: { status in

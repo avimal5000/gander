@@ -25,7 +25,7 @@ final class FakePoseEstimator: PoseEstimating {
         )
     }
 
-    func estimate(_ frame: CameraFrame) -> HeadPose? {
+    func estimate(_ frame: CameraFrame, includeLandmarks: Bool) -> HeadPose? {
         calls.withLock { $0.append(frame.timestamp) }
         return Self.pose(at: frame.timestamp)
     }

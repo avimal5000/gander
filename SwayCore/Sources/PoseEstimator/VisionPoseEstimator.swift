@@ -23,7 +23,7 @@ public final class VisionPoseEstimator: PoseEstimating {
 
     public init() {}
 
-    public func estimate(_ frame: CameraFrame) -> HeadPose? {
+    public func estimate(_ frame: CameraFrame, includeLandmarks: Bool) -> HeadPose? {
         let buffer = frame.pixelBuffer
         let handler = VNImageRequestHandler(cvPixelBuffer: buffer, orientation: .up, options: [:])
 

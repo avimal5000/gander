@@ -32,15 +32,15 @@ struct VisionPoseEstimatorTests {
     func blankFrameHasNoFace() {
         let estimator = VisionPoseEstimator()
         let frame = TestPixelBuffer.frame(timestamp: 0)
-        #expect(estimator.estimate(frame) == nil)
+        #expect(estimator.estimate(frame, includeLandmarks: true) == nil)
         // A second call on the same instance behaves the same: no state leaks between frames.
-        #expect(estimator.estimate(frame) == nil)
+        #expect(estimator.estimate(frame, includeLandmarks: true) == nil)
     }
 
     @Test(.disabled(if: visionHangsHere, "Vision requests hang on virtualized CI runners"))
     func blankFrameOfAnotherSizeHasNoFace() {
         let frame = CameraFrame(pixelBuffer: TestPixelBuffer.blank(width: 320, height: 240), timestamp: 1)
-        #expect(VisionPoseEstimator().estimate(frame) == nil)
+        #expect(VisionPoseEstimator().estimate(frame, includeLandmarks: true) == nil)
     }
 
     @Test(.disabled(if: visionHangsHere, "Vision requests hang on virtualized CI runners"))
@@ -48,7 +48,9 @@ struct VisionPoseEstimatorTests {
         let estimator = VisionPoseEstimator()
         let results = await withTaskGroup(of: HeadPose?.self) { group in
             for index in 0..<4 {
-                group.addTask { estimator.estimate(TestPixelBuffer.frame(timestamp: Double(index))) }
+                group.addTask {
+                    estimator.estimate(TestPixelBuffer.frame(timestamp: Double(index)), includeLandmarks: true)
+                }
             }
             var all: [HeadPose?] = []
             for await result in group { all.append(result) }
