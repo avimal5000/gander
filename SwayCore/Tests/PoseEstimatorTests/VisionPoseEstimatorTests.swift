@@ -6,6 +6,11 @@ import Vision
 
 @testable import PoseEstimator
 
+/// Real Vision requests never finish on GitHub's virtualized macOS runners: every call waits forever on Vision's
+/// internal task queue, which also starves the shared concurrency pool and stalls the whole test run. The tests
+/// that run Vision therefore skip when `CI` is set; they still run on real Macs.
+private let visionHangsHere = ProcessInfo.processInfo.environment["CI"] != nil
+
 @Suite("VisionPoseEstimator")
 struct VisionPoseEstimatorTests {
     private func observation(
@@ -23,7 +28,8 @@ struct VisionPoseEstimatorTests {
         )
     }
 
-    @Test func blankFrameHasNoFace() {
+    @Test(.disabled(if: visionHangsHere, "Vision requests hang on virtualized CI runners"))
+    func blankFrameHasNoFace() {
         let estimator = VisionPoseEstimator()
         let frame = TestPixelBuffer.frame(timestamp: 0)
         #expect(estimator.estimate(frame) == nil)
@@ -31,12 +37,14 @@ struct VisionPoseEstimatorTests {
         #expect(estimator.estimate(frame) == nil)
     }
 
-    @Test func blankFrameOfAnotherSizeHasNoFace() {
+    @Test(.disabled(if: visionHangsHere, "Vision requests hang on virtualized CI runners"))
+    func blankFrameOfAnotherSizeHasNoFace() {
         let frame = CameraFrame(pixelBuffer: TestPixelBuffer.blank(width: 320, height: 240), timestamp: 1)
         #expect(VisionPoseEstimator().estimate(frame) == nil)
     }
 
-    @Test func estimatorCanBeUsedFromSeveralTasks() async {
+    @Test(.disabled(if: visionHangsHere, "Vision requests hang on virtualized CI runners"))
+    func estimatorCanBeUsedFromSeveralTasks() async {
         let estimator = VisionPoseEstimator()
         let results = await withTaskGroup(of: HeadPose?.self) { group in
             for index in 0..<4 {
