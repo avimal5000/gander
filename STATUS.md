@@ -3,7 +3,8 @@
 Phase: **M2 + M3** (core engine + focus controller), built overnight per SPEC D14. Updated by the orchestrator.
 
 **Current state:** Skeleton, SPEC, and CONTRACT for M2 + M3 are done on branch `feat/11-m2-m3-engine-focus`.
-Built, reviewed, verified, and green on CI. The user's hardware checks found high CPU, now fixed (635 tests, zero warnings).
+Built, reviewed, verified, and green on CI. The user's hardware checks found high CPU and a crash on turning Live off; both
+fixed (638 tests, zero warnings).
 **PR #45 awaits the user:** review, Focus Test notes for `docs/focus-fallbacks.md`, merge.
 
 ## History
@@ -18,7 +19,7 @@ Built, reviewed, verified, and green on CI. The user's hardware checks found hig
 - **User hardware checks of M2 + M3 (2026-10-25):**
   - Focus Test worked; light and dark mode fine; no flickers.
   - CPU was 30–40% with Live on: fixed, see "CPU fix" below.
-  - One crash when turning Live off from the menu; not reproduced since (open issues).
+  - Crash when turning Live off from the menu: reproduced with a backtrace and fixed, see "Crash fix" below.
 - **CI hang fixed:** real-Vision tests hang on GitHub's virtual Macs, so they skip when `CI` is set.
 - **Repo moved** to `~/Developer/Sway` (out of iCloud).
 
@@ -35,6 +36,7 @@ Built, reviewed, verified, and green on CI. The user's hardware checks found hig
 | `docs/focus-fallbacks.md` | Done | Method, fallback list, and known limits (from builder-focus); the "verified" column awaits the user's Focus Test |
 | Review pass (Opus) | Done | Verdict: ready after fixes. No bugs found in the engine, focus controller, concurrency, or privacy. Fixed: (1) the preview's dwell latency after a dwell restarts on the same display (step 4(a2)); (2) closing the Focus Test window now cancels a focus request in flight. A rate limit interrupted the review once; it was resumed. Orchestrator follow-ups: no-face traces now report "not enough face samples" instead of "no Vision angles" (contract §6.6 step 3 and §6.5.1 amended); UI test defaults now live in the temp directory (they had left 664 `sway.ui.tests.*.plist` files in `~/Library/Preferences`; the user can delete them) |
 | CPU fix after the user's checks | Done | Profiled with `sample` against the user's running app. Live on with no windows: **42–49% → about 14–19%** of one core; Pose Debug open: about 40–50% → about 32%. Causes and fixes: (1) `.windowResizability(.contentMinSize)` re-measured Pose Debug's whole content on every frame (37% of the main thread): the root frame now bounds both sides of each axis; (2) SwiftUI keeps closed windows' and the popover's views alive, so they kept redrawing: live content now draws only while its window is on screen (`WindowVisibilityReader`); (3) Swift Charts rebuilt ~150 trail marks per frame: the trail is a `Canvas` over a chart that redraws only when its domain or clusters change; (4) the numeric readouts refresh five times a second (`LiveReadout`); (5) Vision re-read its revision table on every frame because revision 3 was set even when it is the default (3% of a core). The menu readout is now always one line (dashes when off), so the popover keeps its height when Live is toggled. What's left with no windows open is about 75% Vision face detection at 15 fps; lowering it is M7 work (adaptive frame rate) |
+| Crash fix after the user's checks | Done | The user's `bt all`: a stack overflow on the camera session queue, about 3,000 nested closure releases deep, inside `FrameSampleReceiver.disable()`. Cause: the frame handler sat bare in an `OSAllocatedUnfairLock<(@Sendable (CameraFrame) -> Void)?>`. A function type stored in a generic container is re-abstracted on every `withLock` call, so each frame wrapped the stored handler in two more thunks. The chain grew by about 30 links a second while Live ran, every frame called through all of it, and releasing it at teardown overflowed the 512 KB dispatch-thread stack. Either toggle could trigger it once Live had run long enough (roughly two minutes at 15 fps); the menu toggle just happened to be the one used after long runs. The handler is now a field of a small struct (`Delivery`), which has one fixed representation. Reproduced and confirmed in a standalone build: bare storage crashed after about 3,000 calls on a 512 KB stack and slowed about 30× over 22,000 calls; boxed stayed flat. 3 new tests: delivery stops at `disable()`, `disable()` releases the handler, and a 20,000-frame run then `disable()` on a 512 KB-stack thread (with the old storage this crashes the test process). No other lock or container in the code holds a bare closure |
 | Orchestrator verification, PR, CI | Done | Verified locally: privacy guard, swift-format strict, zero warnings, `swift test` 626 tests, `xcodebuild test` TEST SUCCEEDED (8 targets), Release BUILD SUCCEEDED. **PR #45** (closes #11–#14, #16, #17; #15 and #18 stay open until the user's Focus Test). CI run 1 failed on one timing-dependent test (a 25 ms polling timeout ran out on the slow runner); fixed in `05a052b`. **CI run 2 green**: 626 tests, SwiftLint 0 violations, guard, app build |
 
 ## Builder agents
@@ -54,11 +56,8 @@ Built, reviewed, verified, and green on CI. The user's hardware checks found hig
   - A rerun with live log capture worked normally.
   - Cause unknown; the leading suspect is the window/menu layer reacting to the screens sleeping.
   - If it recurs, run `scripts/sleep-diag.sh` before reproducing. It samples every thread when spindump reports a spin.
-- **Crash on turning Live off from the menu (once, 2026-10-25 09:31, not reproduced).**
-  - It happened while the camera was tearing down; three later attempts were fine.
-  - No stack was captured (Xcode's debugger caught it; no crash report).
-  - The popover used to shrink under the toggle when the camera stopped; that no longer happens.
-  - If it recurs under Xcode, run `bt all` in the debug console and save the output.
+- **Crash on turning Live off:** fixed (see "Crash fix"). Awaits the user's re-test: run Live for 5+ minutes, then
+  turn it off from the menu bar.
 - **AppKit `-layoutSubtreeIfNeeded` warning** appears once per launch, from `MenuBarExtra`. Harmless.
 - **Dependabot PR** (actions/checkout bump) is open; left for the user.
 - **Leftover test files:** earlier UI test runs left `sway.ui.tests.*.plist` files in `~/Library/Preferences` (664). Fixed for future runs. The user can delete the old ones: `rm ~/Library/Preferences/sway.ui.tests.*.plist`.
