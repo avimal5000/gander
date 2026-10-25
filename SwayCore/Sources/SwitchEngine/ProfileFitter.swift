@@ -25,14 +25,17 @@ struct ProfileFitter: Sendable {
     ///   - trace: Source of labeled segments; unlabeled segments (`displayID == nil`) are ignored.
     ///   - features: Which pose features to use.
     ///   - rounds: Only segments of these rounds; `nil` uses every round.
-    /// - Throws: `CalibrationError.featuresMissing` when no used sample has the features, and
-    ///   `CalibrationError.tooFewDisplays` when fewer than two displays reach `minPointsPerDisplay`.
+    /// - Throws: `CalibrationError.featuresMissing` when the used segments have face samples but none with the
+    ///   features, and `CalibrationError.tooFewDisplays` when fewer than two displays reach `minPointsPerDisplay`
+    ///   (including no face samples or no used segments at all).
     func fit(from trace: PoseTrace, features: PoseFeatureSet, rounds: Set<Int>?) throws -> CalibrationProfile {
         let collected = collectPoints(from: trace, features: features, rounds: rounds)
 
-        // Step 3: nothing usable at all is a different problem from too little data.
+        // Step 3: faces without the features (landmarks in a live recording) is a different problem from too
+        // little data. No faces or no labeled segments at all is too little data.
         guard collected.pointsByDisplay.values.contains(where: { !$0.isEmpty }) else {
-            throw CalibrationError.featuresMissing(features)
+            throw collected.faceSampleCount > 0
+                ? CalibrationError.featuresMissing(features) : CalibrationError.tooFewDisplays
         }
 
         // Step 4: keep displays with enough points, in first-appearance order for now.
@@ -73,6 +76,8 @@ struct ProfileFitter: Sendable {
         /// Displays of the used segments, in order of first appearance.
         var firstAppearance: [DisplayID] = []
         var pointsByDisplay: [DisplayID: [FeaturePoint]] = [:]
+        /// Samples of the used segments with a face, whether or not they have the requested features.
+        var faceSampleCount = 0
     }
 
     /// Steps 1 and 2: the feature points of every labeled sample in the used segments, grouped by display.
@@ -86,7 +91,9 @@ struct ProfileFitter: Sendable {
                 collected.pointsByDisplay[id] = []
             }
             for sample in segment.samples {
-                guard let pose = sample.pose, let point = features.point(of: pose) else { continue }
+                guard let pose = sample.pose else { continue }
+                collected.faceSampleCount += 1
+                guard let point = features.point(of: pose) else { continue }
                 collected.pointsByDisplay[id, default: []].append(point)
             }
         }

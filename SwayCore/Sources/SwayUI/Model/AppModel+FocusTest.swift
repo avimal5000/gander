@@ -27,8 +27,9 @@ extension AppModel {
         refreshFocusTest()
     }
 
-    /// The Focus Test window closed (or the app is quitting): stop polling, drop a pending countdown, and forget
-    /// the window list, so titles are held only while the window shows them.
+    /// The Focus Test window closed (or the app is quitting): stop polling, drop a pending countdown, cancel a request
+    /// in flight (the controller then tries no further method), and forget the window list, so titles are held only
+    /// while the window shows them.
     func stopFocusTest() {
         focusTestVisible = false
         focusTickTask?.cancel()
@@ -36,6 +37,7 @@ extension AppModel {
         focusPollTask?.cancel()
         focusPollTask = nil
         focusPollGeneration += 1
+        focusRequestTask?.cancel()
         if case .countingDown = focusActivity { focusActivity = .idle }
         if !focusWindows.isEmpty { focusWindows = [:] }
         if focusedDisplayID != nil { focusedDisplayID = nil }

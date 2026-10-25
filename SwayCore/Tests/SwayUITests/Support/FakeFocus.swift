@@ -19,6 +19,8 @@ final class FakeFocus: FocusControlling {
         var holdsFocus = false
         var released = false
         var waiter: CheckedContinuation<Void, Never>?
+        /// For each `focus` call, whether its task was cancelled by the time it returned.
+        var focusCancelled: [Bool] = []
     }
 
     private let state: OSAllocatedUnfairLock<State>
@@ -32,6 +34,7 @@ final class FakeFocus: FocusControlling {
     var lastUsedWindowsCalls: Int { state.withLock { $0.lastUsedWindowsCalls } }
     var focusedDisplayCalls: Int { state.withLock { $0.focusedDisplayCalls } }
     var focusCalls: [DisplayID] { state.withLock { $0.focusCalls } }
+    var focusCancelled: [Bool] { state.withLock { $0.focusCancelled } }
     /// True while a held `focus` call is waiting to be released.
     var isHoldingFocus: Bool { state.withLock { $0.waiter != nil } }
 
@@ -109,6 +112,10 @@ final class FakeFocus: FocusControlling {
                 if resumeNow { continuation.resume() }
             }
         }
-        return state.withLock { $0.result }
+        let cancelled = Task.isCancelled
+        return state.withLock {
+            $0.focusCancelled.append(cancelled)
+            return $0.result
+        }
     }
 }

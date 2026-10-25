@@ -45,10 +45,14 @@ extension AppModel {
 
     /// Remembers where each dwell began. The start is the first sample of a dwelling phase on a display; any other
     /// phase (idle, locked) means the dwell was lost.
+    ///
+    /// A dwell starts at progress 0. That also marks a dwell begun again on the same display without an idle phase
+    /// in between: after a gap longer than `maxGap`, the decider drops the old dwell and starts a fresh one on the
+    /// same sample (CONTRACT 6.6 step 4(a2)), so the latency must count from that sample, not the old start.
     private func trackDwell(_ decision: SwitchDecision, at timestamp: TimeInterval) {
         switch decision.phase {
-        case .dwelling(let display, _):
-            if dwellStart?.display != display { dwellStart = (display, timestamp) }
+        case .dwelling(let display, let progress):
+            if dwellStart?.display != display || progress == 0 { dwellStart = (display, timestamp) }
         case .idle, .locked:
             dwellStart = nil
         case .coolingDown:

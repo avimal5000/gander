@@ -381,6 +381,34 @@ struct AppModelFocusTestTests {
         #expect(h.focus.focusCalls.isEmpty)
     }
 
+    @Test func closingTheWindowCancelsARequestInFlight() async {
+        let h = await openWindow()
+        defer { h.tearDown() }
+        h.focus.holdFocusRequests()
+        h.focus.setResult(.failed(nil, reason: "Cancelled"))
+        h.model.focusNow(left)
+        let held = await waitUntil { h.focus.isHoldingFocus }
+        #expect(held)
+
+        h.model.stopFocusTest()
+        h.focus.release()
+        await settle(h)
+
+        #expect(h.focus.focusCancelled == [true])
+        #expect(h.model.focusActivity == .idle)
+        #expect(h.model.canRequestFocus)
+    }
+
+    @Test func aRequestInAnOpenWindowIsNotCancelled() async {
+        let h = await openWindow()
+        defer { h.tearDown() }
+
+        h.model.focusNow(left)
+        await settle(h)
+
+        #expect(h.focus.focusCancelled == [false])
+    }
+
     @Test func aCountdownThatEndsWithoutAccessibilityLogsInsteadOfFocusing() async {
         let h = await openWindow()
         defer { h.tearDown() }

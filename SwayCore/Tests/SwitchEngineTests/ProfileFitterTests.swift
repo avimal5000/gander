@@ -151,12 +151,12 @@ import Testing
         #expect(profile.displays.allSatisfy { $0.yaw < 50 })
     }
 
-    @Test func unlabeledSegmentsDoNotSatisfyTheFeatureCheck() {
+    @Test func unlabeledSegmentsAreNotUsed() {
         let trace = TraceFactory.trace([
             TraceFactory.segment(nil, round: 0, count: 100, yaw: 10, pitch: 0),
             TraceFactory.emptySegment(a, count: 40),
         ])
-        #expect(throws: CalibrationError.featuresMissing(.visionAngles)) {
+        #expect(throws: CalibrationError.tooFewDisplays) {
             try engine.fitProfile(from: trace, features: .visionAngles, rounds: nil)
         }
     }
@@ -182,12 +182,12 @@ import Testing
         #expect(all.displays.allSatisfy { $0.sampleCount == 80 })
     }
 
-    @Test func roundsFilterThatSelectsNothingReportsMissingFeatures() {
+    @Test func roundsFilterThatSelectsNothingIsTooFewDisplays() {
         let trace = TraceFactory.trace([
             TraceFactory.segment(a, round: 1, count: 40, yaw: 10, pitch: 0),
             TraceFactory.segment(b, round: 1, count: 40, yaw: 30, pitch: 0),
         ])
-        #expect(throws: CalibrationError.featuresMissing(.visionAngles)) {
+        #expect(throws: CalibrationError.tooFewDisplays) {
             try engine.fitProfile(from: trace, features: .visionAngles, rounds: [5])
         }
     }
@@ -224,14 +224,15 @@ import Testing
         }
     }
 
-    @Test func aTraceWithNoFacesOrNoSegmentsReportsMissingFeatures() {
+    /// No faces at all (camera covered) is too little data, not missing features: every face has Vision angles.
+    @Test func aTraceWithNoFacesOrNoSegmentsIsTooFewDisplays() {
         let noFaces = TraceFactory.trace([
             TraceFactory.emptySegment(a, count: 50), TraceFactory.emptySegment(b, count: 50),
         ])
-        #expect(throws: CalibrationError.featuresMissing(.visionAngles)) {
+        #expect(throws: CalibrationError.tooFewDisplays) {
             try engine.fitProfile(from: noFaces, features: .visionAngles, rounds: nil)
         }
-        #expect(throws: CalibrationError.featuresMissing(.visionAngles)) {
+        #expect(throws: CalibrationError.tooFewDisplays) {
             try engine.fitProfile(from: TraceFactory.trace([]), features: .visionAngles, rounds: nil)
         }
     }

@@ -73,7 +73,9 @@ struct AppModelCalibrationTests {
         #expect(h.model.calibrationProfile == kept)
         #expect(
             h.model.calibrationMessage
-                == .error("Not enough face samples on at least two displays to calibrate"))
+                == .error(
+                    "Not enough face samples on at least two displays to calibrate. Run the gate test with your face visible."
+                ))
         #expect(decodedProfile(in: h.defaults) == kept)
 
         h.engine.setFitResult(.failure(.featuresMissing(.visionAngles)))

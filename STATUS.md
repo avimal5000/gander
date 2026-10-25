@@ -3,7 +3,7 @@
 Phase: **M2 + M3** (core engine + focus controller), built overnight per SPEC D14. Updated by the orchestrator.
 
 **Current state:** Skeleton, SPEC, and CONTRACT for M2 + M3 are done on branch `feat/11-m2-m3-engine-focus`.
-All four builders are done; the app builds with everything wired in. Review is next.
+Built, reviewed, and verified locally (626 tests, zero warnings). PR open for the user's morning review and hardware checks.
 
 ## History
 
@@ -26,10 +26,10 @@ All four builders are done; the app builds with everything wired in. Review is n
 | SPEC / CONTRACT / STATUS for M2 + M3 | Done | SPEC D14–D21, F10–F15; CONTRACT §6.2 (landmarks flag), §6.5.1, §6.6, §6.7, §10–§12 |
 | Skeleton | Done (e43db40) | SwayModels `Switching.swift`, `Focus.swift`, `includeLandmarks`; `SwitchEngine` and `FocusControl` stubs; fixture `Tests/SwitchEngineTests/Fixtures/gate-trace-2026-10-24.json`; guard now also blocks cursor/input-event and private APIs. Package builds; all tests pass; lint clean |
 | Builders (4, Sonnet, parallel) | Done | See below |
-| Integrate into the app target | In progress | `AppComposition` passes `PoseSwitchEngine()` and `AXFocusController()` (compiles once builder-ui lands the new `AppModel.init`); `SwitchEngineTests` and `FocusControlTests` added to the Sway scheme so `xcodebuild test` runs them |
+| Integrate into the app target | Done | `AppComposition` passes `PoseSwitchEngine()` and `AXFocusController()` (Debug build succeeds, zero warnings); `SwitchEngineTests` and `FocusControlTests` added to the Sway scheme so `xcodebuild test` runs them |
 | `docs/focus-fallbacks.md` | Done | Method, fallback list, and known limits (from builder-focus); the "verified" column awaits the user's Focus Test |
-| Review pass (Opus) | Pending | |
-| Orchestrator verification, PR, CI | Pending | Keep CI runs few (macOS minutes bill at 10×) |
+| Review pass (Opus) | Done | Verdict: ready after fixes. No bugs found in the engine, focus controller, concurrency, or privacy. Fixed: (1) the preview's dwell latency after a dwell restarts on the same display (step 4(a2)); (2) closing the Focus Test window now cancels a focus request in flight. A rate limit interrupted the review once; it was resumed. Orchestrator follow-ups: no-face traces now report "not enough face samples" instead of "no Vision angles" (contract §6.6 step 3 and §6.5.1 amended); UI test defaults now live in the temp directory (they had left 664 `sway.ui.tests.*.plist` files in `~/Library/Preferences`; the user can delete them) |
+| Orchestrator verification, PR, CI | In progress | Verified locally: privacy guard, swift-format strict, `swift build --build-tests` with zero warnings, `swift test` 626 tests, `xcodebuild test` TEST SUCCEEDED (all 8 targets), Release BUILD SUCCEEDED. PR and one CI run next |
 
 ## Builder agents
 
@@ -52,5 +52,6 @@ All four builders are done; the app builds with everything wired in. Review is n
   landmarks from live tracking (D15); the user re-measures.
 - **AppKit `-layoutSubtreeIfNeeded` warning** appears once per launch, from `MenuBarExtra`. Harmless.
 - **Dependabot PR** (actions/checkout bump) is open; left for the user.
+- **Leftover test files:** earlier UI test runs left `sway.ui.tests.*.plist` files in `~/Library/Preferences` (664). Fixed for future runs. The user can delete the old ones: `rm ~/Library/Preferences/sway.ui.tests.*.plist`.
 - **SwiftLint** is not installed locally; CI runs it.
 - Signed builds need a one-time keychain approval for `codesign` (user step, in Xcode). Verification builds are unsigned.

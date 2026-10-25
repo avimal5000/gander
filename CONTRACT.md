@@ -482,8 +482,10 @@ internal files.
   `engine.fitProfile(from: trace, features: .visionAngles, rounds: nil)`.
   - On success: store it as `calibrationProfile` and persist it as JSON (`JSONEncoder`, `.iso8601` dates) in
     `defaults` under `"sway.calibrationProfile"`.
-  - On failure: keep the previous profile and show the error in the report view in plain words: "Not enough face
-    samples on at least two displays to calibrate" or "This trace has no Vision angles".
+  - On failure: keep the previous profile and show the error in the report view in plain words:
+    - `tooFewDisplays`: "Not enough face samples on at least two displays to calibrate. Run the gate test with your
+      face visible.";
+    - `featuresMissing`: "This trace has no <feature set title>" (only possible for landmark angles).
 - On launch, restore the stored profile. Ignore data that does not decode or has another `formatVersion`.
 - `isCalibrationStale` is `!profile.matches(layout)` for the current layout.
 
@@ -569,7 +571,9 @@ state machine (for example `SwitchStateMachine: SwitchDeciding`), and the engine
 2. Feature points per display. A sample counts when its pose is non-nil and the features are present:
    - `.visionAngles` → (`yaw`, `pitch`);
    - `.landmarkAngles` → (`landmarkYaw`, `landmarkPitch`), both non-nil.
-3. If no sample in the used segments has the features, throw `CalibrationError.featuresMissing(features)`.
+3. If the used segments have face samples but none has the features, throw
+   `CalibrationError.featuresMissing(features)`. If they have no face samples at all, or no segment is used, throw
+   `CalibrationError.tooFewDisplays`. Every face has Vision angles, so `featuresMissing` only happens for landmarks.
 4. Keep displays with at least `GateThresholds.default.minFaceSamplesPerDisplay` (30) points. If fewer than 2 remain, throw
    `CalibrationError.tooFewDisplays`.
 5. Per kept display: the mean, and the sample standard deviation (n − 1) of each axis.
@@ -895,6 +899,9 @@ Tests must **never**:
 - prompt for Accessibility, or raise, activate, or focus any window (`requestTrust()` and
   `focus(display:in:)` are off limits);
 - run real Vision unguarded: tests that do skip when `CI` is set.
+- leave files outside `temporaryDirectory`. A `UserDefaults` suite in tests uses an absolute path under
+  `temporaryDirectory` as its suite name (stored as `<path>.plist`); a plain name leaves a file in
+  `~/Library/Preferences`.
 
 Tests must cover all non-UI logic in the module.
 

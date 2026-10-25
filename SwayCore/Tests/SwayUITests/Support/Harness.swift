@@ -30,7 +30,7 @@ struct Harness {
         savedCameraID: String? = nil,
         analysis: GateAnalysis = Fixtures.analysis(),
         trusted: Bool = true,
-        suiteName: String = "sway.ui.tests.\(UUID().uuidString)"
+        suiteName: String = Harness.temporarySuiteName()
     ) -> Harness {
         guard let defaults = UserDefaults(suiteName: suiteName) else { fatalError("Cannot create test defaults") }
         if let savedCameraID { defaults.set(savedCameraID, forKey: DefaultsKey.cameraDeviceID) }
@@ -68,9 +68,19 @@ struct Harness {
         )
     }
 
-    /// Removes the temporary defaults suite.
+    /// Removes the temporary defaults suite and its file.
     func tearDown() {
         defaults.removePersistentDomain(forName: suiteName)
+        try? FileManager.default.removeItem(atPath: suiteName + ".plist")
+    }
+
+    /// A fresh defaults suite stored under the temporary directory (CONTRACT section 12). An absolute path as the
+    /// suite name makes the preferences system keep the suite in `<path>.plist`; a plain name would leave a file in
+    /// `~/Library/Preferences` for every test run.
+    static func temporarySuiteName() -> String {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("sway-ui-tests-defaults")
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        return directory.appendingPathComponent(UUID().uuidString).path
     }
 
     /// Builds a second model on the same defaults suite, as after a relaunch (optionally on another layout).

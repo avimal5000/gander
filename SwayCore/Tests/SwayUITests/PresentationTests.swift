@@ -173,7 +173,8 @@ struct SwitchPreviewWordingTests {
         #expect(SwitchPreviewPresentation.stale.hasPrefix("Displays changed since calibration"))
         #expect(
             CalibrationError.tooFewDisplays.userMessage
-                == "Not enough face samples on at least two displays to calibrate")
+                == "Not enough face samples on at least two displays to calibrate. Run the gate test with your face visible."
+        )
         #expect(CalibrationError.featuresMissing(.visionAngles).userMessage == "This trace has no Vision angles")
         #expect(userMessage(for: CalibrationError.tooFewDisplays) == CalibrationError.tooFewDisplays.userMessage)
     }

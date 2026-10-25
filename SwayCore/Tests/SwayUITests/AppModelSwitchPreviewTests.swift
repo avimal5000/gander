@@ -147,6 +147,28 @@ struct AppModelSwitchPreviewTests {
         #expect(abs((h.model.switchLog.first?.latency ?? -1) - 0.4) < 1e-9)
     }
 
+    @Test func aDwellBegunAgainOnTheSameDisplayAfterAGapStartsItsLatencyAgain() async {
+        // CONTRACT 6.6 step 4(a2): a supporting sample after a gap longer than maxGap drops the old dwell and starts a
+        // fresh one on the same display, so the phase goes dwelling(progress 0.5) -> dwelling(progress 0) with no
+        // idle phase in between.
+        let h = await liveHarness()
+        defer { h.tearDown() }
+        h.engine.script.set { sample, _ in
+            switch sample.timestamp {
+            case 1.0: Fixtures.decision(phase: .dwelling(display: Fixtures.right.id, progress: 0))
+            case 1.2: Fixtures.decision(phase: .dwelling(display: Fixtures.right.id, progress: 0.5))
+            case 2.0: Fixtures.decision(phase: .dwelling(display: Fixtures.right.id, progress: 0))
+            case 2.2: Fixtures.decision(phase: .dwelling(display: Fixtures.right.id, progress: 0.5))
+            case 2.4: Fixtures.decision(switchTo: Fixtures.right.id, phase: .coolingDown(until: 3.15))
+            default: Fixtures.decision()
+            }
+        }
+
+        for time in [1.0, 1.2, 2.0, 2.2, 2.4] { feed(h, at: time) }
+
+        #expect(abs((h.model.switchLog.first?.latency ?? -1) - 0.4) < 1e-9)
+    }
+
     @Test func aDwellThatMovesToAnotherDisplayStartsItsLatencyAgain() async {
         let h = await liveHarness()
         defer { h.tearDown() }
