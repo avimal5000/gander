@@ -1,14 +1,15 @@
 # Status
 
-Phase: **M2 + M3** (core engine + focus controller), built overnight per SPEC D14. Updated by the orchestrator.
+Phase: **M2 + M3 merged** (core engine + focus controller). Next: **M4**, the end-to-end loop (PLAN.md). Updated by the
+orchestrator.
 
-**Current state:** Skeleton, SPEC, and CONTRACT for M2 + M3 are done on branch `feat/11-m2-m3-engine-focus`.
-Built, reviewed, verified, and green on CI. The user's hardware checks found high CPU and a crash on turning Live off; both
-fixed (638 tests, zero warnings).
-The user's Focus Test passed. **PR #45 awaits the user:** the crash re-test, then review and merge.
+**Current state:** M2 + M3 squash-merged into `main` as PR #45 (b9ab977, 2026-10-25); issues #11–#18 closed. The
+user's hardware checks found high CPU and a crash on turning Live off; both were fixed and re-tested by the user. The
+Focus Test passed. 638 tests, zero warnings.
 
 ## History
 
+- **M2 + M3:** merged in PR #45 (2026-10-25). 638 tests.
 - **M0 + M1:** merged in PR #44 (2026-10-25). 361 tests; the gate was **GO** (`docs/decisions/0001-m1-head-pose-gate.md`).
 - **User hardware checks (2026-10-25), all passed:**
   - gate run, overlays, and C922 selection;
@@ -21,7 +22,8 @@ The user's Focus Test passed. **PR #45 awaits the user:** the crash re-test, the
   - Full Focus Test passed: each display (immediate and after 3 s from another app), a full-screen app, a
     second Space, and a window spanning two displays. Results are in `docs/focus-fallbacks.md`.
   - CPU was 30–40% with Live on: fixed, see "CPU fix" below.
-  - Crash when turning Live off from the menu: reproduced with a backtrace and fixed, see "Crash fix" below.
+  - Crash when turning Live off from the menu: reproduced with a backtrace and fixed, see "Crash fix" below. The
+    user's re-test passed (Live on 5+ minutes, then off from the menu bar).
 - **CI hang fixed:** real-Vision tests hang on GitHub's virtual Macs, so they skip when `CI` is set.
 - **Repo moved** to `~/Developer/Sway` (out of iCloud).
 
@@ -58,8 +60,6 @@ The user's Focus Test passed. **PR #45 awaits the user:** the crash re-test, the
   - A rerun with live log capture worked normally.
   - Cause unknown; the leading suspect is the window/menu layer reacting to the screens sleeping.
   - If it recurs, run `scripts/sleep-diag.sh` before reproducing. It samples every thread when spindump reports a spin.
-- **Crash on turning Live off:** fixed (see "Crash fix"). Awaits the user's re-test: run Live for 5+ minutes, then
-  turn it off from the menu bar.
 - **AppKit `-layoutSubtreeIfNeeded` warning** appears once per launch, from `MenuBarExtra`. Harmless.
 - **Dependabot PR** (actions/checkout bump) is open; left for the user.
 - **Leftover test files:** earlier UI test runs left `sway.ui.tests.*.plist` files in `~/Library/Preferences` (664). Fixed for future runs. The user can delete the old ones: `rm ~/Library/Preferences/sway.ui.tests.*.plist`.

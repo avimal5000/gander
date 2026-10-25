@@ -46,7 +46,7 @@ CI enforces all three (`scripts/privacy-guard.sh`).
 ## Known limits
 
 From the implementation (FocusControl builder report). The last column is from the user's Focus Test on
-2026-10-25, on their three-display Mac. They focused each display, both immediately and with "Focus in 3 s"
+2026-10-25, on their Mac. They focused each display, both immediately and with "Focus in 3 s"
 from another app, and tried a full-screen app, a second Space, and a window spanning two displays. They reported
 every case working. Rows marked "Not tested" were not part of that run and stay as expected behavior.
 
