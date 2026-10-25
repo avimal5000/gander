@@ -4,8 +4,8 @@ Phase: **M4 + M5** (end-to-end loop + calibration and settings), built together 
 orchestrator.
 
 **Current state:** M4 + M5 are built, reviewed, and in **PR #47** (branch `feat/19-m4-m5-loop-calibration`). CI is
-green: 984 tests, SwiftLint 0 violations, privacy guard passed. **Waiting on the user's hardware checks** (SPEC §9),
-then merge. PR #47 includes the docs commit from #46, so #46 can be closed.
+green: 984 tests, SwiftLint 0 violations, privacy guard passed. **The user's hardware check passed** (2026-10-25: "this is
+amazing and it is working great"). Ready to merge. PR #47 includes the docs commit from #46, so #46 can be closed.
 
 ## History
 
@@ -30,6 +30,7 @@ then merge. PR #47 includes the docs commit from #46, so #46 can be closed.
   needed while away (push notifications; there is no SMS tool).
 - **CI hang fixed:** real-Vision tests hang on GitHub's virtual Macs, so they skip when `CI` is set.
 - **Repo moved** to `~/Developer/Sway` (out of iCloud).
+- **User hardware check of M4 + M5 (2026-10-25):** passed; the user reported it "working great".
 
 ## Orchestrator tasks
 
