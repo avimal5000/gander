@@ -23,7 +23,8 @@ Command line (unsigned):
 export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
 xcodebuild -project Sway.xcodeproj -scheme Sway build CODE_SIGNING_ALLOWED=NO
 xcodebuild -project Sway.xcodeproj -scheme Sway test CODE_SIGNING_ALLOWED=NO   # all package tests
-(cd SwayCore && swift test)
+# Keep SwiftPM output out of iCloud-synced folders (e.g. ~/Documents), or codesigning test bundles fails:
+(cd SwayCore && swift test --scratch-path ~/Library/Caches/sway-swiftpm)
 scripts/lint.sh && scripts/privacy-guard.sh
 ```
 

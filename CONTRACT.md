@@ -66,11 +66,19 @@ The Command Line Tools toolchain cannot run `swift test` on this machine, so alw
 `SWAY_MODULE` makes the manifest declare only `SwayModels` plus your module, which isolates you from
 siblings that are mid-edit. The per-module scratch path stops parallel builds from blocking each other.
 
+**Build products must live outside `~/Documents`.** It is iCloud-synced, and its File Provider adds
+extended attributes that make codesign reject test bundles ("resource fork, Finder information, or similar
+detritus not allowed").
+
 ```bash
 cd /Users/avimalhotra/Documents/Sway/SwayCore
 export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
-SWAY_MODULE=<Module> swift build --scratch-path .build-agents/<Module>
-SWAY_MODULE=<Module> swift test  --scratch-path .build-agents/<Module>
+SCRATCH=/private/tmp/claude-501/-Users-avimalhotra-Documents-Sway/d71e2e66-ff07-4791-b9e1-4fe2a6eb3488/scratchpad/agent-builds
+SWAY_MODULE=<Module> swift build --scratch-path $SCRATCH/<Module>
+SWAY_MODULE=<Module> swift test  --scratch-path $SCRATCH/<Module>
+# full package / app (reviewer, orchestrator):
+swift test --scratch-path $SCRATCH/full
+xcodebuild -project ../Sway.xcodeproj -scheme Sway -derivedDataPath $SCRATCH/xcode test CODE_SIGNING_ALLOWED=NO
 # format + lint your own files (config: /Users/avimalhotra/Documents/Sway/.swift-format)
 xcrun swift-format format --in-place --recursive Sources/<Module> Tests/<Module>Tests
 xcrun swift-format lint --strict --recursive Sources/<Module> Tests/<Module>Tests
@@ -183,8 +191,8 @@ public final class LivePoseSource: PoseSource {
    - `faceConfidence`: the observation's confidence.
    - `faceBounds`: the bounding box.
    - `landmarkYaw` and `landmarkPitch`: from a **pure, unit-tested** geometry function over landmark points
-     (normalized to the face box). It uses the eye centers (pupils if present, else eye-region centroids)
-     and the nose tip (from `nose` / `noseCrest`). The result must be continuous, about 0 when facing the
+     (normalized to the face box). It uses the eye centers (always eye-region centroids, never pupils:
+     pupils move with gaze, and PLAN.md defers eye gaze) and the nose tip (from `nose` / `noseCrest`). The result must be continuous, about 0 when facing the
      camera, and monotonic with rotation. Document the exact formula in a doc comment. If either landmark
      region is missing, both are `nil`.
 4. Must be safe to call from one serial queue at a time. Vision objects are not shared across threads
@@ -306,9 +314,10 @@ public enum SyntheticTraces {
    - for `landmarkAngles`, the share of face frames that lacked landmarks.
 
 `overall` is the maximum verdict. `bestFeatureSet` is the argmax verdict; ties go to higher accuracy (`nil`
-counts as −1), then `allCases` order. `classify(_:using:)` applies step 4 to `report.displays` with
-`minStd = GateThresholds.default.minStd`. It returns `nil` when the pose lacks the report's features or the
-report has no displays; `runnerUpDistance` is `nil` with only one display.
+counts as −1), then `allCases` order. `classify(_:using:)` applies step 4 to the `report.displays` with `faceCount > 0`. A display without face
+samples is not a candidate, as in step 5. It uses `minStd = GateThresholds.default.minStd`, returns `nil` when
+the pose lacks the report's features or no display is a candidate, and sets `runnerUpDistance` to `nil` when
+there is only one candidate.
 
 **`markdownSummary`:**
 - Opens with `## M1 head-pose gate result`.

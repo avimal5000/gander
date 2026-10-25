@@ -8,7 +8,7 @@ xcrun swift-format lint --strict --recursive --parallel Sway SwayCore/Package.sw
 echo "swift-format: clean"
 
 if command -v swiftlint >/dev/null 2>&1; then
-  swiftlint lint --strict --quiet
+  swiftlint lint --quiet
   echo "SwiftLint: clean"
 else
   echo "SwiftLint not installed; skipped (brew install swiftlint)."

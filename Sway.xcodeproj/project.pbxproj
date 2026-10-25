@@ -13,6 +13,7 @@
 /* Begin PBXFileReference section */
 		5A0000000000000000000201 /* Sway.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Sway.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5A0000000000000000000202 /* Sway.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Sway.entitlements; sourceTree = "<group>"; };
+		5A0000000000000000000204 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		5A0000000000000000000203 /* SwayCore */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = SwayCore; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -49,6 +50,7 @@
 		5A0000000000000000000602 /* Config */ = {
 			isa = PBXGroup;
 			children = (
+				5A0000000000000000000204 /* Info.plist */,
 				5A0000000000000000000202 /* Sway.entitlements */,
 			);
 			path = Config;
@@ -276,6 +278,7 @@
 				DEVELOPMENT_TEAM = WNW4M84Z3U;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Config/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Sway;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_LSUIElement = YES;
@@ -307,6 +310,7 @@
 				DEVELOPMENT_TEAM = WNW4M84Z3U;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Config/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Sway;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_LSUIElement = YES;
