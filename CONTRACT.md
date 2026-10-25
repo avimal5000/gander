@@ -595,8 +595,8 @@ windows. The menu gets a "Focus Test Window…" item (SF Symbol `rectangle.2.swa
 **2. Tracking switch (SPEC D23, D26, F18).**
 - `liveEnabled` becomes `trackingEnabled`. The menu and the Pose Debug window show it as a **Tracking** switch.
 - **Saved choice:** user actions (the switch, and in M5 "Start tracking") write `sway.trackingEnabled`. Automatic
-  changes (a camera failure or an unexpected end of stream turns tracking off) do **not** write it, so the next
-  launch restores the user's choice.
+  changes do **not** write it: a camera failure or an unexpected end of stream turning tracking off, and quitting
+  (`applicationWillTerminate()`, `shutdown()`, `quit()`). So the next launch restores the user's choice.
 - **Launch:** `init` reads the saved choice. When it is true, schedule one camera reconcile right after `init` (a
   `Task` on the main actor), so tracking starts without any window.
 - `wantsCamera` is `gateRunState != .idle || (trackingEnabled && activeCalibration != nil && layout has at least 2
