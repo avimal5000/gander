@@ -52,9 +52,21 @@ extension AppModel {
     /// True when the live toggle or a gate test needs frames.
     var wantsCamera: Bool { liveEnabled || gateRunState != .idle }
 
+    /// The configuration the pose source should run with right now. Landmarks cost a second Vision request per
+    /// frame, so they are on exactly while a gate test needs the camera (including its camera-start phase) and
+    /// off for Live (SPEC D15).
+    var desiredConfiguration: PoseSourceConfiguration {
+        PoseSourceConfiguration(cameraDeviceID: selectedCameraID, includeLandmarks: gateRunState != .idle)
+    }
+
     func performCameraReconcile() async {
         if wantsCamera {
-            guard streamTask == nil else { return }
+            if streamTask != nil {
+                // A running stream is kept unless it was started with another configuration, for example Live
+                // without landmarks when a gate test begins (or the gate test's stream once it has ended).
+                if activeConfiguration != desiredConfiguration { await restartPoseSource() }
+                return
+            }
             let gateWanted = gateRunState != .idle
             if await startPoseSource() == false {
                 cameraStartFailed(gateWanted: gateWanted)
@@ -95,9 +107,11 @@ extension AppModel {
 
         status = .starting
         clearLiveReadings()
-        let configuration = PoseSourceConfiguration(cameraDeviceID: selectedCameraID)
+        let configuration = desiredConfiguration
         do {
             let stream = try await poseSource.start(configuration)
+            activeConfiguration = configuration
+            if liveEnabled { rebuildDecider() }
             beginConsuming(stream)
             return true
         } catch let error as CameraError {
@@ -125,6 +139,7 @@ extension AppModel {
     func stopPoseSource() async {
         let task = streamTask
         streamTask = nil
+        activeConfiguration = nil
         task?.cancel()
         await poseSource.stop()
         if case .failed = status {
@@ -134,7 +149,10 @@ extension AppModel {
         }
         latestSample = nil
         liveClassification = nil
+        liveGuessFeatureSet = nil
         history.reset()
+        readout = LiveReadout()
+        resetSwitchPreview()
         #if DEBUG
         finishRecordingIfNeeded()
         #endif
@@ -189,6 +207,7 @@ extension AppModel {
     private func streamDidEnd(generation: Int) {
         guard generation == streamGeneration, streamTask != nil else { return }
         streamTask = nil
+        activeConfiguration = nil
         if status.isRunning || status == .starting { status = .stopped }
         clearLiveReadings()
         liveEnabled = false
@@ -212,7 +231,9 @@ extension AppModel {
         let face = sample.pose != nil
         if face != hasFace { hasFace = face }
         history.append(sample)
+        if readout.isDue(for: sample) { readout = LiveReadout(sample: sample, fps: history.fps) }
         updateLiveClassification(for: sample.pose)
+        processSwitchPreview(sample)
         #if DEBUG
         recorder.append(sample)
         #endif
@@ -222,12 +243,16 @@ extension AppModel {
         }
     }
 
-    /// Forgets the latest pose, the plot history, and the live guess (camera stopped, restarted, or interrupted).
+    /// Forgets the latest pose, the plot history, the live guess, and the preview's dwell and simulated focus
+    /// (camera stopped, restarted, or interrupted).
     private func clearLiveReadings() {
         latestSample = nil
         hasFace = false
         liveClassification = nil
+        liveGuessFeatureSet = nil
         history.reset()
+        readout = LiveReadout()
+        resetSwitchPreview()
     }
 
     private func handleStatus(_ newStatus: CaptureStatus) {

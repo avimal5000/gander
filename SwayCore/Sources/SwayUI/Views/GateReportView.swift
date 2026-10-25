@@ -12,6 +12,7 @@ struct GateReportView: View {
                     header(analysis)
                     actions
                     saveStatus
+                    calibrationStatus
                     if let message = model.gateMessage { MessageView(message: message) }
                     Picker("Feature set", selection: $model.reportFeatureSet) {
                         ForEach(analysis.reports, id: \.featureSet) { report in
@@ -74,6 +75,29 @@ struct GateReportView: View {
             .buttonStyle(.borderedProminent)
             Button("Open Trace\u{2026}") { model.openTrace() }
             Button("Run Again") { model.showGateSetup() }
+        }
+    }
+
+    /// Whether this trace produced a calibration for the Switch preview, or why not.
+    @ViewBuilder
+    private var calibrationStatus: some View {
+        if let message = model.calibrationMessage {
+            VStack(alignment: .leading, spacing: 2) {
+                MessageView(message: message)
+                if model.calibrationProfile != nil {
+                    Text("Your previous calibration is still in use.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        } else if let profile = model.calibrationProfile {
+            Label(
+                "Calibration saved for \(profile.displays.count) displays. Open Pose Debug to try the Switch preview.",
+                systemImage: "checkmark.circle"
+            )
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
         }
     }
 

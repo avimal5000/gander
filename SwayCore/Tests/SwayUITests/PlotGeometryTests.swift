@@ -86,4 +86,22 @@ struct PlotGeometryTests {
         #expect(shapes.map(\.meanX) == [-20, 20])
         #expect(shapes.allSatisfy { $0.outline.count == 49 })
     }
+
+    @Test func trailFadesWithAgeAndSkipsPosesWithoutTheFeatures() {
+        let history = [
+            PoseHistoryPoint(id: 0, timestamp: 0, pose: Fixtures.pose(yaw: -10, pitch: 1)),
+            PoseHistoryPoint(
+                id: 1, timestamp: 5, pose: Fixtures.pose(yaw: 0, pitch: 2, landmarkYaw: 3, landmarkPitch: 4)),
+            PoseHistoryPoint(id: 2, timestamp: 10, pose: Fixtures.pose(yaw: 10, pitch: 3)),
+        ]
+        let vision = PlotTrail.points(history, featureSet: .visionAngles)
+        #expect(vision.map(\.x) == [-10, 0, 10])
+        #expect(vision.map(\.y) == [1, 2, 3])
+        // Oldest (10 s) at 0.15, halfway at 0.575, newest at 1.
+        #expect(vision.map(\.opacity).enumerated().allSatisfy { abs($0.element - [0.15, 0.575, 1][$0.offset]) < 1e-9 })
+
+        let landmarks = PlotTrail.points(history, featureSet: .landmarkAngles)
+        #expect(landmarks == [PlotTrail.Point(x: 3, y: 4, opacity: 0.575)])
+        #expect(PlotTrail.points([], featureSet: .visionAngles).isEmpty)
+    }
 }

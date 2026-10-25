@@ -17,6 +17,11 @@ enum Formatting {
         String(format: "%.1f", value)
     }
 
+    /// An unsigned number with two decimals.
+    static func twoDecimals(_ value: Double) -> String {
+        String(format: "%.2f", value)
+    }
+
     /// A 0...1 fraction as a percentage with one decimal; the placeholder for `nil`.
     static func percent(_ fraction: Double?) -> String {
         guard let fraction else { return missing }

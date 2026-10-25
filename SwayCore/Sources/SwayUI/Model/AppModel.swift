@@ -3,16 +3,17 @@ import Foundation
 import Observation
 import SwayModels
 
-/// Root observable state and coordinator for the M1 app.
+/// Root observable state and coordinator for the app.
 ///
 /// `AppModel` owns the camera lifecycle (the pose source runs only while the live toggle is on or a gate test is
 /// running), consumes the pose event stream, keeps the rolling history for plots, drives the guided gate test
-/// through ``GateTestSession``, and holds the latest separability analysis. It only talks to the protocols in
-/// `SwayModels`; the app target injects the concrete implementations.
+/// through ``GateTestSession``, and holds the latest separability analysis. From each analysis it fits and persists
+/// the calibration profile, runs the live Switch preview against it, and drives the Focus Test window. It only talks
+/// to the protocols in `SwayModels`; the app target injects the concrete implementations.
 ///
-/// The logic is split across extensions by concern (camera, permission, gate, analysis, recording, lifecycle), but
-/// all stored state lives here so `@Observable` can track it. Properties are module-internal; views treat them as
-/// read-only and call the methods.
+/// The logic is split across extensions by concern (camera, permission, gate, analysis, calibration, switch preview,
+/// focus test, recording, lifecycle), but all stored state lives here so `@Observable` can track it. Properties are
+/// module-internal; views treat them as read-only and call the methods.
 @MainActor
 @Observable
 public final class AppModel {
@@ -23,6 +24,8 @@ public final class AppModel {
     @ObservationIgnored let displays: any DisplayProviding
     @ObservationIgnored let traceStore: any TraceStoring
     @ObservationIgnored let analyzer: any SeparabilityAnalyzing
+    @ObservationIgnored let engine: any SwitchEngineMaking
+    @ObservationIgnored let focus: any FocusControlling
     @ObservationIgnored let defaults: UserDefaults
     @ObservationIgnored let environment: AppModelEnvironment
     @ObservationIgnored let log = SwayLogger.ui
@@ -50,6 +53,9 @@ public final class AppModel {
     var hasFace = false
     /// Rolling 10 s of poses plus the measured frame rate.
     var history = PoseHistory()
+    /// The latest pose and frame rate as the text readouts show them, refreshed five times a second
+    /// (`LiveReadout`). Only replaced when due, so views reading it update at that rate, not the frame rate.
+    var readout = LiveReadout()
     /// Which feature set the debug plot shows.
     var plotFeatureSet: PoseFeatureSet = .visionAngles
 
@@ -69,6 +75,9 @@ public final class AppModel {
     var analysisLabels: [DisplayID: String] = [:]
     /// Nearest display cluster to the latest pose under the best feature set's report.
     var liveClassification: DisplayClassification?
+    /// The feature set `liveClassification` was computed with: the best one, or Vision angles when the pose lacks
+    /// the best set's features (landmarks exist only during the gate test).
+    var liveGuessFeatureSet: PoseFeatureSet?
     /// The feature set tab selected in the report.
     var reportFeatureSet: PoseFeatureSet = .visionAngles
 
@@ -84,6 +93,36 @@ public final class AppModel {
     /// True briefly after the Markdown summary was copied.
     var didCopySummary = false
 
+    // MARK: Calibration and switch preview
+
+    /// The fitted profile the Switch preview classifies against; persisted under `sway.calibrationProfile`.
+    var calibrationProfile: CalibrationProfile?
+    /// Why the last fit failed, shown in the report view; `nil` after a successful fit.
+    var calibrationMessage: UserMessage?
+    /// The decider's output for the latest live sample; `nil` before the first sample or after a reset.
+    var previewDecision: SwitchDecision?
+    /// The display the preview pretends has focus. `nil` is unknown, so any display may be switched to.
+    var simulatedFocus: DisplayID?
+    /// The "Simulate Focus Lock" toggle.
+    var simulateFocusLock = false
+    /// The last would-be switches, newest first, at most ``switchLogLimit``.
+    var switchLog: [SwitchLogEntry] = []
+
+    // MARK: Focus test
+
+    /// Accessibility permission as last polled (never prompts).
+    var isAccessibilityTrusted = false
+    /// The last-used window per display as last polled, while the Focus Test window is open. Titles are shown
+    /// only, never logged or stored.
+    var focusWindows: [DisplayID: WindowSummary] = [:]
+    /// The display holding the focused window as last polled; `nil` when unknown.
+    var focusedDisplayID: DisplayID?
+    var focusActivity: FocusActivity = .idle
+    /// Whole seconds left in a "Focus in 3 s" countdown.
+    var focusCountdownSeconds = 0
+    /// The last focus results, newest first, at most ``focusLogLimit``.
+    var focusLog: [FocusLogEntry] = []
+
     // MARK: Internal bookkeeping (not observed)
 
     @ObservationIgnored var streamTask: Task<Void, Never>?
@@ -91,6 +130,18 @@ public final class AppModel {
     @ObservationIgnored var cameraOperation: Task<Void, Never>?
     @ObservationIgnored var layoutTask: Task<Void, Never>?
     @ObservationIgnored var pendingIntent: CameraIntent?
+    /// The configuration the current pose stream was started with; `nil` when no stream runs.
+    @ObservationIgnored var activeConfiguration: PoseSourceConfiguration?
+    @ObservationIgnored var decider: (any SwitchDeciding)?
+    /// Where the dwell now in progress began, for the latency of the switch it ends in.
+    @ObservationIgnored var dwellStart: (display: DisplayID, timestamp: TimeInterval)?
+    @ObservationIgnored var nextLogID = 0
+    @ObservationIgnored var focusTestVisible = false
+    @ObservationIgnored var focusTickTask: Task<Void, Never>?
+    @ObservationIgnored var focusRequestTask: Task<Void, Never>?
+    @ObservationIgnored var focusPollTask: Task<Void, Never>?
+    @ObservationIgnored var focusPollGeneration = 0
+    @ObservationIgnored var nextFocusPoll: TimeInterval = 0
     @ObservationIgnored var gateSession: GateTestSession?
     @ObservationIgnored var gateTimerTask: Task<Void, Never>?
     @ObservationIgnored var gateCameraDeadline: TimeInterval = 0
@@ -112,13 +163,17 @@ public final class AppModel {
     ///   - displays: the display layout and its changes.
     ///   - traceStore: trace persistence (DEBUG saves, all builds load).
     ///   - analyzer: separability analysis and the live classifier.
-    ///   - defaults: where the camera choice is persisted.
+    ///   - engine: fits the calibration profile and makes the switch decider for the preview.
+    ///   - focus: last-used windows, focused display, Accessibility trust, and focus requests (Focus Test window).
+    ///   - defaults: where the camera choice and the calibration profile are persisted.
     public convenience init(
         camera: any FrameSource,
         poseSource: any PoseSource,
         displays: any DisplayProviding,
         traceStore: any TraceStoring,
         analyzer: any SeparabilityAnalyzing,
+        engine: any SwitchEngineMaking,
+        focus: any FocusControlling,
         defaults: UserDefaults = .standard
     ) {
         self.init(
@@ -127,6 +182,8 @@ public final class AppModel {
             displays: displays,
             traceStore: traceStore,
             analyzer: analyzer,
+            engine: engine,
+            focus: focus,
             defaults: defaults,
             environment: .live()
         )
@@ -138,6 +195,8 @@ public final class AppModel {
         displays: any DisplayProviding,
         traceStore: any TraceStoring,
         analyzer: any SeparabilityAnalyzing,
+        engine: any SwitchEngineMaking,
+        focus: any FocusControlling,
         defaults: UserDefaults,
         environment: AppModelEnvironment
     ) {
@@ -146,12 +205,15 @@ public final class AppModel {
         self.displays = displays
         self.traceStore = traceStore
         self.analyzer = analyzer
+        self.engine = engine
+        self.focus = focus
         self.defaults = defaults
         self.environment = environment
         self.authorization = camera.authorizationStatus()
         self.selectedCameraID = defaults.string(forKey: DefaultsKey.cameraDeviceID)
         self.layout = displays.currentLayout
         self.devices = camera.availableDevices()
+        self.calibrationProfile = Self.storedCalibrationProfile(in: defaults)
 
         environment.overlay.onCancelRequested = { [weak self] in
             self?.cancelGateTest(reason: "Gate test cancelled.")

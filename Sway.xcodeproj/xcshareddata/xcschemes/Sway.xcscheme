@@ -89,6 +89,26 @@
                ReferencedContainer = "container:SwayCore">
             </BuildableReference>
          </TestableReference>
+         <TestableReference
+            skipped = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "SwitchEngineTests"
+               BuildableName = "SwitchEngineTests"
+               BlueprintName = "SwitchEngineTests"
+               ReferencedContainer = "container:SwayCore">
+            </BuildableReference>
+         </TestableReference>
+         <TestableReference
+            skipped = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "FocusControlTests"
+               BuildableName = "FocusControlTests"
+               BlueprintName = "FocusControlTests"
+               ReferencedContainer = "container:SwayCore">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
    </TestAction>
    <LaunchAction

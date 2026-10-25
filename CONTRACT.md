@@ -1,4 +1,4 @@
-# Sway: Engineering Contract (phase M0 + M1)
+# Sway: Engineering Contract (phase M2 + M3)
 
 Builders follow this document exactly. SPEC.md says *what* to build; this file says *where and how*. PLAN.md
 is background only. If anything here is wrong or missing, **stop and report**. Do not invent your own version.
@@ -47,10 +47,15 @@ Sway/                          repo root
 | `PoseEstimator` | builder-pose | Vision head pose + landmark proxy; `LivePoseSource` | + Vision, CoreVideo, CoreMedia |
 | `PoseTraces` | builder-traces | Trace persistence, replay/synthetic sources, separability analysis, Markdown summary | Foundation only (+ os) |
 | `DisplayTracker` | builder-displays | NSScreen layout, stable IDs, change stream | + AppKit, CoreGraphics |
-| `SwayUI` | builder-ui | `AppModel`, all scenes and views, gate test flow, overlays | + SwiftUI, AppKit, Charts, Observation |
+| `SwayUI` | builder-ui | `AppModel`, all scenes and views, gate test flow, overlays, switch preview, Focus Test window | + SwiftUI, AppKit, Charts, Observation |
+| `SwitchEngine` (M2) | builder-engine | Calibration profile fitting, pose classification, switch state machine | Foundation only (+ os) |
+| `FocusControl` (M3) | builder-focus | Last-used window per display, focus switching via Accessibility | + AppKit, ApplicationServices, CoreGraphics |
 
-Planned for later milestones (do **not** create now): `CalibrationModel` (M2), `SwitchDecider` (M2),
-`WindowTracker` (M3), `FocusController` (M3), `SwaySettings` (Settings/Permissions/Hotkey, M3–M5),
+PLAN.md's `CalibrationModel` and `SwitchDecider` live together in `SwitchEngine`, so the engine-level tests over
+recorded traces can exercise both without a cross-module import. Its `WindowTracker` and `FocusController` live
+together in `FocusControl` for the same reason.
+
+Planned for later milestones (do **not** create now): `SwaySettings` (settings, hotkey; M4–M5) and
 `TrackingPipeline` (M4). They will follow the same rules.
 
 ## 3. Dependency rules
@@ -98,11 +103,13 @@ The source files in `SwayCore/Sources/SwayModels/` are the definitive API. Read 
 |---|---|
 | `HeadPose.swift` | `HeadPose`, `PoseSample` |
 | `Camera.swift` | `CameraDevice`, `CameraAuthorization`, `CameraError`, `SuspendReason`, `CaptureStatus`, `CameraFrame`, protocol `FrameSource` |
-| `PoseSource.swift` | `PoseSourceConfiguration`, `PoseSourceEvent`, protocol `PoseSource`, protocol `PoseEstimating` |
+| `PoseSource.swift` | `PoseSourceConfiguration` (incl. `includeLandmarks`, M2), `PoseSourceEvent`, protocol `PoseSource`, protocol `PoseEstimating` (`estimate(_:includeLandmarks:)`) |
 | `Displays.swift` | `DisplayID`, `DisplayInfo`, `DisplayLayout` (sorting + fingerprint), protocol `DisplayProviding` (`@MainActor`) |
 | `Traces.swift` | `TraceSegment`, `PoseTrace`, `TraceStoreError`, protocol `TraceStoring` |
 | `Separability.swift` | `PoseFeatureSet`, `DisplayPoseStats`, `PairSeparation`, `GateVerdict`, `GateThresholds`, `SeparabilityReport`, `GateAnalysis`, `DisplayClassification`, protocol `SeparabilityAnalyzing` |
 | `SwayPolicy.swift` | `SwayPolicy` constants, `SwayLog.logger(category:)` |
+| `Switching.swift` (M2) | `DisplayProfile`, `CalibrationProfile`, `CalibrationError`, `PoseClassification`, `SwitchSettings`, `SwitchContext`, `SwitchPhase`, `SwitchHoldReason`, `SwitchDecision`, protocols `SwitchDeciding`, `SwitchEngineMaking` |
+| `Focus.swift` (M3) | `WindowSummary`, `FocusMethod`, `FocusResult`, protocol `FocusControlling` |
 
 Semantics that the code cannot express:
 - **Angles** are degrees everywhere. Vision gives radians, so convert in `PoseEstimator`.
@@ -181,11 +188,13 @@ public final class LivePoseSource: PoseSource {
 }
 ```
 
-**`VisionPoseEstimator.estimate(_:)`:**
+**`VisionPoseEstimator.estimate(_:includeLandmarks:)`:**
 1. Create a `VNImageRequestHandler(cvPixelBuffer:orientation: .up, options: [:])`. Run
    `VNDetectFaceRectanglesRequest` (revision 3 or the latest available; it provides roll, yaw, and pitch)
    and pick the observation with the largest bounding-box area. No face → `nil`.
-2. Run `VNDetectFaceLandmarksRequest` on the same handler with `inputFaceObservations = [largest]`.
+2. **Only when `includeLandmarks` is true** (M2, SPEC D15): run `VNDetectFaceLandmarksRequest` on the same
+   handler with `inputFaceObservations = [largest]`. When false, no landmark request runs and `landmarkYaw` /
+   `landmarkPitch` are `nil`.
 3. Fill `HeadPose`:
    - `yaw`, `pitch`, `roll`: radians to degrees. If pitch is `nil`, use 0 and log once.
    - `faceConfidence`: the observation's confidence.
@@ -206,7 +215,8 @@ public final class LivePoseSource: PoseSource {
   3. Create an `AsyncStream<PoseSourceEvent>` with `bufferingPolicy: .bufferingNewest(64)` and yield
      `.status(.starting)`.
   4. Call `frameSource.start(deviceID: configuration.cameraDeviceID, frameRate: configuration.frameRate,
-     ...)`. The frame handler runs the estimator synchronously and yields
+     ...)`. The frame handler runs the estimator synchronously, passing `configuration.includeLandmarks`, and
+     yields
      `.sample(PoseSample(timestamp: frame.timestamp, pose: estimate))`. The status handler yields
      `.status(status)`.
   5. If `frameSource.start` throws: yield `.status(.failed(error))` (map non-`CameraError` errors to
@@ -223,7 +233,12 @@ public final class LivePoseSource: PoseSource {
   - `.notAuthorized` throws and the frame source is never started;
   - consumer cancellation stops the frame source;
   - the landmark geometry function;
-  - Vision on a blank 640×480 buffer returns `nil` without crashing.
+  - Vision on a blank 640×480 buffer returns `nil` without crashing (these real-Vision tests skip when `CI` is
+    set; GitHub's virtual Macs hang in Vision);
+  - (M2) `LivePoseSource` passes `includeLandmarks` from the configuration to the estimator, both values, and a
+    restart with a different value uses the new one;
+  - (M2) with `includeLandmarks: false` the estimator never creates a landmark request (factor the request plan
+    into a small pure helper that returns which requests to run, and test that).
 
 ### 6.3 `PoseTraces` (builder-traces)
 
@@ -440,6 +455,365 @@ dark mode.
 Add `#Preview`s with fake dependencies where useful. Fakes live in the test target or in `#if DEBUG`
 internal files.
 
+#### 6.5.1 M2 + M3 additions to `SwayUI` (builder-ui)
+
+**Public API change (exact):**
+```swift
+@MainActor @Observable public final class AppModel {
+    public init(camera: any FrameSource, poseSource: any PoseSource, displays: any DisplayProviding,
+                traceStore: any TraceStoring, analyzer: any SeparabilityAnalyzing,
+                engine: any SwitchEngineMaking, focus: any FocusControlling,
+                defaults: UserDefaults = .standard)
+}
+```
+
+**1. Landmarks only during the gate test (SPEC D15).**
+- `PoseSourceConfiguration.includeLandmarks` is `true` exactly while a gate test needs the camera, including its
+  camera-start phase, and `false` for Live.
+- If a gate test starts while Live runs without landmarks, restart the pose source with landmarks through the
+  existing reconcile-on-configuration-change path. When the gate ends, Live continues without landmarks.
+- Landmark readouts show "—" when the value is `nil`. When the plot is set to landmark features and no sample
+  has them, it shows "Landmark angles are computed only during the gate test."
+- Live guess: classify with the best feature set's report. If that returns `nil` because the pose lacks those
+  features, classify with the `.visionAngles` report.
+
+**2. Calibration profile (SPEC F10, D17).**
+- After every successful gate analysis and every opened trace, call
+  `engine.fitProfile(from: trace, features: .visionAngles, rounds: nil)`.
+  - On success: store it as `calibrationProfile` and persist it as JSON (`JSONEncoder`, `.iso8601` dates) in
+    `defaults` under `"sway.calibrationProfile"`.
+  - On failure: keep the previous profile and show the error in the report view in plain words:
+    - `tooFewDisplays`: "Not enough face samples on at least two displays to calibrate. Run the gate test with your
+      face visible.";
+    - `featuresMissing`: "This trace has no <feature set title>" (only possible for landmark angles).
+- On launch, restore the stored profile. Ignore data that does not decode or has another `formatVersion`.
+- `isCalibrationStale` is `!profile.matches(layout)` for the current layout.
+
+**3. Switch preview (SPEC F11)** in the Pose Debug window, as a new "Switch preview" section.
+- No profile: show "Run the gate test to calibrate."
+- With a profile, while Live is on:
+  - `AppModel` owns `decider: (any SwitchDeciding)?`, made with
+    `engine.makeDecider(profile:settings: .default)` whenever the profile changes or Live starts.
+  - Every live sample is processed with
+    `SwitchContext(focusedDisplay: simulatedFocus, isFocusLocked: simulateFocusLock, targets: nil)`.
+  - On `decision.switchTo = D`: set `simulatedFocus = D` and log it (newest first, at most 10 entries) with the
+    wall-clock time, the display name, and the dwell latency. Latency is that sample's timestamp minus the
+    timestamp of the sample that started the dwell; track it from the phase change `.idle` → `.dwelling`.
+  - Reset the decider and set `simulatedFocus = nil` on a layout change, on a stream restart, and when the
+    profile changes.
+- Shown in the section:
+  - the classification: nearest display name with a margin bar (0–1), or "No face" / "Looking elsewhere";
+  - the phase: "Watching", "Dwelling on <name>" with a progress bar, or "Cooling down";
+  - "Focus (simulated): <name or Unknown>";
+  - a "Simulate Focus Lock" toggle;
+  - a stale-calibration warning;
+  - the log.
+- Never call `focus.focus(...)` from the preview.
+
+**4. Accessibility onboarding (SPEC F12),** at the top of the Focus Test window.
+- Status "Accessibility: Granted" / "Not granted". While the window is visible, poll `focus.isTrusted()` every
+  1 s using the model's injectable clock or timer, as in the gate flow.
+- When not granted, show: "Sway needs Accessibility access to move keyboard focus to a window on the display you
+  look at. It never moves the cursor and never reads window contents."
+- "Grant Access…" calls `focus.requestTrust()`, then opens
+  `x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility` through the existing
+  system/desktop abstraction.
+
+**5. Focus Test window (SPEC F13).** `Window("Focus Test", id: "focus-test")`, launch-guarded like the other
+windows. The menu gets a "Focus Test Window…" item (SF Symbol `rectangle.2.swap`) after "Head-Pose Gate Test…".
+- While visible, refresh every 1 s:
+  - `focus.lastUsedWindows(in: layout)`;
+  - `focus.focusedDisplay(in: layout)`.
+- One row per display in layout order:
+  - the display name, plus "(focused)" when it matches;
+  - the last-used window: "App — Title", "App", or "No window";
+  - **Focus**;
+  - **Focus in 3 s**: shows a countdown, which can be cancelled.
+- Run focus requests one at a time; ignore new presses while one is in flight.
+- Log (newest first, at most 10), using the result:
+  - "Focused <app> via Accessibility raise in <ms> ms";
+  - "Focused <app> via app activation in <ms> ms";
+  - "No window on <display>";
+  - "Accessibility permission needed";
+  - "Failed: <reason>".
+- The buttons are disabled while not trusted.
+- Never log or persist window titles (they are shown only).
+
+**6. Tests** (fakes for `SwitchEngineMaking`, `SwitchDeciding`, and `FocusControlling` in the test target):
+- the gate turns `includeLandmarks` on, and Live afterwards runs with it off;
+- the live-guess fallback to Vision;
+- a profile is fitted after an analysis and after an opened trace, persisted, restored, and its stale flag
+  follows the layout;
+- a fit failure keeps the old profile and shows the message;
+- preview wiring:
+  - a fake decider's switch updates the simulated focus and the log, with latency;
+  - lock and layout changes reset it;
+  - the preview never calls `focus`;
+- Focus Test:
+  - result texts;
+  - the delayed focus fires after 3 s on the injected clock and can be cancelled;
+  - one request at a time;
+  - not trusted disables the buttons;
+  - the trust poll runs only while visible;
+- the onboarding button calls `requestTrust` and opens the deep link.
+
+### 6.6 `SwitchEngine` (builder-engine, M2)
+
+**Public API (exact):**
+```swift
+public struct PoseSwitchEngine: SwitchEngineMaking { public init() }
+```
+Everything else is `internal`. Split into one primary type per file: the profile fitter, the classifier, the
+state machine (for example `SwitchStateMachine: SwitchDeciding`), and the engine facade.
+
+**Fitting: `fitProfile(from:features:rounds:)`**
+1. Use segments with a non-nil `displayID`, and, when `rounds` is non-nil, only those whose `round` is in it.
+2. Feature points per display. A sample counts when its pose is non-nil and the features are present:
+   - `.visionAngles` → (`yaw`, `pitch`);
+   - `.landmarkAngles` → (`landmarkYaw`, `landmarkPitch`), both non-nil.
+3. If the used segments have face samples but none has the features, throw
+   `CalibrationError.featuresMissing(features)`. If they have no face samples at all, or no segment is used, throw
+   `CalibrationError.tooFewDisplays`. Every face has Vision angles, so `featuresMissing` only happens for landmarks.
+4. Keep displays with at least `GateThresholds.default.minFaceSamplesPerDisplay` (30) points. If fewer than 2 remain, throw
+   `CalibrationError.tooFewDisplays`.
+5. Per kept display: the mean, and the sample standard deviation (n − 1) of each axis.
+6. Order the displays by the trace layout's order, followed by any display not in the layout, in order of first
+   appearance.
+7. Scales:
+   - `yawScale = max(1.5, sqrt(mean over kept displays of yawStd²)))`;
+   - `pitchScale = max(2.5, yawScale, sqrt(mean of pitchStd²))`.
+8. The remaining fields:
+   - `layoutFingerprint = trace.layout?.fingerprint ?? ""`;
+   - `cameraName = trace.cameraName`;
+   - `createdAt = trace.createdAt`, so fits are deterministic;
+   - `features` as given.
+
+**Classification: `classify(_:with:settings:)`**
+1. `.noFace` when:
+   - `pose` is `nil`;
+   - `faceConfidence < settings.minFaceConfidence`;
+   - or the profile's features are missing from the pose.
+2. Let (x, y) be the pose's features. For each display profile:
+   `d = sqrt(((x − yaw) / yawScale)² + ((y − pitch) / pitchScale)²)`.
+3. `best` is the smallest d (ties go to the earlier display in profile order), and `runnerUp` is the second.
+   `margin = (dRunnerUp − dBest) / (dRunnerUp + dBest)`, or 0 when the sum is 0.
+4. The pose is `.elsewhere` when:
+   - `x < minYaw − elsewhereYawMargin` or `x > maxYaw + elsewhereYawMargin`;
+   - or `y < minPitch − elsewherePitchMargin` or `y > maxPitch + elsewherePitchMargin`.
+
+   The min and max are taken over the profile's display means. An elsewhere result keeps `best`, `runnerUp`, and
+   `distances` but has `margin = 0`.
+5. Otherwise the result is `.display`. `distances` always holds every display's d.
+
+**State machine: `makeDecider(profile:settings:)`** returns a fresh, idle `SwitchDeciding`.
+- **State:** `idle`, `dwelling(display, start, lastSupport)`, or `coolingDown(until)`, plus the last timestamp.
+- **Shorthand:**
+  - `t` is `sample.timestamp`;
+  - `c` is `classify(sample.pose, …)`;
+  - `inTargets(D)` is `context.targets == nil || context.targets!.contains(D)`;
+  - `eligible(c, m)` is `c.kind == .display && c.margin >= m && inTargets(c.best!)`;
+  - `ε = 1e-6` s. Every time comparison allows it in the direction that meets the threshold. Timestamps are large
+    (about 3·10⁵ s of host uptime), so `t − start` for an exact 0.4 s can compute as 0.39999999996 and
+    would otherwise fire one frame late:
+    - a dwell is complete when `t − start >= dwell − ε`;
+    - a cooldown is over when `t >= until − ε`;
+    - a gap is exceeded when `t − lastSupport > maxGap + ε`.
+
+`process(sample, context)` runs these steps:
+0. If `t` is less than the last timestamp, `reset()` first (a new stream). Then record `t`.
+1. Compute `c`.
+2. **Focus lock.** If `context.isFocusLocked`: set the state to `idle` and return
+   `(switchTo: nil, phase: .locked, reason: .focusLocked)`.
+3. **Cooldown.** If cooling down and the cooldown is not over: return `(nil, .coolingDown(until), .coolingDown)`.
+   Otherwise set the state to `idle` and continue.
+4. **Dwelling on D:**
+   - (a) If `D == context.focusedDisplay`: set `idle` and continue at step 5.
+   - (a2) If the gap is exceeded (`t − lastSupport > maxGap + ε`, for example after a camera stall): set `idle`
+     and continue at step 5, which may start a fresh dwell on this sample.
+   - (b) If `c.kind == .display && c.best == D && c.margin >= stayMargin && inTargets(D)`, then
+     `lastSupport = t`:
+     - if the dwell is complete (`t − start >= dwell − ε`): set the state to `coolingDown(t + cooldown)` and return
+       `(switchTo: D, phase: .coolingDown(t + cooldown), reason: nil)`;
+     - otherwise return `(nil, .dwelling(D, progress: min(1, (t − start) / dwell)), .dwelling)`.
+   - (c) Else, if `eligible(c, enterMargin)` with a best E ≠ D: set `idle` and continue at step 5, which may
+     start a dwell on E.
+   - (d) Removed: (a2) now handles an exceeded gap.
+   - (e) Otherwise return `(nil, .dwelling(D, progress), .dwelling)`. The dwell clock keeps running through
+     short gaps, but a switch fires only on a supporting sample.
+5. **Idle**, checked in this order:
+   - `.noFace` → `(nil, .idle, .noFace)`;
+   - `.elsewhere` → `.elsewhere`;
+   - best not in targets → `.notATarget`;
+   - best == focused → `.alreadyFocused`;
+   - `margin < enterMargin` → `.uncertain`;
+   - otherwise start `dwelling(best, start: t, lastSupport: t)` and return
+     `(nil, .dwelling(best, 0), .dwelling)`.
+
+     If `dwell <= 0`, fire immediately instead, as in 4(b).
+- **`holdReason(c)`** uses the same mapping as step 5, without starting a dwell. If no reason applies (for example
+  `stayMargin > enterMargin`), it returns `.uncertain`.
+- **`reset()`** returns to `idle` and forgets the last timestamp.
+
+**Logging** uses category `"engine"`, at debug level only, and never per sample at info level.
+
+**Tests** (Swift Testing; no sleeps; seeded RNG in the test target, such as a small SplitMix64 copy):
+- **Fitting:**
+  - means and stds;
+  - scale floors, and `pitchScale >= yawScale`;
+  - a display under 30 points is dropped;
+  - unlabeled segments are ignored;
+  - the `rounds` filter;
+  - `featuresMissing` and `tooFewDisplays`;
+  - layout order;
+  - deterministic output.
+- **Classification:**
+  - nearest wins, with a hand-computed margin;
+  - the same angular offset counts less in pitch than in yaw when `pitchScale > yawScale`;
+  - each side of the elsewhere box;
+  - no pose, low confidence, and missing landmarks give `.noFace`.
+- **State machine**, one test per rule:
+  - fires at exactly the first sample with `t − start >= dwell − ε`, including timestamps near 3·10⁵ s where
+    the exact difference rounds below `dwell`;
+  - a glance shorter than the dwell never fires;
+  - a gap ≤ `maxGap` survives, and a longer one cancels. Test both a run of non-supporting samples and a hole
+    in the stream (no samples for 3 s, then a supporting sample, which starts a fresh dwell and does not fire);
+  - looking back at the focused display cancels;
+  - hysteresis: a margin between stay and enter keeps a dwell going but cannot start one;
+  - cooldown blocks;
+  - focus lock blocks and cancels;
+  - `targets` are respected;
+  - already focused gives `.alreadyFocused`;
+  - a nil focused display allows any switch;
+  - a backwards timestamp resets;
+  - `dwell = 0` fires immediately.
+- **Synthetic scenarios**, at 15 fps, with three displays at yaw 61 / 42 / 2 and pitch 5 / 10 / 8, std 1.5 / 2.5,
+  fitted from a synthetic labeled trace:
+  1. 120 s at one display with Gaussian noise of twice the std, plus random single-frame face drops (2%):
+     0 switches.
+  2. 60 s at the midpoint between two adjacent displays, with noise of half the std: 0 switches. (Wider noise
+     legitimately crosses the enter margin now and then; do not tune the defaults to make a test pass.)
+  3. 20 glances of 0.25 s to another display: 0 switches.
+  4. 20 intentional looks, each a 0.3 s linear turn and a 2 s hold, alternating between displays: exactly 20
+     switches. Each fires within `dwell + 1/15 s` of the first sample with margin ≥ enter on the target.
+  5. A 0.25 s transit from the leftmost to the rightmost display, crossing the middle one: exactly 1 switch, to
+     the rightmost.
+  6. A 2 s look 40° down in pitch (keyboard): 0 switches, with the reason `.elsewhere`.
+- **Recorded trace:**
+  - Load `Fixtures/gate-trace-2026-10-24.json` from `Bundle.module` and decode a `PoseTrace` with `JSONDecoder`
+    (`.iso8601` dates). It has 3 displays × 2 rounds × 75 samples, with segments 1.6 s apart.
+  - Fit on round 1 with `.visionAngles` and replay round 2's segments in order. Start with
+    `focusedDisplay = first segment's display`, and set it to each switch's target (perfect focus). Expect
+    exactly 2 switches, to the 2nd and 3rd segments' displays, each within `dwell + 1/15 s` of that segment's
+    first sample, and no others.
+  - Run the same in reverse: fit on round 2, replay round 1.
+  - At least 99% of round-2 samples classify as `.display` with their segment's display as `best`.
+
+### 6.7 `FocusControl` (builder-focus, M3)
+
+**Public API (exact):**
+```swift
+public final class AXFocusController: FocusControlling { public init() }
+```
+Everything else is `internal`.
+
+**Window list.**
+- Read `CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)`. It is
+  ordered front to back.
+- Parse each entry into an internal `WindowRecord` with these fields:
+  - `number` (`kCGWindowNumber`);
+  - `processID` (`kCGWindowOwnerPID`);
+  - `ownerName` (`kCGWindowOwnerName`, or "" if absent);
+  - `layer` (`kCGWindowLayer`);
+  - `bounds` (`CGRect(dictionaryRepresentation:)` of `kCGWindowBounds`);
+  - `alpha` (`kCGWindowAlpha`, default 1).
+
+  Entries without a number, pid, or bounds are skipped. The parser is a pure function over
+  `[[String: Any]]`, so it can be tested with fixtures.
+- **Normal window filter** (pure). A window counts only if all of these hold:
+  - `layer == 0`;
+  - `alpha > 0.01`;
+  - `width >= 120` and `height >= 80`;
+  - `processID != own pid`;
+  - `ownerName` is not one of "Window Server", "Dock", "WindowManager".
+
+**Coordinates** (pure).
+- `DisplayInfo.frame` uses AppKit coordinates (bottom-left origin). Convert to Quartz with
+  `CGRect(x: f.minX, y: H − f.maxY, width: f.width, height: f.height)`.
+- `H` is the height of the display whose AppKit frame origin is (0, 0). If none has that origin, use the
+  `isMain` display's height. An empty layout means no displays.
+- **Display assignment:** the display whose Quartz frame has the largest intersection area with the window's
+  bounds. On a tie, use the display containing the window's center. No intersection means the window is
+  skipped.
+
+**`lastUsedWindows(in:)`**
+- For each display, the first (frontmost) normal window assigned to it.
+- Titles come from Accessibility only when trusted: the AX title of the matching AX window (see the frame
+  matching below), with the messaging timeout 0.25 s, best effort. Otherwise `title = nil`.
+
+**`focusedDisplay(in:)`**
+- The frontmost app's pid comes from `NSWorkspace.shared.frontmostApplication`, read on the main actor.
+- If that app is Sway, return `nil`.
+- If trusted: read the app's `kAXFocusedWindowAttribute`, then `kAXPositionAttribute` and `kAXSizeAttribute`.
+  These are Quartz coordinates. Return the display assigned to that frame.
+- Otherwise, or when Accessibility cannot read the focused window or its frame: the display of that pid's
+  frontmost normal window in the window list. These read-only lookups use a 0.25 s messaging timeout.
+
+**`focus(display:in:)`**, the fallback list (issue #15):
+1. Not trusted → `.notTrusted`.
+2. The target is the last-used window on `display`. None → `.noWindow(display)`.
+3. Prepare the app and window:
+   - `app = AXUIElementCreateApplication(pid)`, with `AXUIElementSetMessagingTimeout(app, 0.5)`.
+   - Read `kAXWindowsAttribute` and pick the AX window whose position and size match the target's bounds within
+     2 pt. This frame matching is a pure function over plain frames.
+   - If none matches and the app has exactly one window, use that one.
+   - Otherwise return `.failed(target, reason: "Window not found through Accessibility")`.
+4. `accessibilityRaise`:
+   - `AXUIElementPerformAction(window, kAXRaiseAction)`;
+   - set `kAXMainAttribute = true` on the window;
+   - set `kAXFrontmostAttribute = true` on the app.
+
+   Then verify by polling every 25 ms, for up to 300 ms, until both hold:
+   - the frontmost pid equals the target's pid;
+   - the app's `kAXFocusedWindowAttribute` is `CFEqual` to the window. If it cannot be read, accept the pid match
+     alone.
+
+   On success → `.focused(target, method: .accessibilityRaise, milliseconds:)`.
+5. `appActivation`:
+   - `NSRunningApplication(processIdentifier:)?.activate(from: .current, options: [])` (macOS 14 API);
+   - the raise again;
+   - the same verification.
+
+   On success → `.focused(..., .appActivation, ...)`.
+6. Otherwise → `.failed(target, reason: "Focus did not move to <app>")`.
+7. If the calling task is cancelled between methods → `.failed(target, reason: "Cancelled")`. No further method
+   is tried, which lets a Focus Test countdown be cancelled.
+- `milliseconds` runs from step 2 to verification. The returned `WindowSummary` includes the AX title when it is
+  known.
+- **Rules:**
+  - No main-thread AX calls: all window-list and AX work runs on one private serial `DispatchQueue`, bridged with
+    `withCheckedContinuation`. Main-actor reads (`NSWorkspace` / `NSRunningApplication`) use
+    `await MainActor.run`.
+  - Never move the cursor, synthesize events, or use private APIs (CI guard, §11).
+- **Concurrency:** `AXFocusController` is `Sendable` (a final class with only immutable stored properties).
+  `AXUIElement` may cross threads only inside one internal `@unchecked Sendable` wrapper, commented "immutable CF
+  reference; these AX calls are thread-safe".
+- **Logging:** category `"focus"`. Log the outcome, app name, method, and ms. **Never log window titles.**
+- **Tests** (pure parts plus safe smoke tests):
+  - record parsing, including missing keys and the alpha default;
+  - the normal-window filter;
+  - AppKit → Quartz conversion, with the main display at the origin and displays left, right, above (negative
+    Quartz y), and below;
+  - display assignment: largest overlap, ties to the center, no overlap skipped;
+  - last-used selection over a z-ordered list: frontmost per display, own pid excluded, empty displays absent;
+  - AX frame matching within 2 pt;
+  - `isTrusted()` and `lastUsedWindows(in: .empty)` return without crashing.
+
+  **Never call `requestTrust()` or `focus(display:in:)` in tests.** The test runner may itself have Accessibility
+  permission, and a focus call would really move focus.
+
+**Docs (issue #18):** `docs/focus-fallbacks.md` is orchestrator-owned and written from the builder's report:
+the fallback list, known limits, and a table for the user's Focus Test results.
+
 ## 7. App entry point and composition (orchestrator-owned)
 
 `Sway/SwayApp.swift`:
@@ -454,7 +828,8 @@ internal files.
 let camera = CameraCaptureService()
 let poseSource = LivePoseSource(frameSource: camera, estimator: VisionPoseEstimator())
 AppModel(camera: camera, poseSource: poseSource, displays: ScreenDisplayTracker(),
-         traceStore: FileTraceStore(), analyzer: SeparabilityAnalyzer())
+         traceStore: FileTraceStore(), analyzer: SeparabilityAnalyzer(),
+         engine: PoseSwitchEngine(), focus: AXFocusController())
 ```
 
 ## 8. Concurrency (Swift 6 language mode, complete checking)
@@ -476,7 +851,7 @@ AppModel(camera: camera, poseSource: poseSource, displays: ScreenDisplayTracker(
 - Formatting: 4-space indent, 120 columns. `xcrun swift-format` with the repo's `.swift-format` must be clean.
 - Doc comments (`///`) on every public symbol and on non-obvious internal logic.
 - No force unwraps or `try!` outside tests. No `print`; use `SwayLog.logger(category:)` with categories
-  `camera`, `pose`, `traces`, `displays`, `ui`.
+  `camera`, `pose`, `traces`, `displays`, `ui`, `engine`, `focus`.
 - `UserDefaults` keys are prefixed `sway.`. User-facing strings are plain English, sentence case.
 - Tests use Swift Testing (`import Testing`, `@Suite`, `@Test`, `#expect`) and are named for the behavior.
 
@@ -492,9 +867,11 @@ AppModel(camera: camera, poseSource: poseSource, displays: ScreenDisplayTracker(
   - Verification builds use `CODE_SIGNING_ALLOWED=NO`.
   - A stable signature keeps the TCC grants across rebuilds.
 - **Runtime permissions:**
-  - M1: Camera only.
-  - Later: Accessibility (M3).
-  - No Screen Recording is needed, since window bounds via `CGWindowList` don't require it.
+  - Camera (M1).
+  - Accessibility (M3). It needs no entitlement or Info.plist key. The grant is tied to the code signature, so
+    unsigned verification builds never keep it.
+  - No Screen Recording is needed: window owners and bounds from `CGWindowList` don't require it, and titles
+    come from Accessibility.
 
 ## 11. Privacy rules (enforced by `scripts/privacy-guard.sh` in CI)
 
@@ -502,6 +879,12 @@ The shipped code in `Sway/` and `SwayCore/Sources/` may not mention these, not e
 - networking: `URLSession`, `URLRequest`, `NSURLConnection`, `Network` / `NW*`, sockets, `WebKit`;
 - image or video persistence: `AVAssetWriter`, `AVCaptureMovieFileOutput`, `AVCapturePhotoOutput`,
   `CGImageDestination`, `pngData` / `jpegData` / `tiffRepresentation`, etc.
+- cursor movement or input events (M3, PLAN.md "the cursor never moves"): `CGWarpMouseCursorPosition`,
+  `CGDisplayMoveCursorToPoint`, `CGAssociateMouseAndMouseCursorPosition`, `CGEventPost`,
+  `CGEventCreateMouseEvent`, `CGEventCreateKeyboardEvent`, event taps, and `NSEvent` global monitors. Local
+  monitors inside Sway's own windows are fine;
+- private window-server or Accessibility APIs: `_AXUIElementGetWindow`, `CGSSetFrontProcess`,
+  `_SLPSSetFrontProcess`, and similar.
 
 Only numeric traces, only in DEBUG. No analytics or crash reporting.
 
@@ -513,6 +896,12 @@ Tests must **never**:
 - access the network;
 - depend on the number of connected displays;
 - sleep for more than about 1 s in total. Use injected clocks or `speed: 0`.
+- prompt for Accessibility, or raise, activate, or focus any window (`requestTrust()` and
+  `focus(display:in:)` are off limits);
+- run real Vision unguarded: tests that do skip when `CI` is set.
+- leave files outside `temporaryDirectory`. A `UserDefaults` suite in tests uses an absolute path under
+  `temporaryDirectory` as its suite name (stored as `<path>.plist`); a plain name leaves a file in
+  `~/Library/Preferences`.
 
 Tests must cover all non-UI logic in the module.
 

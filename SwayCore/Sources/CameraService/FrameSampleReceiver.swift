@@ -8,9 +8,20 @@ import os
 /// Only the pixel buffer reference and the presentation time are read. Nothing is copied or stored, and the
 /// frame is dropped when the handler returns. After `disable()` no further frame reaches the handler.
 final class FrameSampleReceiver: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, Sendable {
+    /// The frame handler, wrapped in a struct before it goes into the lock.
+    ///
+    /// A bare function type stored in a generic container is re-abstracted on every `withLock` call: each access
+    /// wraps the stored closure in two more thunks. At camera frame rate the chain was thousands deep within a
+    /// couple of minutes, every frame called through all of it, and releasing it in `disable()` overflowed the
+    /// session queue's stack (the crash on turning Live off). A struct field has one fixed representation, so
+    /// nothing is wrapped.
+    private struct Delivery: Sendable {
+        var handler: (@Sendable (CameraFrame) -> Void)?
+    }
+
     // Sendable by construction: every stored property is an immutable `let` of a Sendable type; the mutable
     // state lives inside the unfair locks.
-    private let handler: OSAllocatedUnfairLock<(@Sendable (CameraFrame) -> Void)?>
+    private let delivery: OSAllocatedUnfairLock<Delivery>
     private let watchdog: OSAllocatedUnfairLock<FrameWatchdog>
     private let onFramesResumed: @Sendable () -> Void
 
@@ -23,16 +34,16 @@ final class FrameSampleReceiver: NSObject, AVCaptureVideoDataOutputSampleBufferD
         watchdog: OSAllocatedUnfairLock<FrameWatchdog>,
         onFramesResumed: @escaping @Sendable () -> Void
     ) {
-        self.handler = OSAllocatedUnfairLock(initialState: frameHandler)
+        self.delivery = OSAllocatedUnfairLock(initialState: Delivery(handler: frameHandler))
         self.watchdog = watchdog
         self.onFramesResumed = onFramesResumed
         super.init()
     }
 
-    /// Stops delivery. A frame already inside the handler finishes; the controller drains the frame queue
-    /// afterwards so that no handler call is in flight once teardown returns.
+    /// Stops delivery and releases the handler. A frame already inside the handler finishes; the controller
+    /// drains the frame queue afterwards so that no handler call is in flight once teardown returns.
     func disable() {
-        handler.withLock { $0 = nil }
+        delivery.withLock { $0.handler = nil }
     }
 
     func captureOutput(
@@ -40,15 +51,20 @@ final class FrameSampleReceiver: NSObject, AVCaptureVideoDataOutputSampleBufferD
         didOutput sampleBuffer: CMSampleBuffer,
         from connection: AVCaptureConnection
     ) {
-        guard let handler = handler.withLock({ $0 }) else { return }
         guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
+        deliver(pixelBuffer, presentationSeconds: CMSampleBufferGetPresentationTimeStamp(sampleBuffer).seconds)
+    }
+
+    /// One frame: updates the watchdog and calls the handler, unless disabled. Split from `captureOutput` so
+    /// tests can deliver frames without a capture connection.
+    func deliver(_ pixelBuffer: CVPixelBuffer, presentationSeconds: Double) {
+        guard let handler = delivery.withLock({ $0 }).handler else { return }
 
         let uptime = ProcessInfo.processInfo.systemUptime
         if watchdog.withLock({ $0.frameReceived(at: uptime) }) != nil {
             onFramesResumed()
         }
 
-        let presentationSeconds = CMSampleBufferGetPresentationTimeStamp(sampleBuffer).seconds
         let timestamp = presentationSeconds.isFinite ? presentationSeconds : uptime
         handler(CameraFrame(pixelBuffer: pixelBuffer, timestamp: timestamp))
     }

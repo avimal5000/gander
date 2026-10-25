@@ -44,7 +44,7 @@ struct LiveGuessView: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
         }
-        Text("Using \(best.title) from \(sourceDescription)")
+        Text("Using \((model.liveGuessFeatureSet ?? best).title) from \(sourceDescription)")
             .font(.caption)
             .foregroundStyle(.secondary)
     }

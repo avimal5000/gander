@@ -77,6 +77,62 @@ struct ViewSmokeTests {
         }
     }
 
+    @Test func switchPreviewRendersInEveryState() async {
+        let h = Harness.make()
+        defer { h.tearDown() }
+        #expect(renders(SwitchPreviewView(model: h.model), width: 520, height: 400), "Not calibrated")
+
+        h.openTrace()
+        #expect(renders(SwitchPreviewView(model: h.model), width: 520, height: 400), "Calibrated, camera off")
+
+        await h.startLive()
+        h.engine.script.set { sample, _ in
+            Fixtures.decision(
+                switchTo: sample.timestamp > 2 ? Fixtures.right.id : nil,
+                phase: sample.timestamp > 2
+                    ? .coolingDown(until: 3) : .dwelling(display: Fixtures.right.id, progress: 0.5),
+                classification: Fixtures.classification(best: Fixtures.right.id))
+        }
+        h.model.handle(.sample(Fixtures.sample(at: 1)))
+        #expect(renders(SwitchPreviewView(model: h.model), width: 520, height: 400), "Dwelling")
+        h.model.handle(.sample(Fixtures.sample(at: 3)))
+        #expect(renders(SwitchPreviewView(model: h.model), width: 520, height: 500), "With a logged switch")
+
+        h.model.layoutDidChange(Fixtures.threeDisplays)
+        #expect(h.model.isCalibrationStale)
+        #expect(renders(SwitchPreviewView(model: h.model), width: 520, height: 500), "Stale")
+    }
+
+    @Test func focusTestRendersGrantedNotGrantedAndBusy() async {
+        let denied = Harness.make(trusted: false)
+        defer { denied.tearDown() }
+        #expect(renders(FocusTestView(model: denied.model)))
+
+        let h = Harness.make()
+        defer { h.tearDown() }
+        h.focus.setWindows([Fixtures.left.id: Fixtures.window()])
+        h.model.noteWindowRequested(SwayWindowID.focusTest)
+        h.model.startFocusTest()
+        await h.model.focusPollTask?.value
+        #expect(renders(FocusTestView(model: h.model)))
+
+        h.model.focusAfterDelay(Fixtures.left.id)
+        #expect(renders(FocusTestView(model: h.model)), "Counting down")
+        h.model.stopFocusTest()
+    }
+
+    @Test func theReportShowsTheCalibrationOutcome() {
+        let h = Harness.make()
+        defer { h.tearDown() }
+        h.openTrace()
+        #expect(renders(GateTestView(model: h.model)))
+
+        h.engine.setFitResult(.failure(.tooFewDisplays))
+        h.openTrace(name: "second.json")
+        #expect(h.model.calibrationMessage != nil)
+        #expect(renders(GateTestView(model: h.model)))
+    }
+
     @Test func emptyPlotsDoNotCrash() {
         #expect(renders(ScatterPlotView(points: [], clusters: []), width: 400, height: 300))
         let h = Harness.make()

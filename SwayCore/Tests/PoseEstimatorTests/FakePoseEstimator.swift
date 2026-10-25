@@ -6,10 +6,18 @@ import os
 /// A deterministic `PoseEstimating`: the pose is a pure function of the frame timestamp, so tests can tell
 /// which frame produced which sample. A negative timestamp means "no face".
 final class FakePoseEstimator: PoseEstimating {
-    private let calls = OSAllocatedUnfairLock(initialState: [TimeInterval]())
+    private struct Calls {
+        var timestamps: [TimeInterval] = []
+        var includeLandmarks: [Bool] = []
+    }
+
+    private let calls = OSAllocatedUnfairLock(initialState: Calls())
 
     /// Timestamps of every frame estimated so far, in call order.
-    var estimatedTimestamps: [TimeInterval] { calls.withLock { $0 } }
+    var estimatedTimestamps: [TimeInterval] { calls.withLock { $0.timestamps } }
+
+    /// The `includeLandmarks` flag received by each call so far, in call order.
+    var receivedIncludeLandmarks: [Bool] { calls.withLock { $0.includeLandmarks } }
 
     /// The pose this estimator returns for a timestamp.
     static func pose(at timestamp: TimeInterval) -> HeadPose? {
@@ -25,8 +33,11 @@ final class FakePoseEstimator: PoseEstimating {
         )
     }
 
-    func estimate(_ frame: CameraFrame) -> HeadPose? {
-        calls.withLock { $0.append(frame.timestamp) }
+    func estimate(_ frame: CameraFrame, includeLandmarks: Bool) -> HeadPose? {
+        calls.withLock {
+            $0.timestamps.append(frame.timestamp)
+            $0.includeLandmarks.append(includeLandmarks)
+        }
         return Self.pose(at: frame.timestamp)
     }
 }

@@ -6,10 +6,18 @@ public struct PoseSourceConfiguration: Sendable, Equatable {
     public var cameraDeviceID: String?
     /// Target frames per second.
     public var frameRate: Double
+    /// Also compute the landmark-derived angles (`HeadPose.landmarkYaw` / `landmarkPitch`). This costs a second
+    /// Vision request per frame, so only the gate test turns it on; live tracking uses Vision's angles alone.
+    public var includeLandmarks: Bool
 
-    public init(cameraDeviceID: String? = nil, frameRate: Double = SwayPolicy.defaultFrameRate) {
+    public init(
+        cameraDeviceID: String? = nil,
+        frameRate: Double = SwayPolicy.defaultFrameRate,
+        includeLandmarks: Bool = false
+    ) {
         self.cameraDeviceID = cameraDeviceID
         self.frameRate = frameRate
+        self.includeLandmarks = includeLandmarks
     }
 }
 
@@ -35,5 +43,7 @@ public protocol PoseSource: AnyObject, Sendable {
 public protocol PoseEstimating: Sendable {
     /// Synchronously estimates the pose of the largest face in the frame; `nil` if none.
     /// Called on the capture queue, so it must finish well within one frame interval.
-    func estimate(_ frame: CameraFrame) -> HeadPose?
+    /// - Parameter includeLandmarks: also fill `landmarkYaw` / `landmarkPitch`; when `false` they are `nil` and
+    ///   no landmark request runs.
+    func estimate(_ frame: CameraFrame, includeLandmarks: Bool) -> HeadPose?
 }

@@ -20,7 +20,8 @@ struct AppModelGateTests {
             h.reportRunning()
         }
         await h.model.startGateTest()
-        if !liveBefore { h.reportRunning() }
+        // With Live already on, the gate test restarts the source with landmarks, so it reports running again.
+        h.reportRunning()
         return h
     }
 
@@ -129,15 +130,81 @@ struct AppModelGateTests {
     @Test func theCameraStaysOnAfterTheTestWhenLiveWasOn() async {
         let h = await startedGate(rounds: 1, liveBefore: true)
         defer { h.tearDown() }
-        #expect(h.pose.startCount == 1)
 
         runToCompletion(h)
         await h.model.cameraOperation?.value
 
         #expect(h.model.isCameraActive)
-        #expect(h.pose.stopCount == 0)
         #expect(h.model.liveEnabled)
         #expect(h.model.analysis != nil)
+        // Live, then the gate test's restart with landmarks, then Live again without them.
+        #expect(h.pose.configurations.map(\.includeLandmarks) == [false, true, false])
+    }
+
+    // MARK: Landmarks (SPEC D15)
+
+    @Test func theGateTestTurnsLandmarksOnAndLiveAfterwardsRunsWithoutThem() async {
+        let h = await startedGate(rounds: 1)
+        defer { h.tearDown() }
+        #expect(h.pose.configurations.map(\.includeLandmarks) == [true])
+
+        runToCompletion(h)
+        await h.model.cameraOperation?.value
+        #expect(!h.model.isCameraActive)
+
+        await h.model.setLiveEnabled(true)
+        #expect(h.pose.configurations.map(\.includeLandmarks) == [true, false])
+        #expect(h.model.activeConfiguration?.includeLandmarks == false)
+    }
+
+    @Test func landmarksAreOnFromTheCameraStartPhase() async {
+        let h = Harness.make()
+        defer { h.tearDown() }
+
+        await h.model.startGateTest()
+
+        #expect(h.model.gateRunState == .startingCamera)
+        #expect(h.pose.configurations == [PoseSourceConfiguration(cameraDeviceID: nil, includeLandmarks: true)])
+    }
+
+    @Test func liveAloneNeverAsksForLandmarks() async {
+        let h = Harness.make()
+        defer { h.tearDown() }
+
+        await h.model.setLiveEnabled(true)
+
+        #expect(h.pose.configurations.map(\.includeLandmarks) == [false])
+    }
+
+    @Test func aGateTestStartedWhileLiveRunsRestartsTheSourceWithLandmarks() async {
+        let h = Harness.make(autoRun: true)
+        defer { h.tearDown() }
+        await h.model.setLiveEnabled(true)
+        _ = await waitUntil { h.model.status.isRunning }
+        h.model.gateConfiguration = GateTestConfiguration(rounds: 1, holdDuration: 3)
+
+        await h.model.startGateTest()
+        let running = await waitUntil { h.model.gateRunState == .running }
+
+        #expect(running)
+        #expect(h.pose.configurations.map(\.includeLandmarks) == [false, true])
+        #expect(h.pose.stopCount >= 1)
+        // The restart replaces the stream, so the test's frames come from the landmark stream only.
+        #expect(h.model.liveEnabled)
+    }
+
+    @Test func aCancelledGateTestPutsLiveBackWithoutLandmarks() async {
+        let h = await startedGate(liveBefore: true)
+        defer { h.tearDown() }
+        #expect(h.model.activeConfiguration?.includeLandmarks == true)
+
+        h.model.cancelGateTest(reason: nil)
+        await h.model.cameraOperation?.value
+
+        #expect(h.model.isCameraActive)
+        #expect(h.model.liveEnabled)
+        #expect(h.model.activeConfiguration?.includeLandmarks == false)
+        #expect(h.pose.configurations.map(\.includeLandmarks) == [false, true, false])
     }
 
     // MARK: Cancel and failure

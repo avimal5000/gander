@@ -10,6 +10,13 @@ let featureModules = [
     "PoseTraces",
     "DisplayTracker",
     "SwayUI",
+    "SwitchEngine",
+    "FocusControl",
+]
+
+// Test resources, per module. SwitchEngineTests replays the user's recorded M1 gate trace (numeric only).
+let testResources: [String: [Resource]] = [
+    "SwitchEngine": [.copy("Fixtures")]
 ]
 
 // Builders set SWAY_MODULE=<Module> so `swift build` / `swift test` only see SwayModels plus
@@ -23,7 +30,13 @@ var targets: [Target] = [
 ]
 for module in activeModules {
     targets.append(.target(name: module, dependencies: ["SwayModels"]))
-    targets.append(.testTarget(name: "\(module)Tests", dependencies: [.target(name: module), "SwayModels"]))
+    targets.append(
+        .testTarget(
+            name: "\(module)Tests",
+            dependencies: [.target(name: module), "SwayModels"],
+            resources: testResources[module]
+        )
+    )
 }
 
 let package = Package(

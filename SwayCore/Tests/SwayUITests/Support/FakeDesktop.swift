@@ -7,6 +7,7 @@ import SwayModels
 @MainActor
 final class FakeSystem: SystemInteracting {
     private(set) var openedSettingsCount = 0
+    private(set) var openedAccessibilitySettingsCount = 0
     private(set) var revealed: [URL] = []
     private(set) var copied: [String] = []
     private(set) var terminateCount = 0
@@ -14,6 +15,7 @@ final class FakeSystem: SystemInteracting {
     var chosenFile: URL?
 
     func openCameraPrivacySettings() { openedSettingsCount += 1 }
+    func openAccessibilityPrivacySettings() { openedAccessibilitySettingsCount += 1 }
     func revealInFinder(_ url: URL) { revealed.append(url) }
     func copyToPasteboard(_ string: String) { copied.append(string) }
     func terminateApp() { terminateCount += 1 }

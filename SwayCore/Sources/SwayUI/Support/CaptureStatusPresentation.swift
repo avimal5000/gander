@@ -84,9 +84,21 @@ extension TraceStoreError {
     }
 }
 
+extension CalibrationError {
+    /// Plain-English description for the report view when a calibration cannot be fitted.
+    var userMessage: String {
+        switch self {
+        case .tooFewDisplays:
+            "Not enough face samples on at least two displays to calibrate. Run the gate test with your face visible."
+        case .featuresMissing(let features): "This trace has no \(features.title)"
+        }
+    }
+}
+
 /// Describes any thrown error for display.
 func userMessage(for error: any Error) -> String {
     if let error = error as? TraceStoreError { return error.userMessage }
+    if let error = error as? CalibrationError { return error.userMessage }
     if let error = error as? CameraError { return error.userMessage }
     return error.localizedDescription
 }

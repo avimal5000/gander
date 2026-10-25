@@ -5,7 +5,8 @@ import SwiftUI
 struct PoseReadoutView: View {
     let model: AppModel
 
-    private var pose: HeadPose? { model.latestSample?.pose }
+    /// Refreshed five times a second (`LiveReadout`), not at the frame rate.
+    private var pose: HeadPose? { model.readout.pose }
 
     var body: some View {
         Grid(alignment: .leading, horizontalSpacing: 18, verticalSpacing: 6) {

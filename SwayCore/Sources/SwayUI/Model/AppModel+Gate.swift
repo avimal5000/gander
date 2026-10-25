@@ -139,6 +139,7 @@ extension AppModel {
         guard let trace else { return }
         let result = analyzer.analyze(trace, thresholds: .default)
         adopt(result, trace: trace, source: .gateTest)
+        refitCalibration(from: trace)
         isShowingReport = true
         saveGateTrace(trace)
     }

@@ -6,6 +6,8 @@ import SwiftUI
 struct MenuContentView: View {
     let model: AppModel
     @Environment(\.openWindow) private var openWindow
+    /// False while the popover is closed; SwiftUI keeps its views alive between openings (`WindowVisibility`).
+    @State private var showsLiveContent = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -22,6 +24,9 @@ struct MenuContentView: View {
                 MenuRow(title: "Head-Pose Gate Test\u{2026}", systemImage: "scope") {
                     open(SwayWindowID.gateTest)
                 }
+                MenuRow(title: "Focus Test Window\u{2026}", systemImage: "rectangle.2.swap") {
+                    open(SwayWindowID.focusTest)
+                }
                 MenuRow(title: "Quit Sway", systemImage: "power") {
                     Task { await model.quit() }
                 }
@@ -29,6 +34,7 @@ struct MenuContentView: View {
         }
         .padding(14)
         .frame(width: 300)
+        .background(WindowVisibilityReader { showsLiveContent = $0 })
         .onAppear { model.refreshEnvironment() }
         // The popover can stay alive between openings, so refresh whenever a window becomes key too.
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
@@ -49,14 +55,19 @@ struct MenuContentView: View {
         }
     }
 
+    /// Always exactly one line (`MenuReadout`), so the popover keeps its height when the camera starts or stops.
     @ViewBuilder
     private var miniReadout: some View {
-        if let pose = model.latestSample?.pose {
+        let line =
+            showsLiveContent
+            ? MenuReadout.make(pose: model.readout.pose, isRunning: model.status.isRunning) : .placeholder
+        switch line {
+        case .angles(let yaw, let pitch):
             HStack(spacing: 16) {
-                readout("Yaw", Formatting.degrees(pose.yaw))
-                readout("Pitch", Formatting.degrees(pose.pitch))
+                readout("Yaw", yaw)
+                readout("Pitch", pitch)
             }
-        } else if model.status.isRunning {
+        case .noFace:
             Text("No face detected")
                 .font(.callout)
                 .foregroundStyle(.secondary)

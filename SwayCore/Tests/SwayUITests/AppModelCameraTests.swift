@@ -88,6 +88,27 @@ struct AppModelCameraTests {
         #expect(h.model.menuBarSymbol == "eye.trianglebadge.exclamationmark")
     }
 
+    @Test func textReadoutsRefreshFiveTimesASecondAndAFaceChangeAtOnce() {
+        let h = Harness.make()
+        defer { h.tearDown() }
+
+        h.reportRunning()
+        h.model.handle(.sample(Fixtures.sample(at: 10, yaw: 1)))
+        #expect(h.model.readout.pose?.yaw == 1)
+
+        h.model.handle(.sample(Fixtures.sample(at: 10.1, yaw: 2)))
+        #expect(h.model.readout.pose?.yaw == 1)
+        // Everything else still follows every frame.
+        #expect(h.model.latestSample?.pose?.yaw == 2)
+
+        h.model.handle(.sample(Fixtures.sample(at: 10.25, yaw: 3)))
+        #expect(h.model.readout.pose?.yaw == 3)
+        #expect(h.model.readout.fps > 0)
+
+        h.model.handle(.sample(Fixtures.sample(at: 10.3, face: false)))
+        #expect(h.model.readout.pose == nil)
+    }
+
     @Test func eventsFlowFromTheStreamIntoTheModel() async {
         let h = Harness.make(autoRun: true)
         defer { h.tearDown() }
@@ -110,6 +131,7 @@ struct AppModelCameraTests {
         h.model.handle(.status(.suspended(.screenLocked)))
         #expect(h.model.latestSample == nil)
         #expect(h.model.fps == 0)
+        #expect(h.model.readout == LiveReadout())
         #expect(h.model.statusLine == "Suspended: screen locked")
         #expect(h.model.menuBarSymbol == "pause.circle")
 

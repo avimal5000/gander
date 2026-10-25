@@ -120,3 +120,99 @@ struct DisplayHelperTests {
         #expect(SwayPalette.charcoalHex == 0x2B2B2B)
     }
 }
+
+@Suite("Switch preview and calibration wording")
+struct SwitchPreviewWordingTests {
+    private let names: (DisplayID) -> String = { $0 == Fixtures.left.id ? "Left" : "Right" }
+
+    @Test func theClassificationNamesTheNearestDisplayOrSaysWhyNot() {
+        #expect(SwitchPreviewPresentation.classificationText(nil, name: names) == "No face")
+        #expect(SwitchPreviewPresentation.classificationText(.noFace, name: names) == "No face")
+        #expect(
+            SwitchPreviewPresentation.classificationText(Fixtures.classification(.elsewhere), name: names)
+                == "Looking elsewhere")
+        #expect(
+            SwitchPreviewPresentation.classificationText(Fixtures.classification(best: Fixtures.right.id), name: names)
+                == "Nearest: Right")
+    }
+
+    @Test func theMarginBarOnlyExistsForADisplayAndStaysInRange() {
+        #expect(SwitchPreviewPresentation.margin(nil) == nil)
+        #expect(SwitchPreviewPresentation.margin(.noFace) == nil)
+        #expect(SwitchPreviewPresentation.margin(Fixtures.classification(.elsewhere)) == nil)
+        #expect(SwitchPreviewPresentation.margin(Fixtures.classification(margin: 0.62)) == 0.62)
+        #expect(SwitchPreviewPresentation.margin(Fixtures.classification(margin: 1.4)) == 1)
+        #expect(SwitchPreviewPresentation.margin(Fixtures.classification(margin: -0.2)) == 0)
+    }
+
+    @Test func thePhaseReadsWatchingDwellingCoolingOrLocked() {
+        let phase = SwitchPreviewPresentation.phaseText
+        #expect(phase(nil, names) == "Watching")
+        #expect(phase(.idle, names) == "Watching")
+        #expect(phase(.dwelling(display: Fixtures.right.id, progress: 0.4), names) == "Dwelling on Right")
+        #expect(phase(.coolingDown(until: 3), names) == "Cooling down")
+        #expect(phase(.locked, names) == "Focus lock is on")
+    }
+
+    @Test func theDwellBarOnlyExistsWhileDwelling() {
+        #expect(SwitchPreviewPresentation.dwellProgress(.dwelling(display: Fixtures.left.id, progress: 0.25)) == 0.25)
+        #expect(SwitchPreviewPresentation.dwellProgress(.dwelling(display: Fixtures.left.id, progress: 3)) == 1)
+        #expect(SwitchPreviewPresentation.dwellProgress(.idle) == nil)
+        #expect(SwitchPreviewPresentation.dwellProgress(.coolingDown(until: 1)) == nil)
+        #expect(SwitchPreviewPresentation.dwellProgress(nil) == nil)
+    }
+
+    @Test func theSimulatedFocusNamesTheDisplayOrSaysUnknown() {
+        #expect(
+            SwitchPreviewPresentation.simulatedFocusText(Fixtures.left.id, name: names) == "Focus (simulated): Left")
+        #expect(SwitchPreviewPresentation.simulatedFocusText(nil, name: names) == "Focus (simulated): Unknown")
+    }
+
+    @Test func theMessagesMatchTheContract() {
+        #expect(SwitchPreviewPresentation.noProfile == "Run the gate test to calibrate.")
+        #expect(SwitchPreviewPresentation.stale.hasPrefix("Displays changed since calibration"))
+        #expect(
+            CalibrationError.tooFewDisplays.userMessage
+                == "Not enough face samples on at least two displays to calibrate. Run the gate test with your face visible."
+        )
+        #expect(CalibrationError.featuresMissing(.visionAngles).userMessage == "This trace has no Vision angles")
+        #expect(userMessage(for: CalibrationError.tooFewDisplays) == CalibrationError.tooFewDisplays.userMessage)
+    }
+
+    @Test func theLandmarkPlotExplainsItselfOnlyWhenFacesExistWithoutLandmarks() {
+        let text = PlotPlaceholder.text
+        let notice = "Landmark angles are computed only during the gate test."
+        #expect(PlotPlaceholder.landmarksOnlyDuringGate == notice)
+        // Faces are there, but none carries landmarks.
+        #expect(text(.landmarkAngles, true, false, true) == notice)
+        // Vision angles are always present with a face.
+        #expect(text(.visionAngles, true, false, true) == "Waiting for a face\u{2026}")
+        // No face yet.
+        #expect(text(.landmarkAngles, false, false, true) == "Waiting for a face\u{2026}")
+        #expect(text(.landmarkAngles, false, false, false) == "Turn the camera on to see live pose")
+        // Something to draw.
+        #expect(text(.landmarkAngles, true, true, true) == nil)
+        #expect(text(.visionAngles, true, true, true) == nil)
+    }
+}
+
+@Suite("Live content visibility")
+struct LiveContentVisibilityTests {
+    @Test func liveContentShowsOnlyInAnOpenUnminimizedWindow() {
+        #expect(WindowVisibility.showsLiveContent(isVisible: true, isMiniaturized: false, isClosing: false))
+        #expect(!WindowVisibility.showsLiveContent(isVisible: false, isMiniaturized: false, isClosing: false))
+        #expect(!WindowVisibility.showsLiveContent(isVisible: true, isMiniaturized: true, isClosing: false))
+        // `willClose` arrives while the window still reports itself visible.
+        #expect(!WindowVisibility.showsLiveContent(isVisible: true, isMiniaturized: false, isClosing: true))
+    }
+
+    @Test func menuReadoutIsOneLineInEveryState() {
+        #expect(
+            MenuReadout.make(pose: Fixtures.pose(yaw: 12.34, pitch: -3), isRunning: true)
+                == .angles(yaw: "+12.3\u{00B0}", pitch: "-3.0\u{00B0}"))
+        #expect(MenuReadout.make(pose: nil, isRunning: true) == .noFace)
+        // Camera off: dashes instead of no line, so the popover keeps its height.
+        #expect(MenuReadout.make(pose: nil, isRunning: false) == .angles(yaw: "\u{2014}", pitch: "\u{2014}"))
+        #expect(MenuReadout.placeholder == .angles(yaw: "\u{2014}", pitch: "\u{2014}"))
+    }
+}
