@@ -26,6 +26,11 @@ struct AppModelEnvironment {
     /// How often the focused display is polled while tracking runs (SPEC D29); `nil` disables the timer (tests call
     /// `AppModel.trackingTick()` instead).
     var trackingTickInterval: Duration?
+    /// How often the Setup window re-reads the camera and Accessibility permissions while it waits for one; `nil`
+    /// disables the timer (tests call `AppModel.setupTick()` instead).
+    var setupTickInterval: Duration?
+    /// Delivers key presses to the Focus Lock shortcut recorder, only while it records.
+    var keyMonitor: any ShortcutKeyMonitoring
     /// How long the camera may take to start before a gate test gives up.
     var cameraStartTimeout: TimeInterval
 
@@ -44,6 +49,8 @@ struct AppModelEnvironment {
             gateTickInterval: .milliseconds(100),
             focusTickInterval: .milliseconds(100),
             trackingTickInterval: .seconds(AppModel.focusedDisplayPollInterval),
+            setupTickInterval: .seconds(1),
+            keyMonitor: LocalShortcutKeyMonitor(),
             cameraStartTimeout: 10
         )
     }

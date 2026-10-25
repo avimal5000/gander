@@ -68,7 +68,7 @@ extension CalibrationError {
     var userMessage: String {
         switch self {
         case .tooFewDisplays:
-            "Not enough face samples on at least two displays to calibrate. Run the gate test with your face visible."
+            "Not enough face samples on at least two displays to calibrate. Keep your face in view of the camera and try again."
         case .featuresMissing(let features): "This trace has no \(features.title)"
         }
     }

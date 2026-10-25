@@ -2,27 +2,42 @@ import Foundation
 import SwayModels
 
 // The calibration library (SPEC D25): every saved calibration per display set and camera. Every successful fit (the
-// gate test and an opened trace today, the Setup window in M5) saves into it; the active calibration is the one that
+// gate test, an opened trace, and the Setup window) saves into it; the active calibration is the one that
 // fits the connected displays and the camera, and tracking waits when none does.
 extension AppModel {
     // MARK: Fitting
+
+    /// Why a fit failed, in words for the user.
+    struct FitFailure: Error, Equatable {
+        let text: String
+    }
 
     /// Fits a profile from `trace` and saves it in the library.
     ///
     /// Live tracking has Vision angles only (landmarks are gate-test-only), so the profile always uses them. A
     /// failed fit leaves the library unchanged and explains the problem in `calibrationMessage`.
     func refitCalibration(from trace: PoseTrace) {
-        do {
-            let profile = try engine.fitProfile(from: trace, features: .visionAngles, rounds: nil)
+        switch fitAndSave(trace) {
+        case .success(let profile):
             calibrationMessage = nil
             lastFittedProfile = profile
+        case .failure(let failure):
+            calibrationMessage = .error(failure.text)
+        }
+    }
+
+    /// Fits a Vision-angles profile from `trace` and saves it in the library. A failed fit saves nothing.
+    func fitAndSave(_ trace: PoseTrace) -> Result<CalibrationProfile, FitFailure> {
+        do {
+            let profile = try engine.fitProfile(from: trace, features: .visionAngles, rounds: nil)
             saveToLibrary(profile)
+            return .success(profile)
         } catch let error as CalibrationError {
             log.info("Calibration fit failed: \(String(describing: error), privacy: .public)")
-            calibrationMessage = .error(error.userMessage)
+            return .failure(FitFailure(text: error.userMessage))
         } catch {
             log.error("Calibration fit failed: \(String(describing: error), privacy: .public)")
-            calibrationMessage = .error(error.localizedDescription)
+            return .failure(FitFailure(text: error.localizedDescription))
         }
     }
 

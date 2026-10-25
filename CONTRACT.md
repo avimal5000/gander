@@ -497,7 +497,7 @@ internal files.
 - `isCalibrationStale` is `!profile.matches(layout)` for the current layout.
 
 **3. Switch preview (SPEC F11)** in the Pose Debug window, as a new "Switch preview" section.
-- No profile: show "Run the gate test to calibrate."
+- No profile: show "Not calibrated yet. Choose Calibrate… in the menu." (M5 wording; it was "Run the gate test to calibrate.")
 - With a profile, while Live is on:
   - `AppModel` owns `decider: (any SwitchDeciding)?`, made with
     `engine.makeDecider(profile:settings: .default)` whenever the profile changes or Live starts.

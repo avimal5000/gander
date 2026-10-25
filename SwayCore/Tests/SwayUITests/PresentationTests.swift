@@ -176,10 +176,10 @@ struct SwitchPreviewWordingTests {
     }
 
     @Test func theMessagesMatchTheContract() {
-        #expect(SwitchPreviewPresentation.noProfile == "Run the gate test to calibrate.")
+        #expect(SwitchPreviewPresentation.noProfile == "Not calibrated yet. Choose Calibrate\u{2026} in the menu.")
         #expect(
             CalibrationError.tooFewDisplays.userMessage
-                == "Not enough face samples on at least two displays to calibrate. Run the gate test with your face visible."
+                == "Not enough face samples on at least two displays to calibrate. Keep your face in view of the camera and try again."
         )
         #expect(CalibrationError.featuresMissing(.visionAngles).userMessage == "This trace has no Vision angles")
         #expect(userMessage(for: CalibrationError.tooFewDisplays) == CalibrationError.tooFewDisplays.userMessage)

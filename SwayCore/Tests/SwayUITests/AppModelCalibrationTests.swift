@@ -73,7 +73,7 @@ struct AppModelCalibrationTests {
         #expect(
             h.model.calibrationMessage
                 == .error(
-                    "Not enough face samples on at least two displays to calibrate. Run the gate test with your face visible."
+                    "Not enough face samples on at least two displays to calibrate. Keep your face in view of the camera and try again."
                 ))
         #expect(h.storedLibrary() == kept)
 

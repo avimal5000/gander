@@ -20,6 +20,7 @@ struct Harness {
     let overlay: FakeOverlay
     let clock: TestClock
     let appState: FakeAppState
+    let keyMonitor: FakeKeyMonitor
     /// Where `NSApplication` notifications are posted.
     let notifications: NotificationCenter
     /// Where `NSWorkspace` notifications are posted.
@@ -70,6 +71,7 @@ struct Harness {
         let overlay = FakeOverlay()
         let clock = TestClock()
         let appState = FakeAppState()
+        let keyMonitor = FakeKeyMonitor()
         appState.isActive = appActive
         let notifications = NotificationCenter()
         let workspace = NotificationCenter()
@@ -84,6 +86,8 @@ struct Harness {
             gateTickInterval: nil,
             focusTickInterval: nil,
             trackingTickInterval: nil,
+            setupTickInterval: nil,
+            keyMonitor: keyMonitor,
             cameraStartTimeout: 10
         )
         let model = AppModel(
@@ -94,8 +98,8 @@ struct Harness {
         return Harness(
             model: model, camera: camera, pose: pose, displays: displays, store: store, analyzer: analyzer,
             engine: engine, focus: focus, hotKeys: hotKeys, loginItem: loginItem, system: system, overlay: overlay,
-            clock: clock, appState: appState, notifications: notifications, workspace: workspace,
-            defaults: defaults, suiteName: suiteName
+            clock: clock, appState: appState, keyMonitor: keyMonitor, notifications: notifications,
+            workspace: workspace, defaults: defaults, suiteName: suiteName
         )
     }
 
@@ -136,7 +140,7 @@ struct Harness {
             clock: clock.reading, now: { Date() }, system: FakeSystem(), overlay: FakeOverlay(),
             notificationCenter: NotificationCenter(), workspaceNotificationCenter: NotificationCenter(),
             isAppActive: { false }, gateTickInterval: nil, focusTickInterval: nil, trackingTickInterval: nil,
-            cameraStartTimeout: 10
+            setupTickInterval: nil, keyMonitor: FakeKeyMonitor(), cameraStartTimeout: 10
         )
         return AppModel(
             camera: camera, poseSource: pose, displays: FakeDisplayProvider(layout: layout),

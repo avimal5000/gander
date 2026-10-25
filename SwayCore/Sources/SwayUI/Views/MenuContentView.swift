@@ -20,17 +20,8 @@ struct MenuContentView: View {
             CameraPickerView(model: model)
             Divider()
             VStack(alignment: .leading, spacing: 2) {
-                MenuRow(title: "Calibrate\u{2026}", systemImage: "viewfinder") {
-                    open(SwayWindowID.gateTest)
-                }
-                MenuRow(title: "Pose Debug Window\u{2026}", systemImage: "waveform.path.ecg") {
-                    open(SwayWindowID.poseDebug)
-                }
-                MenuRow(title: "Head-Pose Gate Test\u{2026}", systemImage: "scope") {
-                    open(SwayWindowID.gateTest)
-                }
-                MenuRow(title: "Focus Test Window\u{2026}", systemImage: "rectangle.2.swap") {
-                    open(SwayWindowID.focusTest)
+                ForEach(MenuWindowItem.allCases, id: \.self) { item in
+                    MenuRow(title: item.title, systemImage: item.systemImage) { open(item.windowID) }
                 }
                 MenuRow(title: "Quit Sway", systemImage: "power") {
                     Task { await model.quit() }
@@ -70,13 +61,21 @@ struct MenuContentView: View {
             CameraPermissionView(model: model)
         case .firstSetup?:
             infoBanner(MenuBanner.firstSetupText, systemImage: "wand.and.stars", button: "Set Up\u{2026}") {
-                open(SwayWindowID.gateTest)
+                openButtonWindow(of: .firstSetup)
             }
         case .needsCalibration?:
             infoBanner(
-                MenuBanner.needsCalibrationText, systemImage: "questionmark.circle", button: "Calibrate\u{2026}"
+                MenuBanner.needsCalibrationText, systemImage: "questionmark.circle",
+                button: MenuBanner.calibrateButtonTitle
             ) {
-                open(SwayWindowID.gateTest)
+                openButtonWindow(of: .needsCalibration)
+            }
+        case .needsCameraCalibration(let camera)?:
+            infoBanner(
+                MenuBanner.needsCameraCalibrationText(camera: camera), systemImage: "questionmark.circle",
+                button: MenuBanner.calibrateButtonTitle
+            ) {
+                openButtonWindow(of: .needsCameraCalibration(camera))
             }
         case .needsAccessibility?:
             infoBanner(MenuBanner.needsAccessibilityText, systemImage: "hand.raised", button: "Grant Access\u{2026}") {
@@ -111,6 +110,10 @@ struct MenuContentView: View {
             .foregroundStyle(.secondary)
             .lineLimit(1)
             .truncationMode(.tail)
+    }
+
+    private func openButtonWindow(of banner: MenuBanner) {
+        if let id = banner.buttonWindowID { open(id) }
     }
 
     private func open(_ id: String) {

@@ -37,9 +37,9 @@ orchestrator.
 | Decisions | Done | See History (2026-10-25) |
 | SPEC / CONTRACT | Done (b9933fa) | SPEC D22–D33, F16–F23; CONTRACT §6.5.2 (M4 UI), §6.5.3 (M5 UI), §6.8 (`SystemIntegration`), §7, §10–§12 |
 | Skeleton | Done (b9933fa) | SwayModels `CalibrationLibrary.swift`, `SwitchSensitivity.swift`, `SystemIntegration.swift` (30 model tests); `maxTrackedDisplays = 3`; `SystemIntegration` stub in the package and scheme; the guard also blocks `IOHIDManager`. Two SwayUI gate tests still assume a limit of 2 (builder-ui-m4 updates them) |
-| Builders | Running | builder-system and builder-ui-m4 done; builder-ui-m5 running. Both earlier builders stopped once at the account's usage limit (reset 14:20) and resumed with their work intact |
+| Builders | Done | All three. builder-system and builder-ui-m4 stopped once at the account's usage limit (reset 14:20) and resumed with their work intact. Full `xcodebuild test`: 980 tests, zero warnings |
 | Integrate into the app target | Done | `AppComposition` passes `CarbonHotKeyCenter()` and `MainAppLoginItem()`. Full `xcodebuild test`: 810 tests, zero warnings |
-| Review pass (Opus) | Pending | |
+| Review pass (Opus) | Running | M4 + M5 together |
 | Verification, PR, CI | Pending | |
 
 ## Builder agents
@@ -48,7 +48,7 @@ orchestrator.
 |---|---|---|---|---|---|
 | builder-system | `SystemIntegration` | Carbon hot key center and login item (CONTRACT §6.8; issue #23) | Sonnet | **Done** | 8 small files; the registry owns the Carbon handles behind a lock and runs handlers outside it, so a handler may re-register. 34 tests pass (pure mapping, invalid shortcuts, login item routing against a fake); lint and guard clean. The orchestrator added a guard so asking for the login item's current state calls nothing (the system would only report an error). **The live hot key and `SMAppService` paths are untested** (CONTRACT 12): the user's manual check |
 | builder-ui-m4 | `SwayUI` | Tracking loop, Tracking switch and launch state, Focus Lock and shortcut, status, menu, calibration library (CONTRACT §6.5.2; issues #19, #20, #22, #23) | Sonnet | **Done** | 320 tests pass, three times with no flakes; lint and guard clean. Three tests count observation changes to guard against frame-rate redraws of the menu bar icon, the popover, and the "Looking at" line. Accepted interpretations: camera permission denied keeps Tracking on, blocked (the status says "Camera access needed", and tracking resumes when access is granted); "Not now" on the permission explanation saves Tracking off; a switch request also refuses while any hold applies; "Focus Test running" hold wording. **Orchestrator fix:** "Sway is in front" now also needs a key window, so closing Sway's last window releases the hold (the builder flagged it; +1 test, 321) |
-| builder-ui-m5 | `SwayUI` | Setup window, Settings window, prompts, per-camera calibration (CONTRACT §6.5.3; issues #24–#27) | Sonnet | Running | |
+| builder-ui-m5 | `SwayUI` | Setup window, Settings window, prompts, per-camera calibration (CONTRACT §6.5.3; issues #24–#27) | Sonnet | **Done** | 490 SwayUI tests pass (169 new), 9 runs with no flakes; lint and guard clean. The shortcut recorder's key monitor is behind an injected protocol (the real one is untested). Accepted interpretations: "Skip for now" lasts the app run; Setup shows "Calibrating" while its camera runs; a 2.5 s calibration preset beside the gate window's 3–10 s range; a "Try again" button for a failed camera; confidence step names Relaxed, Easy, Balanced, Firm, Strict. **Orchestrator change:** calibration messages now point at Calibrate… instead of the gate test |
 
 ## Open issues
 

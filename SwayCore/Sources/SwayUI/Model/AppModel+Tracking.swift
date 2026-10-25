@@ -23,10 +23,12 @@ extension AppModel {
         return nil
     }
 
-    /// True while samples feed the decider: Tracking is on, no gate test is steering the camera, and a calibration
-    /// fits. (A gate test's stream carries landmarks and deliberate looks; neither belongs in the loop.)
+    /// True while samples feed the decider: Tracking is on, no gate test or calibration is steering the camera, the
+    /// Setup window is not on its camera check, calibration, or result, and a calibration fits. (Those looks are
+    /// deliberate and the user is adjusting Sway; neither belongs in the loop.)
     var isTrackingActive: Bool {
-        trackingEnabled && gateRunState == .idle && activeCalibration != nil && decider != nil
+        trackingEnabled && gateRunState == .idle && !isSetupHoldingTracking && activeCalibration != nil
+            && decider != nil
     }
 
     // MARK: User action

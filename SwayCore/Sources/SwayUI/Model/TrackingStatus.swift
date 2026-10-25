@@ -32,7 +32,7 @@ enum TrackingStatus: Equatable {
         var authorization: CameraAuthorization
         var capture: CaptureStatus
         var trackingEnabled: Bool
-        /// A calibration or gate test (and, in M5, the Setup window's calibration) is running.
+        /// A calibration or gate test runs, or the Setup window is on its camera check.
         var calibrationRunning: Bool
         var displayCount: Int
         /// A saved calibration fits the connected displays and the camera.

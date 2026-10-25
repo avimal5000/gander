@@ -121,7 +121,7 @@ enum PreviewSupport {
                 clock: { 0 }, now: { Date() }, system: PreviewSystem(), overlay: PreviewOverlay(),
                 notificationCenter: NotificationCenter(), workspaceNotificationCenter: NotificationCenter(),
                 isAppActive: { false }, gateTickInterval: nil, focusTickInterval: nil, trackingTickInterval: nil,
-                cameraStartTimeout: 10
+                setupTickInterval: nil, keyMonitor: PreviewKeyMonitor(), cameraStartTimeout: 10
             )
         )
         if withAnalysis {
@@ -142,6 +142,21 @@ enum PreviewSupport {
         }
         if focusTrusted != nil {
             model.noteWindowRequested(SwayWindowID.focusTest)
+        }
+        return model
+    }
+
+    /// A model with the Set Up Sway window open on `step`. The result step shows a good calibration.
+    @MainActor
+    static func setupModel(step: SetupFlow.Step) -> AppModel {
+        let model = Self.model(withProfile: step == .result)
+        model.noteWindowRequested(SwayWindowID.setup)
+        model.isAccessibilityTrusted = true
+        model.setupWindowDidAppear()
+        if step == .result {
+            model.mutateSetup { $0.startCalibration() }
+            model.mutateSetup { $0.calibrationFinished() }
+            model.setupResult = SetupResult(analysis: analysis(), name: { _ in "Display" })
         }
         return model
     }
@@ -267,6 +282,13 @@ private final class PreviewHotKeys: HotKeyRegistering {
         _ shortcut: HotKeyShortcut, for action: HotKeyAction, handler: @escaping @MainActor () -> Void
     ) throws(HotKeyError) {}
     func unregister(_ action: HotKeyAction) {}
+}
+
+@MainActor
+private final class PreviewKeyMonitor: ShortcutKeyMonitoring {
+    var isActive = false
+    func start(_ handler: @escaping @MainActor (ShortcutKeyPress) -> Bool) { isActive = true }
+    func stop() { isActive = false }
 }
 
 @MainActor

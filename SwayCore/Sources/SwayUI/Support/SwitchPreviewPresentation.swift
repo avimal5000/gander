@@ -3,9 +3,9 @@ import SwayModels
 
 /// Wording for the Switch preview section. Pure functions of model values.
 enum SwitchPreviewPresentation {
-    static let noProfile = "Run the gate test to calibrate."
+    static let noProfile = "Not calibrated yet. Choose Calibrate\u{2026} in the menu."
     static let noMatchingProfile =
-        "No saved calibration fits these displays and this camera. Run the gate test to calibrate."
+        "No saved calibration fits these displays and this camera. Choose Calibrate\u{2026} in the menu."
     static let trackingOff = "Turn Tracking on to see the preview."
     static let noSwitches = "No switches yet. Look at another display and hold."
     static let needsAccessibility = "Accessibility is not granted, so Sway cannot move focus."

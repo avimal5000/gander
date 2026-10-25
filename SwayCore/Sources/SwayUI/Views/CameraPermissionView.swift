@@ -7,9 +7,9 @@ struct CameraPermissionView: View {
     var body: some View {
         if let prompt = model.permissionPrompt {
             VStack(alignment: .leading, spacing: 8) {
-                Label(title(for: prompt), systemImage: icon(for: prompt))
+                Label(Self.title(for: prompt), systemImage: Self.icon(for: prompt))
                     .font(.headline)
-                Text(message(for: prompt))
+                Text(Self.message(for: prompt))
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -32,7 +32,7 @@ struct CameraPermissionView: View {
         }
     }
 
-    private func title(for prompt: CameraPermissionPrompt) -> String {
+    static func title(for prompt: CameraPermissionPrompt) -> String {
         switch prompt {
         case .explanation: "Sway needs your camera"
         case .denied: "Camera access is off"
@@ -40,7 +40,7 @@ struct CameraPermissionView: View {
         }
     }
 
-    private func icon(for prompt: CameraPermissionPrompt) -> String {
+    static func icon(for prompt: CameraPermissionPrompt) -> String {
         switch prompt {
         case .explanation: "camera"
         case .denied: "camera.badge.ellipsis"
@@ -48,7 +48,7 @@ struct CameraPermissionView: View {
         }
     }
 
-    private func message(for prompt: CameraPermissionPrompt) -> String {
+    static func message(for prompt: CameraPermissionPrompt) -> String {
         switch prompt {
         case .explanation:
             "Sway reads your head pose from the camera to work out which display you are looking at. "

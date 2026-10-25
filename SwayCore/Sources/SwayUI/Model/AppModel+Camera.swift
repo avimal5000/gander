@@ -1,9 +1,9 @@
 import Foundation
 import SwayModels
 
-// Camera lifecycle. The pose source runs only while Tracking is on and a calibration fits, or a gate test is running;
-// every start and stop goes through one serial chain of operations so rapid toggling can never leave the camera in a
-// state that disagrees with the latest request.
+// Camera lifecycle. The pose source runs only while Tracking is on and a calibration fits, or a gate test is running,
+// or the Setup window is on its camera check or calibration; every start and stop goes through one serial chain of
+// operations so rapid toggling can never leave the camera in a state that disagrees with the latest request.
 extension AppModel {
     // MARK: User actions
 
@@ -18,7 +18,11 @@ extension AppModel {
             defaults.removeObject(forKey: DefaultsKey.cameraDeviceID)
         }
         refreshActiveCalibration()
-        guard streamTask != nil else { return }
+        guard streamTask != nil else {
+            // A camera check that could not start gets another try with the camera just chosen.
+            if wantsCamera { await reconcileCamera().value }
+            return
+        }
         await enqueueCameraWork { await $0.restartPoseSource() }.value
     }
 
@@ -43,16 +47,19 @@ extension AppModel {
         enqueueCameraWork { await $0.performCameraReconcile() }
     }
 
-    /// True when a gate test needs frames, or Tracking is on with a calibration that fits two or more displays.
+    /// True when a gate test or calibration needs frames, the Setup window is on its camera check, or Tracking is on
+    /// with a calibration that fits two or more displays.
     var wantsCamera: Bool {
-        gateRunState != .idle || (trackingEnabled && activeCalibration != nil && layout.displays.count >= 2)
+        gateRunState != .idle || isSetupUsingCamera
+            || (trackingEnabled && activeCalibration != nil && layout.displays.count >= 2)
     }
 
     /// The configuration the pose source should run with right now. Landmarks cost a second Vision request per
     /// frame, so they are on exactly while a gate test needs the camera (including its camera-start phase) and
-    /// off for Tracking (SPEC D15).
+    /// off for Tracking and for the Setup window's calibration (SPEC D15, D30).
     var desiredConfiguration: PoseSourceConfiguration {
-        PoseSourceConfiguration(cameraDeviceID: selectedCameraID, includeLandmarks: gateRunState != .idle)
+        PoseSourceConfiguration(
+            cameraDeviceID: selectedCameraID, includeLandmarks: gateRunState != .idle && gatePurpose == .gateTest)
     }
 
     func performCameraReconcile() async {
@@ -228,7 +235,7 @@ extension AppModel {
         trackingEnabled = false
         statusDidChange()
         if gateRunState != .idle {
-            abortGate("The camera stopped unexpectedly. Run the test again.")
+            abortGate("The camera stopped unexpectedly. \(gatePurpose.tryAgain)")
         }
     }
 
@@ -249,6 +256,7 @@ extension AppModel {
         history.append(sample)
         if readout.isDue(for: sample) { readout = LiveReadout(sample: sample, fps: history.fps) }
         updateLiveClassification(for: sample.pose)
+        updateFramingAdvice(for: sample)
         processTracking(sample)
         #if DEBUG
         recorder.append(sample)
@@ -268,6 +276,7 @@ extension AppModel {
         liveGuessFeatureSet = nil
         history.reset()
         readout = LiveReadout()
+        resetFramingAdvice()
         resetTracking()
     }
 

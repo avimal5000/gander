@@ -23,8 +23,10 @@ extension AppModel {
         // Any of Sway's windows (the menu included) gaining or losing key status. Closing Sway's last window leaves it
         // active with nothing in front, which must release the hold.
         let windowKeyChanges = [NSWindow.didBecomeKeyNotification, NSWindow.didResignKeyNotification].map { name in
-            center.addObserver(forName: name, object: nil, queue: nil) { [weak self] _ in
-                MainActor.assumeIsolated { self?.refreshSwayInFront() }
+            center.addObserver(forName: name, object: nil, queue: nil) { [weak self] notification in
+                let resigned = notification.name == NSWindow.didResignKeyNotification
+                let window = notification.object as? NSWindow
+                MainActor.assumeIsolated { self?.windowKeyStatusChanged(window, resigned: resigned) }
             }
         }
         // Another app came to the front: ask where focus is now. Posted on the main thread by AppKit.
@@ -60,13 +62,27 @@ extension AppModel {
             if isPollingFocus { pollFocusedDisplay() }
         }
         if gateRunState != .idle {
-            cancelGateTest(reason: "The display arrangement changed, so the gate test was cancelled.")
+            let noun = gatePurpose.noun
+            cancelRunningGate(reason: "The display arrangement changed, so the \(noun) was cancelled.")
+        }
+    }
+
+    /// A window of Sway became or stopped being key. Re-reads whether Sway is in front, and ends a shortcut recording
+    /// when the Settings window it belongs to lost key status (the recorder listens to this window only).
+    func windowKeyStatusChanged(_ window: NSWindow?, resigned: Bool) {
+        refreshSwayInFront()
+        if resigned, isRecordingShortcut, let window, windowRefs[SwayWindowID.settings]?.window === window {
+            cancelShortcutRecording()
         }
     }
 
     /// Sway became the active app; automatic switching holds while its menu or a window is in front.
     func applicationDidBecomeActive() {
         refreshSwayInFront()
+        // Back from System Settings: a permission the Setup window waits for may have been granted, and a login item
+        // approval may have been given.
+        if setupFlow?.isPermissionStep == true { setupTick() }
+        if settingsVisible { refreshLoginItemStatus() }
     }
 
     /// Re-reads whether Sway is in front, assigning only on a change.
@@ -80,7 +96,8 @@ extension AppModel {
     func applicationDidResignActive() {
         refreshSwayInFront()
         guard gateRunState == .running else { return }
-        cancelGateTest(reason: "The gate test was cancelled because Sway was no longer the active app.")
+        let noun = gatePurpose.noun
+        cancelRunningGate(reason: "The \(noun) was cancelled because Sway was no longer the active app.")
     }
 
     /// Best effort at quit: close overlays and ask the camera to stop. The process exiting also ends capture.
@@ -92,6 +109,8 @@ extension AppModel {
             gateSession?.cancel()
             endGate(message: nil)
         }
+        closeSetup()
+        cancelShortcutRecording()
         trackingEnabled = false
         resetTracking()
         streamTask?.cancel()
@@ -112,6 +131,8 @@ extension AppModel {
             gateSession?.cancel()
             endGate(message: nil)
         }
+        closeSetup()
+        cancelShortcutRecording()
         trackingEnabled = false
         layoutTask?.cancel()
         stopFocusTest()

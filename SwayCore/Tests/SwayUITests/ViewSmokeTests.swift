@@ -172,4 +172,119 @@ struct ViewSmokeTests {
         defer { h.tearDown() }
         #expect(renders(PosePlotView(model: h.model), width: 500, height: 320))
     }
+
+    // MARK: Setup and Settings (M5)
+
+    @Test func setupRendersEveryStep() async {
+        let access = Harness.make(authorization: .notDetermined)
+        defer { access.tearDown() }
+        access.openSetup()
+        #expect(access.model.setupFlow?.step == .cameraAccess)
+        #expect(renders(SetupView(model: access.model), width: 520, height: 420), "Camera access, explanation")
+        access.camera.setAuthorizationAfterRequest(.denied)
+        await access.model.requestCameraAccessFromSetup()
+        #expect(renders(SetupView(model: access.model), width: 520, height: 420), "Camera access, denied")
+        let restricted = Harness.make(authorization: .restricted)
+        defer { restricted.tearDown() }
+        restricted.openSetup()
+        #expect(renders(SetupView(model: restricted.model), width: 520, height: 420), "Camera access, restricted")
+
+        let accessibility = Harness.make(trusted: false)
+        defer { accessibility.tearDown() }
+        accessibility.openSetup()
+        #expect(accessibility.model.setupFlow?.step == .accessibility)
+        #expect(renders(SetupView(model: accessibility.model), width: 520, height: 420), "Accessibility")
+
+        let check = Harness.make()
+        defer { check.tearDown() }
+        check.openSetup()
+        await check.model.cameraOperation?.value
+        #expect(renders(SetupView(model: check.model), width: 520, height: 420), "Camera check, starting")
+        check.reportRunning()
+        check.feed()
+        #expect(renders(SetupView(model: check.model), width: 520, height: 420), "Camera check, good")
+        check.clock.advance(by: 1)
+        check.feed(face: false)
+        #expect(renders(SetupView(model: check.model), width: 520, height: 420), "Camera check, no face")
+
+        await check.model.startCalibration()
+        #expect(check.model.setupFlow?.step == .calibrating)
+        #expect(renders(SetupView(model: check.model), width: 520, height: 420), "Calibrating")
+        check.runCalibration()
+        #expect(check.model.setupFlow?.step == .result)
+        #expect(renders(SetupView(model: check.model), width: 520, height: 420), "Result, good")
+
+        let failed = Harness.make()
+        defer { failed.tearDown() }
+        failed.engine.setFitResult(.failure(.tooFewDisplays))
+        await failed.openSetupOnCameraCheck()
+        await failed.completeCalibration()
+        #expect(renders(SetupView(model: failed.model), width: 520, height: 420), "Result, failed")
+    }
+
+    @Test func setupRendersTheCameraCheckProblems() async {
+        let one = Harness.make(layout: Fixtures.oneDisplay)
+        defer { one.tearDown() }
+        await one.openSetupOnCameraCheck()
+        #expect(renders(SetupView(model: one.model), width: 520, height: 420), "One display")
+
+        let failing = Harness.make()
+        defer { failing.tearDown() }
+        failing.pose.setStartError(.noDevice)
+        failing.openSetup()
+        await failing.model.cameraOperation?.value
+        #expect(renders(SetupView(model: failing.model), width: 520, height: 420), "Camera failed")
+
+        let busy = Harness.make()
+        defer { busy.tearDown() }
+        await busy.openSetupOnCameraCheck()
+        busy.model.handle(.status(.interrupted("Camera is in use by another app")))
+        #expect(renders(SetupView(model: busy.model), width: 520, height: 420), "Camera interrupted")
+
+        let closed = Harness.make()
+        defer { closed.tearDown() }
+        #expect(renders(SetupView(model: closed.model), width: 520, height: 420), "Window closed")
+    }
+
+    @Test func settingsRendersInEveryState() async {
+        let empty = Harness.make()
+        defer { empty.tearDown() }
+        #expect(renders(SettingsView(model: empty.model), width: 520, height: 640), "No calibrations")
+
+        let full = Harness.make(calibrated: true, calibrationCameras: ["FaceTime HD Camera", "Logitech C922", nil])
+        defer { full.tearDown() }
+        full.loginItem.status = .requiresApproval
+        full.openSettings()
+        #expect(renders(SettingsView(model: full.model), width: 520, height: 640), "Calibrations and approval")
+
+        full.model.beginShortcutRecording()
+        full.keyMonitor.press(0, [], characters: "a")
+        #expect(renders(SettingsView(model: full.model), width: 520, height: 640), "Recording with a hint")
+        full.model.cancelShortcutRecording()
+
+        full.loginItem.status = .unavailable("macOS can't find this copy of Sway.")
+        full.loginItem.error = LoginItemError(message: "Nope.")
+        full.model.setOpensAtLogin(true)
+        full.model.setHoldTime(1.2)
+        full.model.setSwitchConfidence(4)
+        full.model.clearFocusLockShortcut()
+        #expect(renders(SettingsView(model: full.model), width: 520, height: 640), "Unavailable, error, no shortcut")
+
+        let hotKeys = FakeHotKeys()
+        hotKeys.failures = [(HotKeyShortcut.focusLockDefault, .shortcutInUse)]
+        let refused = Harness.make(calibrated: true, hotKeys: hotKeys)
+        defer { refused.tearDown() }
+        #expect(refused.model.shortcutMessage != nil)
+        #expect(renders(SettingsView(model: refused.model), width: 520, height: 640), "Shortcut refused")
+    }
+
+    @Test func menuRendersTheCameraSpecificBanner() async {
+        let h = Harness.make(calibrated: true)
+        defer { h.tearDown() }
+        await h.model.setTrackingEnabled(true)
+        h.model.refreshAccessibilityTrust()
+        await h.model.selectCamera(Fixtures.externalCamera.id)
+        #expect(h.model.menuBanner == .needsCameraCalibration("Logitech C922"))
+        #expect(renders(MenuContentView(model: h.model), width: 300, height: 520))
+    }
 }

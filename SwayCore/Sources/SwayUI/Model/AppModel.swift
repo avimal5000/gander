@@ -10,11 +10,13 @@ import SwayModels
 /// test through ``GateTestSession``, and holds the latest separability analysis. From each analysis it fits a
 /// calibration and saves it in the ``CalibrationLibrary``. While Tracking is on, it runs every pose sample through the
 /// switch decider and moves real focus when a look is held (``TrackingLoop``), with Focus Lock and its global
-/// shortcut. It also drives the Focus Test window. It only talks to the protocols in `SwayModels`; the app target
-/// injects the concrete implementations.
+/// shortcut. It drives the Focus Test window, the Set Up Sway window (permissions, a camera check, and a guided
+/// calibration that reuses the gate machinery), and the Sway Settings window. It only talks to the protocols in
+/// `SwayModels`; the app target injects the concrete implementations.
 ///
 /// The logic is split across extensions by concern (camera, permission, gate, analysis, calibration, tracking, focus
-/// lock, focus test, recording, lifecycle), but all stored state lives here so `@Observable` can track it.
+/// lock, focus test, setup, settings, recording, lifecycle), but all stored state lives here so `@Observable` can
+/// track it.
 /// Properties are module-internal; views treat them as read-only and call the methods.
 ///
 /// Performance rule: views that are always alive (the menu popover and the menu bar label) must not read anything
@@ -33,7 +35,7 @@ public final class AppModel {
     @ObservationIgnored let engine: any SwitchEngineMaking
     @ObservationIgnored let focus: any FocusControlling
     @ObservationIgnored let hotKeys: any HotKeyRegistering
-    /// Stored for the Settings window (M5); M4 does not read it.
+    /// Opens Sway at login (the Settings window's General section).
     @ObservationIgnored let loginItem: any LoginItemControlling
     @ObservationIgnored let defaults: UserDefaults
     @ObservationIgnored let environment: AppModelEnvironment
@@ -95,6 +97,8 @@ public final class AppModel {
 
     var gateConfiguration = GateTestConfiguration()
     var gateRunState: GateRunState = .idle
+    /// What the run in progress is for; `.gateTest` while none runs.
+    var gatePurpose: GatePurpose = .gateTest
     var gateProgress: GateProgress?
     var gateMessage: UserMessage?
     /// True while the gate window should show the report instead of the setup form.
@@ -129,6 +133,28 @@ public final class AppModel {
     var lookSummary: LookSummary = .off
     /// The last real switches, newest first, at most ``switchLogLimit``.
     var switchLog: [SwitchLogEntry] = []
+
+    // MARK: Setup window
+
+    /// The Set Up Sway window's flow; `nil` while the window is closed.
+    var setupFlow: SetupFlow?
+    /// A note under the camera check: "Calibration cancelled.", or why a run ended early.
+    var setupMessage: UserMessage?
+    /// What the result step says; `nil` outside it.
+    var setupResult: SetupResult?
+    /// The camera check's hint, refreshed at most five times a second and assigned only when it changes.
+    var framingAdvice: FramingAdvice = .noFace
+
+    // MARK: Settings window
+
+    /// The login item as last read (when the Settings window appeared, and after each change).
+    var loginItemStatus: LoginItemStatus = .disabled
+    /// Why the last login item change failed.
+    var loginItemMessage: String?
+    /// True while the Focus Lock shortcut recorder listens for a key press.
+    var isRecordingShortcut = false
+    /// Why the last key press could not be a shortcut.
+    var shortcutRecordingHint: String?
 
     // MARK: Focus Lock
 
@@ -188,6 +214,13 @@ public final class AppModel {
     @ObservationIgnored var gateSession: GateTestSession?
     @ObservationIgnored var gateTimerTask: Task<Void, Never>?
     @ObservationIgnored var gateCameraDeadline: TimeInterval = 0
+    /// The user chose "Skip for now" on the Accessibility step; the Setup window then no longer asks during this
+    /// app run.
+    @ObservationIgnored var setupAccessibilitySkipped = false
+    @ObservationIgnored var setupTickTask: Task<Void, Never>?
+    /// Sample time of the last camera check hint refresh.
+    @ObservationIgnored var lastFramingRefresh: TimeInterval?
+    @ObservationIgnored var settingsVisible = false
     @ObservationIgnored var copyResetTask: Task<Void, Never>?
     @ObservationIgnored var requestedWindows: Set<String> = []
     @ObservationIgnored var windowRefs: [String: WeakWindow] = [:]
@@ -281,7 +314,7 @@ public final class AppModel {
         if storedLibrary.migrated { persistLibrary() }
         refreshActiveCalibration(reconcile: false)
         environment.overlay.onCancelRequested = { [weak self] in
-            self?.cancelGateTest(reason: "Gate test cancelled.")
+            self?.cancelRunningGate()
         }
         observeApplicationNotifications()
         observeDisplayLayouts()
@@ -306,7 +339,7 @@ public final class AppModel {
                 authorization: authorization,
                 capture: status,
                 trackingEnabled: trackingEnabled,
-                calibrationRunning: gateRunState != .idle,
+                calibrationRunning: gateRunState != .idle || isSetupUsingCamera,
                 displayCount: layout.displays.count,
                 hasCalibration: activeCalibration != nil,
                 accessibilityTrusted: isAccessibilityTrusted,
