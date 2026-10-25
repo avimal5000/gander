@@ -120,7 +120,7 @@ struct Harness {
 
 /// Polls `condition` (yielding to other main-actor work) until it holds or `timeout` passes.
 @MainActor
-func waitUntil(timeout: Duration = .milliseconds(500), _ condition: @MainActor () -> Bool) async -> Bool {
+func waitUntil(timeout: Duration = .seconds(5), _ condition: @MainActor () -> Bool) async -> Bool {
     let deadline = ContinuousClock.now + timeout
     while !condition() {
         if ContinuousClock.now > deadline { return false }

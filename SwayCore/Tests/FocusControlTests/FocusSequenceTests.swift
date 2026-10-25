@@ -16,6 +16,9 @@ import Testing
 
     /// Fast polling so failures finish in milliseconds.
     private let fast = FocusPolling(interval: .milliseconds(1), timeout: .milliseconds(25))
+    /// For tests where focus lands after a few checks: a timeout no runner can hit, so the outcome never depends on
+    /// machine speed (a slow CI runner once ran out a 25 ms timeout after two checks).
+    private let patient = FocusPolling(interval: .milliseconds(1), timeout: .seconds(30))
 
     private func sequence(_ platform: FakeFocusPlatform) -> FocusSequence<FakeFocusPlatform> {
         FocusSequence(platform: platform, polling: fast)
@@ -37,7 +40,7 @@ import Testing
 
     @Test func raiseIsVerifiedByPollingUntilFocusLands() async {
         let platform = FakeFocusPlatform(rule: .onCheck(4))
-        let outcome = await sequence(platform).run(target: target)
+        let outcome = await FocusSequence(platform: platform, polling: patient).run(target: target)
         #expect(outcome == .focused(target, .accessibilityRaise))
         #expect(platform.calls == [.prepare, .raise, .check, .check, .check, .check])
     }
@@ -77,7 +80,7 @@ import Testing
         _ = await FocusSequence(platform: platform, polling: polling).run(target: target)
         let elapsed = started.duration(to: clock.now)
         #expect(elapsed >= .milliseconds(110))
-        #expect(elapsed < .milliseconds(900))
+        #expect(elapsed < .seconds(5))  // only guards against a hang; CI runners can be slow
     }
 
     @Test func cancellationEndsTheSequenceWithoutTryingTheNextMethod() async {
