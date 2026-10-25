@@ -3,7 +3,7 @@
 Phase: **M2 + M3** (core engine + focus controller), built overnight per SPEC D14. Updated by the orchestrator.
 
 **Current state:** Skeleton, SPEC, and CONTRACT for M2 + M3 are done on branch `feat/11-m2-m3-engine-focus`.
-Built, reviewed, and verified locally (626 tests, zero warnings). PR open for the user's morning review and hardware checks.
+Built, reviewed, verified (626 tests, zero warnings), and green on CI. **PR #45 awaits the user:** review, hardware checks (SPEC §9), merge.
 
 ## History
 
@@ -29,7 +29,7 @@ Built, reviewed, and verified locally (626 tests, zero warnings). PR open for th
 | Integrate into the app target | Done | `AppComposition` passes `PoseSwitchEngine()` and `AXFocusController()` (Debug build succeeds, zero warnings); `SwitchEngineTests` and `FocusControlTests` added to the Sway scheme so `xcodebuild test` runs them |
 | `docs/focus-fallbacks.md` | Done | Method, fallback list, and known limits (from builder-focus); the "verified" column awaits the user's Focus Test |
 | Review pass (Opus) | Done | Verdict: ready after fixes. No bugs found in the engine, focus controller, concurrency, or privacy. Fixed: (1) the preview's dwell latency after a dwell restarts on the same display (step 4(a2)); (2) closing the Focus Test window now cancels a focus request in flight. A rate limit interrupted the review once; it was resumed. Orchestrator follow-ups: no-face traces now report "not enough face samples" instead of "no Vision angles" (contract §6.6 step 3 and §6.5.1 amended); UI test defaults now live in the temp directory (they had left 664 `sway.ui.tests.*.plist` files in `~/Library/Preferences`; the user can delete them) |
-| Orchestrator verification, PR, CI | In progress | Verified locally: privacy guard, swift-format strict, `swift build --build-tests` with zero warnings, `swift test` 626 tests, `xcodebuild test` TEST SUCCEEDED (all 8 targets), Release BUILD SUCCEEDED. **PR #45** opened (closes #11–#14, #16, #17; #15 and #18 stay open until the user's Focus Test). CI running |
+| Orchestrator verification, PR, CI | Done | Verified locally: privacy guard, swift-format strict, zero warnings, `swift test` 626 tests, `xcodebuild test` TEST SUCCEEDED (8 targets), Release BUILD SUCCEEDED. **PR #45** (closes #11–#14, #16, #17; #15 and #18 stay open until the user's Focus Test). CI run 1 failed on one timing-dependent test (a 25 ms polling timeout ran out on the slow runner); fixed in `05a052b`. **CI run 2 green**: 626 tests, SwiftLint 0 violations, guard, app build |
 
 ## Builder agents
 
