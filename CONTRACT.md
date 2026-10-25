@@ -66,20 +66,20 @@ The Command Line Tools toolchain cannot run `swift test` on this machine, so alw
 `SWAY_MODULE` makes the manifest declare only `SwayModels` plus your module, which isolates you from
 siblings that are mid-edit. The per-module scratch path stops parallel builds from blocking each other.
 
-**Build products must live outside `~/Documents`.** It is iCloud-synced, and its File Provider adds
-extended attributes that make codesign reject test bundles ("resource fork, Finder information, or similar
-detritus not allowed").
+**Never keep the repo or its build products in an iCloud-synced folder** (for example `~/Documents` or
+`~/Desktop`). The File Provider adds extended attributes that make codesign reject test bundles ("resource
+fork, Finder information, or similar detritus not allowed"). The repo lives in `~/Developer/Sway` for this
+reason. The scratch paths below are inside the repo and gitignored (`.build-*/`).
 
 ```bash
-cd /Users/avimalhotra/Documents/Sway/SwayCore
+cd /Users/avimalhotra/Developer/Sway/SwayCore
 export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
-SCRATCH=/private/tmp/claude-501/-Users-avimalhotra-Documents-Sway/d71e2e66-ff07-4791-b9e1-4fe2a6eb3488/scratchpad/agent-builds
-SWAY_MODULE=<Module> swift build --scratch-path $SCRATCH/<Module>
-SWAY_MODULE=<Module> swift test  --scratch-path $SCRATCH/<Module>
+SWAY_MODULE=<Module> swift build --scratch-path .build-agents/<Module>
+SWAY_MODULE=<Module> swift test  --scratch-path .build-agents/<Module>
 # full package / app (reviewer, orchestrator):
-swift test --scratch-path $SCRATCH/full
-xcodebuild -project ../Sway.xcodeproj -scheme Sway -derivedDataPath $SCRATCH/xcode test CODE_SIGNING_ALLOWED=NO
-# format + lint your own files (config: /Users/avimalhotra/Documents/Sway/.swift-format)
+swift test
+xcodebuild -project ../Sway.xcodeproj -scheme Sway -derivedDataPath ../.build-xcode test CODE_SIGNING_ALLOWED=NO
+# format + lint your own files (config: /Users/avimalhotra/Developer/Sway/.swift-format)
 xcrun swift-format format --in-place --recursive Sources/<Module> Tests/<Module>Tests
 xcrun swift-format lint --strict --recursive Sources/<Module> Tests/<Module>Tests
 ```

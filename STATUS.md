@@ -58,6 +58,6 @@ No builder was blocked, so no task needed a rerun on Opus.
   - CPU in Activity Monitor with Live on;
   - whether AppKit's one-time `-layoutSubtreeIfNeeded` console warning still appears. It was also seen with the bare skeleton, so it is likely internal to `MenuBarExtra`.
 - **M1 gate decision** (#10): **GO**, recorded. Implications for M2: Vision angles are the primary features; calibrate per camera; rely mainly on yaw (pitch std up to 4.1°). Three displays also separated cleanly, so raising `maxTrackedDisplays` to 3 is a later user decision. Not measured yet: glances, motion, day-to-day drift, the built-in camera.
-- **iCloud + build output:** `~/Documents` is iCloud-synced, and build products there fail codesigning of test bundles. All builds use scratch paths outside Documents (CONTRACT §4). Recommend moving the repo out of `~/Documents` (user decision).
+- **Repo moved** from `~/Documents/Sway` (iCloud-synced, which broke test-bundle codesigning) to `~/Developer/Sway` on 2026-10-25. Plain in-repo `swift test` (361/361) and `xcodebuild` pass there. CONTRACT §4 now uses in-repo, gitignored scratch paths.
 - **SwiftLint** has not run locally (not installed). CI runs it and reports warnings without failing; errors fail the job.
 - Signed builds need a one-time keychain approval for `codesign` (user step, in Xcode). Verification builds are unsigned.
