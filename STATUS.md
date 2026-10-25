@@ -39,7 +39,7 @@ The user made the M6 design decisions (SPEC D34–D41) and picked icon option A,
 |---|---|---|
 | Decisions | Done | SPEC D34–D41 (2026-10-25): native look with a user-chosen accent; icon A "Swing"; menu bar mark with state badges; edge glow and Focus Lock notice, each on by default with a Settings switch; welcome step; restrained motion |
 | SPEC / CONTRACT | Done | SPEC F24–F29, §8–§9; CONTRACT §6.5.4 |
-| App icon + AccentColor asset | Running | Orchestrator-owned asset catalog |
+| App icon + AccentColor asset | Done | `scripts/make-appicon.swift` renders option A "Swing" at every size (thicker strokes at 16 and 32 px) into `AppIcon.appiconset`; the AccentColor's dark variant is now Sway green's dark value `0x6FAF84` |
 | Builder | Running | builder-ui-m6 |
 | Review pass (Opus) | Pending | |
 | Verification, PR, CI | Pending | |
