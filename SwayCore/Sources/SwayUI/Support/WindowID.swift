@@ -3,4 +3,6 @@ enum SwayWindowID {
     static let poseDebug = "pose-debug"
     static let gateTest = "gate-test"
     static let focusTest = "focus-test"
+    static let setup = "setup"
+    static let settings = "settings"
 }

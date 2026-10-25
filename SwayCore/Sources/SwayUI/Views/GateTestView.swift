@@ -19,7 +19,7 @@ struct GateTestView: View {
 
     @ViewBuilder
     private var content: some View {
-        if model.gateRunState != .idle {
+        if model.isGateTestRunning {
             GateRunningView(model: model)
         } else if model.isShowingReport, model.analysis != nil {
             GateReportView(model: model)

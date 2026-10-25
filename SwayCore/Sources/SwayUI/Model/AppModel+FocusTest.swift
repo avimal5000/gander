@@ -80,8 +80,7 @@ extension AppModel {
     /// Reads Accessibility trust, then the last-used windows and focused display. The window refresh is skipped
     /// while the previous one is still running, so slow Accessibility calls never pile up.
     func refreshFocusTest() {
-        let trusted = focus.isTrusted()
-        if trusted != isAccessibilityTrusted { isAccessibilityTrusted = trusted }
+        refreshAccessibilityTrust()
         guard focusPollTask == nil else { return }
         focusPollGeneration += 1
         let generation = focusPollGeneration

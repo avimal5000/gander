@@ -17,8 +17,14 @@ enum Fixtures {
         isBuiltIn: false, isMain: false
     )
 
+    static let extra = DisplayInfo(
+        id: "display-extra", cgDisplayID: 14, name: "Extra", frame: CGRect(x: 6400, y: 0, width: 1920, height: 1080),
+        isBuiltIn: false, isMain: false
+    )
+
     static let twoDisplays = DisplayLayout(displays: [left, right])
     static let threeDisplays = DisplayLayout(displays: [left, right, far])
+    static let fourDisplays = DisplayLayout(displays: [left, right, far, extra])
     static let oneDisplay = DisplayLayout(displays: [left])
 
     static let builtInCamera = CameraDevice(id: "cam-builtin", name: "FaceTime HD Camera", isBuiltIn: true)
@@ -78,7 +84,8 @@ enum Fixtures {
 
     /// A Vision-angles profile for the two display layout: Left at -20 yaw, Right at +20.
     static func profile(
-        layout: DisplayLayout = twoDisplays, createdAt: Date = Date(timeIntervalSince1970: 1_700_000_000)
+        layout: DisplayLayout = twoDisplays, cameraName: String? = builtInCamera.name,
+        createdAt: Date = Date(timeIntervalSince1970: 1_700_000_000)
     )
         -> CalibrationProfile
     {
@@ -89,7 +96,7 @@ enum Fixtures {
         }
         return CalibrationProfile(
             features: .visionAngles, displays: profiles, yawScale: 2, pitchScale: 2.5,
-            layoutFingerprint: layout.fingerprint, cameraName: builtInCamera.name, createdAt: createdAt)
+            layoutFingerprint: layout.fingerprint, cameraName: cameraName, createdAt: createdAt)
     }
 
     /// A classification pointing at `best` (or elsewhere / no face).

@@ -6,6 +6,7 @@ import PoseTraces
 import SwayModels
 import SwayUI
 import SwitchEngine
+import SystemIntegration
 
 /// Builds the concrete object graph. The only place that knows every module's concrete types.
 @MainActor
@@ -20,7 +21,9 @@ enum AppComposition {
             traceStore: FileTraceStore(),
             analyzer: SeparabilityAnalyzer(),
             engine: PoseSwitchEngine(),
-            focus: AXFocusController()
+            focus: AXFocusController(),
+            hotKeys: CarbonHotKeyCenter(),
+            loginItem: MainAppLoginItem()
         )
     }
 }

@@ -5,15 +5,23 @@ import SwayModels
 
 /// Root observable state and coordinator for the app.
 ///
-/// `AppModel` owns the camera lifecycle (the pose source runs only while the live toggle is on or a gate test is
-/// running), consumes the pose event stream, keeps the rolling history for plots, drives the guided gate test
-/// through ``GateTestSession``, and holds the latest separability analysis. From each analysis it fits and persists
-/// the calibration profile, runs the live Switch preview against it, and drives the Focus Test window. It only talks
-/// to the protocols in `SwayModels`; the app target injects the concrete implementations.
+/// `AppModel` owns the camera lifecycle (the pose source runs only while Tracking is on and a calibration fits, or a
+/// gate test is running), consumes the pose event stream, keeps the rolling history for plots, drives the guided gate
+/// test through ``GateTestSession``, and holds the latest separability analysis. From each analysis it fits a
+/// calibration and saves it in the ``CalibrationLibrary``. While Tracking is on, it runs every pose sample through the
+/// switch decider and moves real focus when a look is held (``TrackingLoop``), with Focus Lock and its global
+/// shortcut. It drives the Focus Test window, the Set Up Sway window (permissions, a camera check, and a guided
+/// calibration that reuses the gate machinery), and the Sway Settings window. It only talks to the protocols in
+/// `SwayModels`; the app target injects the concrete implementations.
 ///
-/// The logic is split across extensions by concern (camera, permission, gate, analysis, calibration, switch preview,
-/// focus test, recording, lifecycle), but all stored state lives here so `@Observable` can track it. Properties are
-/// module-internal; views treat them as read-only and call the methods.
+/// The logic is split across extensions by concern (camera, permission, gate, analysis, calibration, tracking, focus
+/// lock, focus test, setup, settings, recording, lifecycle), but all stored state lives here so `@Observable` can
+/// track it.
+/// Properties are module-internal; views treat them as read-only and call the methods.
+///
+/// Performance rule: views that are always alive (the menu popover and the menu bar label) must not read anything
+/// that changes at the frame rate. Such state is assigned only when it actually changes (`hasFace`, `lookSummary`,
+/// `trackingFocus`), because an `@Observable` setter notifies on every assignment, equal or not.
 @MainActor
 @Observable
 public final class AppModel {
@@ -26,6 +34,9 @@ public final class AppModel {
     @ObservationIgnored let analyzer: any SeparabilityAnalyzing
     @ObservationIgnored let engine: any SwitchEngineMaking
     @ObservationIgnored let focus: any FocusControlling
+    @ObservationIgnored let hotKeys: any HotKeyRegistering
+    /// Opens Sway at login (the Settings window's General section).
+    @ObservationIgnored let loginItem: any LoginItemControlling
     @ObservationIgnored let defaults: UserDefaults
     @ObservationIgnored let environment: AppModelEnvironment
     @ObservationIgnored let log = SwayLogger.ui
@@ -36,12 +47,17 @@ public final class AppModel {
     var status: CaptureStatus = .stopped
     /// Camera permission as last read.
     var authorization: CameraAuthorization
-    /// Connected video devices; refreshed whenever a menu or window appears.
+    /// Connected video devices; refreshed whenever a menu or window appears and when a camera connects or disconnects.
     var devices: [CameraDevice] = []
+    /// The camera capture would open for `selectedCameraID` right now (`FrameSource.resolvedDevice`), refreshed with
+    /// `devices`. Asking the camera service keeps it identical to capture's own rule, so the calibration looked up
+    /// while stopped is the one that fits once the camera runs.
+    var predictedCameraName: String?
     /// The user's preferred camera (`nil` means the default, built-in first). Persisted under `sway.cameraDeviceID`.
     var selectedCameraID: String?
-    /// The state of the "live camera" toggle.
-    var liveEnabled = false
+    /// The Tracking switch: on means tracking, off is Paused with the camera off (SPEC D26). Only the user's own
+    /// choices are saved (`setTrackingEnabled`); a camera failure or quitting turns it off in memory alone.
+    var trackingEnabled = false
     /// Name of the camera most recently reported as running.
     var runningCameraName: String?
     /// The explanation or instructions currently shown for camera permission, if any.
@@ -85,6 +101,8 @@ public final class AppModel {
 
     var gateConfiguration = GateTestConfiguration()
     var gateRunState: GateRunState = .idle
+    /// What the run in progress is for; `.gateTest` while none runs.
+    var gatePurpose: GatePurpose = .gateTest
     var gateProgress: GateProgress?
     var gateMessage: UserMessage?
     /// True while the gate window should show the report instead of the setup form.
@@ -93,20 +111,66 @@ public final class AppModel {
     /// True briefly after the Markdown summary was copied.
     var didCopySummary = false
 
-    // MARK: Calibration and switch preview
+    // MARK: Calibration and tracking
 
-    /// The fitted profile the Switch preview classifies against; persisted under `sway.calibrationProfile`.
-    var calibrationProfile: CalibrationProfile?
+    /// Every saved calibration; persisted under `sway.calibrationLibrary` after each change.
+    var library: CalibrationLibrary
+    /// The calibration for the connected displays and camera, restricted to the connected displays; `nil` when none
+    /// fits (SPEC D25).
+    var activeCalibration: CalibrationMatch?
     /// Why the last fit failed, shown in the report view; `nil` after a successful fit.
     var calibrationMessage: UserMessage?
-    /// The decider's output for the latest live sample; `nil` before the first sample or after a reset.
+    /// The profile the last successful fit saved, for the report view.
+    var lastFittedProfile: CalibrationProfile?
+    /// The user's switching settings (SPEC D31).
+    var sensitivity: SwitchSensitivity
+    /// The decider's output for the latest tracked sample; `nil` before the first sample or after a reset.
     var previewDecision: SwitchDecision?
-    /// The display the preview pretends has focus. `nil` is unknown, so any display may be switched to.
-    var simulatedFocus: DisplayID?
-    /// The "Simulate Focus Lock" toggle.
-    var simulateFocusLock = false
-    /// The last would-be switches, newest first, at most ``switchLogLimit``.
+    /// What the tracking loop believes has keyboard focus (`loop.focusedDisplay`), for the Pose Debug window. The loop
+    /// itself is not observed: it changes on every sample.
+    var trackingFocus: DisplayID?
+    /// True while Sway's own focus request runs (`loop.isFocusing`).
+    var isSwitching = false
+    /// Sway is in front: the active app with its menu or one of its windows key (SPEC D28).
+    var isAppActive = false
+    /// The popover's "Looking at" line, assigned only when it changes.
+    var lookSummary: LookSummary = .off
+    /// The last real switches, newest first, at most ``switchLogLimit``.
     var switchLog: [SwitchLogEntry] = []
+
+    // MARK: Setup window
+
+    /// The Set Up Sway window's flow; `nil` while the window is closed.
+    var setupFlow: SetupFlow?
+    /// A note under the camera check: "Calibration cancelled.", or why a run ended early.
+    var setupMessage: UserMessage?
+    /// What the result step says; `nil` outside it.
+    var setupResult: SetupResult?
+    /// The camera check's hint, refreshed at most five times a second and assigned only when it changes.
+    var framingAdvice: FramingAdvice = .noFace
+
+    // MARK: Settings window
+
+    /// The login item as last read (when the Settings window appeared, and after each change).
+    var loginItemStatus: LoginItemStatus = .disabled
+    /// Why the last login item change failed.
+    var loginItemMessage: String?
+    /// True while the Focus Lock shortcut recorder listens for a key press.
+    var isRecordingShortcut = false
+    /// Why the last key press could not be a shortcut.
+    var shortcutRecordingHint: String?
+
+    // MARK: Focus Lock
+
+    /// Focus Lock (SPEC D27): the camera stays on and no switch fires. Not saved; off at launch.
+    var focusLocked = false
+    /// The global shortcut that toggles Focus Lock; `nil` means none.
+    var focusLockShortcut: HotKeyShortcut?
+    /// Why the shortcut could not be registered, for Settings, and for the menu banner while the chosen shortcut is not
+    /// working.
+    var shortcutMessage: String?
+    /// True while `focusLockShortcut` is registered with the system (it isn't while recording a new one).
+    var isShortcutRegistered = false
 
     // MARK: Focus test
 
@@ -133,6 +197,18 @@ public final class AppModel {
     /// The configuration the current pose stream was started with; `nil` when no stream runs.
     @ObservationIgnored var activeConfiguration: PoseSourceConfiguration?
     @ObservationIgnored var decider: (any SwitchDeciding)?
+    /// The tracking loop's focus bookkeeping. Not observed (it changes per sample); see ``trackingFocus``.
+    @ObservationIgnored var loop = TrackingLoop()
+    /// The displays focus may move to (`nil` means every calibrated display).
+    @ObservationIgnored var trackedTargets: Set<DisplayID>?
+    /// Unique labels for the connected displays, so the per-sample path never rebuilds them.
+    @ObservationIgnored var displayLabels: [DisplayID: String] = [:]
+    /// The enter margin of the current sensitivity, read per sample.
+    @ObservationIgnored var enterMargin = SwitchSensitivity.default.switchSettings().enterMargin
+    @ObservationIgnored var focusSwitchTask: Task<Void, Never>?
+    @ObservationIgnored var isPollingFocus = false
+    @ObservationIgnored var trackingTickTask: Task<Void, Never>?
+    @ObservationIgnored var trackingPollTask: Task<Void, Never>?
     /// Where the dwell now in progress began, for the latency of the switch it ends in.
     @ObservationIgnored var dwellStart: (display: DisplayID, timestamp: TimeInterval)?
     @ObservationIgnored var nextLogID = 0
@@ -145,10 +221,18 @@ public final class AppModel {
     @ObservationIgnored var gateSession: GateTestSession?
     @ObservationIgnored var gateTimerTask: Task<Void, Never>?
     @ObservationIgnored var gateCameraDeadline: TimeInterval = 0
+    /// The user chose "Skip for now" on the Accessibility step; the Setup window then no longer asks during this
+    /// app run.
+    @ObservationIgnored var setupAccessibilitySkipped = false
+    @ObservationIgnored var setupTickTask: Task<Void, Never>?
+    /// Sample time of the last camera check hint refresh.
+    @ObservationIgnored var lastFramingRefresh: TimeInterval?
+    @ObservationIgnored var settingsVisible = false
     @ObservationIgnored var copyResetTask: Task<Void, Never>?
     @ObservationIgnored var requestedWindows: Set<String> = []
     @ObservationIgnored var windowRefs: [String: WeakWindow] = [:]
     @ObservationIgnored var notificationObservers: [any NSObjectProtocol] = []
+    @ObservationIgnored var workspaceObservers: [any NSObjectProtocol] = []
     #if DEBUG
     @ObservationIgnored let recorder = TraceRecorder()
     #endif
@@ -164,8 +248,10 @@ public final class AppModel {
     ///   - traceStore: trace persistence (DEBUG saves, all builds load).
     ///   - analyzer: separability analysis and the live classifier.
     ///   - engine: fits the calibration profile and makes the switch decider for the preview.
-    ///   - focus: last-used windows, focused display, Accessibility trust, and focus requests (Focus Test window).
-    ///   - defaults: where the camera choice and the calibration profile are persisted.
+    ///   - focus: last-used windows, focused display, Accessibility trust, and focus requests.
+    ///   - hotKeys: registers the Focus Lock shortcut.
+    ///   - loginItem: opens Sway at login (used by the Settings window).
+    ///   - defaults: where the camera choice, calibrations, Tracking choice, sensitivity, and shortcut are persisted.
     public convenience init(
         camera: any FrameSource,
         poseSource: any PoseSource,
@@ -174,6 +260,8 @@ public final class AppModel {
         analyzer: any SeparabilityAnalyzing,
         engine: any SwitchEngineMaking,
         focus: any FocusControlling,
+        hotKeys: any HotKeyRegistering,
+        loginItem: any LoginItemControlling,
         defaults: UserDefaults = .standard
     ) {
         self.init(
@@ -184,6 +272,8 @@ public final class AppModel {
             analyzer: analyzer,
             engine: engine,
             focus: focus,
+            hotKeys: hotKeys,
+            loginItem: loginItem,
             defaults: defaults,
             environment: .live()
         )
@@ -197,6 +287,8 @@ public final class AppModel {
         analyzer: any SeparabilityAnalyzing,
         engine: any SwitchEngineMaking,
         focus: any FocusControlling,
+        hotKeys: any HotKeyRegistering,
+        loginItem: any LoginItemControlling,
         defaults: UserDefaults,
         environment: AppModelEnvironment
     ) {
@@ -207,19 +299,40 @@ public final class AppModel {
         self.analyzer = analyzer
         self.engine = engine
         self.focus = focus
+        self.hotKeys = hotKeys
+        self.loginItem = loginItem
         self.defaults = defaults
         self.environment = environment
         self.authorization = camera.authorizationStatus()
         self.selectedCameraID = defaults.string(forKey: DefaultsKey.cameraDeviceID)
-        self.layout = displays.currentLayout
+        let initialLayout = displays.currentLayout
+        let storedLibrary = Self.storedLibrary(in: defaults)
+        let storedSensitivity = Self.storedSensitivity(in: defaults)
+        self.layout = initialLayout
         self.devices = camera.availableDevices()
-        self.calibrationProfile = Self.storedCalibrationProfile(in: defaults)
+        self.predictedCameraName = camera.resolvedDevice(for: defaults.string(forKey: DefaultsKey.cameraDeviceID))?.name
+        self.library = storedLibrary.library
+        self.sensitivity = storedSensitivity
+        self.focusLockShortcut = Self.storedFocusLockShortcut(in: defaults)
+        self.trackingEnabled = defaults.bool(forKey: DefaultsKey.trackingEnabled)
+        self.isAppActive = environment.isAppActive()
+        self.displayLabels = DisplayLabeler.labels(for: initialLayout)
+        self.enterMargin = storedSensitivity.switchSettings().enterMargin
 
+        if storedLibrary.migrated { persistLibrary() }
+        refreshActiveCalibration(reconcile: false)
         environment.overlay.onCancelRequested = { [weak self] in
-            self?.cancelGateTest(reason: "Gate test cancelled.")
+            self?.cancelRunningGate()
         }
         observeApplicationNotifications()
         observeDisplayLayouts()
+        registerFocusLockShortcut()
+        if trackingEnabled {
+            // Tracking starts without any window: one reconcile right after launch.
+            Task { @MainActor [weak self] in
+                await self?.reconcileCamera().value
+            }
+        }
     }
 
     // MARK: Derived state
@@ -227,29 +340,57 @@ public final class AppModel {
     /// Measured samples per second over the last 2 s.
     var fps: Double { history.fps }
 
+    /// The one status the menu bar icon and popover show (SPEC F19).
+    var trackingStatus: TrackingStatus {
+        TrackingStatus(
+            TrackingStatus.Snapshot(
+                authorization: authorization,
+                capture: status,
+                trackingEnabled: trackingEnabled,
+                calibrationRunning: gateRunState != .idle || isSetupUsingCamera,
+                displayCount: layout.displays.count,
+                hasCalibration: activeCalibration != nil,
+                accessibilityTrusted: isAccessibilityTrusted,
+                focusLocked: focusLocked,
+                hasFace: hasFace
+            ))
+    }
+
     /// SF Symbol for the menu bar label.
-    var menuBarSymbol: String { status.menuBarSymbol(hasFace: hasFace) }
+    var menuBarSymbol: String { trackingStatus.symbol }
 
     /// Name of the camera in use or about to be used.
     var currentCameraName: String? {
         status.device?.name
             ?? runningCameraName
-            ?? devices.first(where: { $0.id == selectedCameraID })?.name
-            ?? devices.first(where: \.isBuiltIn)?.name
+            ?? predictedCameraName
     }
 
-    /// State text plus camera name for the menu status line.
-    var statusLine: String { status.statusLine(cameraName: currentCameraName) }
+    /// The status text, plus " · <camera name>" while the camera runs, for the popover.
+    var statusLine: String {
+        let line = trackingStatus.line
+        guard status.isRunning, let name = status.device?.name ?? currentCameraName else { return line }
+        return "\(line) \u{00B7} \(name)"
+    }
 
     /// True when the camera session exists (running, starting, suspended, or recovering).
     var isCameraActive: Bool { streamTask != nil }
 
-    /// Re-reads the camera list and permission. Called whenever a menu or window appears.
+    /// Re-reads the camera list and permission. Called whenever a menu or window appears, and when a camera connects
+    /// or disconnects.
     func refreshEnvironment() {
+        let previousAuthorization = authorization
         devices = camera.availableDevices()
+        refreshPredictedCamera()
         authorization = camera.authorizationStatus()
         if authorization == .authorized, permissionPrompt == .denied || permissionPrompt == .restricted {
             permissionPrompt = nil
+        }
+        // The camera that capture would pick may have changed with the device list.
+        refreshActiveCalibration()
+        // Access granted in System Settings: a Tracking switch left on, blocked, starts the camera now.
+        if authorization == .authorized, previousAuthorization != .authorized, wantsCamera, streamTask == nil {
+            reconcileCamera()
         }
     }
 

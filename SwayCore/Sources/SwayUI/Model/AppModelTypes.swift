@@ -5,8 +5,16 @@ import SwayModels
 enum DefaultsKey {
     /// Preferred camera's `CameraDevice.id`; absent means "default (built-in)".
     static let cameraDeviceID = "sway.cameraDeviceID"
-    /// The fitted `CalibrationProfile`, as JSON with ISO-8601 dates (SPEC F10, D17).
+    /// The pre-library single `CalibrationProfile` (SPEC D17). Read once at launch to migrate it, then removed.
     static let calibrationProfile = "sway.calibrationProfile"
+    /// The `CalibrationLibrary`, as JSON with ISO-8601 dates (SPEC D25).
+    static let calibrationLibrary = "sway.calibrationLibrary"
+    /// Whether the user last left Tracking on (`Bool`, SPEC D23). Written only by the user's own choices.
+    static let trackingEnabled = "sway.trackingEnabled"
+    /// The `SwitchSensitivity`, as JSON (SPEC D31).
+    static let switchSensitivity = "sway.switchSensitivity"
+    /// The Focus Lock `HotKeyShortcut` as JSON; empty `Data` means no shortcut, an absent key means the default.
+    static let focusLockShortcut = "sway.focusLockShortcut"
 }
 
 /// What the camera permission banner should currently say.
@@ -21,7 +29,7 @@ enum CameraPermissionPrompt: Equatable {
 
 /// The action to resume once the user has granted camera access.
 enum CameraIntent: Equatable {
-    case live
+    case tracking
     case gateTest
 }
 

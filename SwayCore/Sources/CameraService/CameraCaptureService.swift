@@ -33,6 +33,15 @@ public final class CameraCaptureService: FrameSource {
         CameraDeviceCatalog.connectedDevices()
     }
 
+    /// The device `start(deviceID:)` would pick right now, by the same rule (`CameraDeviceSelector`).
+    public func resolvedDevice(for deviceID: String?) -> CameraDevice? {
+        try? CameraDeviceSelector.select(
+            preferredID: deviceID,
+            devices: CameraDeviceCatalog.connectedDevices(),
+            systemDefault: CameraDeviceCatalog.systemDefault()
+        ).device
+    }
+
     /// Starts capture, or restarts it with the new parameters if it is already running.
     ///
     /// Never prompts for permission. Throws `CameraError.notAuthorized` unless access is already granted,

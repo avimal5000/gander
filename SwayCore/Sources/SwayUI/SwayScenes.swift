@@ -2,10 +2,12 @@ import SwiftUI
 
 /// Every scene of the app; the app target's `body` is just `SwayScenes(model:)`.
 ///
-/// - The menu bar item (window style) with the status, live toggle, and shortcuts.
-/// - "Pose Debug": live pose numbers, a 10 s plot, the live guess, and the Switch preview.
+/// - The menu bar item (window style) with the status, the Tracking and Focus Lock switches, and shortcuts.
+/// - "Pose Debug": live pose numbers, a 10 s plot, the live guess, and the Switch preview of the real loop.
 /// - "Head-Pose Gate Test": the guided test and its report.
 /// - "Focus Test": Accessibility onboarding and manual focus requests per display.
+/// - "Set Up Sway": permissions, a camera check, and the guided calibration.
+/// - "Sway Settings": login item, switching sensitivity, Focus Lock shortcut, camera, and saved calibrations.
 public struct SwayScenes: Scene {
     private let model: AppModel
 
@@ -36,5 +38,15 @@ public struct SwayScenes: Scene {
             FocusTestView(model: model)
         }
         .windowResizability(.contentMinSize)
+
+        Window("Set Up Sway", id: SwayWindowID.setup) {
+            SetupView(model: model)
+        }
+        .windowResizability(.contentSize)
+
+        Window("Sway Settings", id: SwayWindowID.settings) {
+            SettingsView(model: model)
+        }
+        .windowResizability(.contentSize)
     }
 }

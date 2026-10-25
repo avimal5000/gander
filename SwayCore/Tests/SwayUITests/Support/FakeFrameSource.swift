@@ -8,14 +8,20 @@ final class FakeFrameSource: FrameSource {
         var authorization: CameraAuthorization
         var authorizationAfterRequest: CameraAuthorization = .authorized
         var devices: [CameraDevice] = []
+        /// What capture opens when no listed device matches the request; `nil` uses the protocol's default rule.
+        var fallbackDevice: CameraDevice?
         var requestCount = 0
         var stopCount = 0
     }
 
     private let state: OSAllocatedUnfairLock<State>
 
-    init(authorization: CameraAuthorization = .authorized, devices: [CameraDevice] = []) {
-        state = OSAllocatedUnfairLock(initialState: State(authorization: authorization, devices: devices))
+    init(
+        authorization: CameraAuthorization = .authorized, devices: [CameraDevice] = [],
+        fallbackDevice: CameraDevice? = nil
+    ) {
+        state = OSAllocatedUnfairLock(
+            initialState: State(authorization: authorization, devices: devices, fallbackDevice: fallbackDevice))
     }
 
     var requestCount: Int { state.withLock { $0.requestCount } }
@@ -47,6 +53,12 @@ final class FakeFrameSource: FrameSource {
 
     func availableDevices() -> [CameraDevice] {
         state.withLock { $0.devices }
+    }
+
+    func resolvedDevice(for deviceID: String?) -> CameraDevice? {
+        let (devices, fallback) = state.withLock { ($0.devices, $0.fallbackDevice) }
+        if let match = devices.first(where: { $0.id == deviceID }) { return match }
+        return fallback ?? devices.first(where: \.isBuiltIn) ?? devices.first
     }
 
     func start(

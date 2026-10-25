@@ -34,6 +34,8 @@ final class FakeFocus: FocusControlling {
     var lastUsedWindowsCalls: Int { state.withLock { $0.lastUsedWindowsCalls } }
     var focusedDisplayCalls: Int { state.withLock { $0.focusedDisplayCalls } }
     var focusCalls: [DisplayID] { state.withLock { $0.focusCalls } }
+    /// The layout each `focus` call was given.
+    var focusLayouts: [DisplayLayout] { state.withLock { $0.layouts } }
     var focusCancelled: [Bool] { state.withLock { $0.focusCancelled } }
     /// True while a held `focus` call is waiting to be released.
     var isHoldingFocus: Bool { state.withLock { $0.waiter != nil } }

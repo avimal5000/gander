@@ -1,14 +1,15 @@
 # Status
 
-Phase: **M2 + M3** (core engine + focus controller), built overnight per SPEC D14. Updated by the orchestrator.
+Phase: **M4 + M5** (end-to-end loop + calibration and settings), built together per SPEC D24. Updated by the
+orchestrator.
 
-**Current state:** Skeleton, SPEC, and CONTRACT for M2 + M3 are done on branch `feat/11-m2-m3-engine-focus`.
-Built, reviewed, verified, and green on CI. The user's hardware checks found high CPU and a crash on turning Live off; both
-fixed (638 tests, zero warnings).
-The user's Focus Test passed. **PR #45 awaits the user:** the crash re-test, then review and merge.
+**Current state:** M4 + M5 are built, reviewed, and in **PR #47** (branch `feat/19-m4-m5-loop-calibration`). CI is
+green: 984 tests, SwiftLint 0 violations, privacy guard passed. **The user's hardware check passed** (2026-10-25: "this is
+amazing and it is working great"). Ready to merge. PR #47 includes the docs commit from #46, so #46 can be closed.
 
 ## History
 
+- **M2 + M3:** merged in PR #45 (2026-10-25). 638 tests.
 - **M0 + M1:** merged in PR #44 (2026-10-25). 361 tests; the gate was **GO** (`docs/decisions/0001-m1-head-pose-gate.md`).
 - **User hardware checks (2026-10-25), all passed:**
   - gate run, overlays, and C922 selection;
@@ -20,35 +21,36 @@ The user's Focus Test passed. **PR #45 awaits the user:** the crash re-test, the
   - Focus Test worked; light and dark mode fine; no flickers.
   - Full Focus Test passed: each display (immediate and after 3 s from another app), a full-screen app, a
     second Space, and a window spanning two displays. Results are in `docs/focus-fallbacks.md`.
-  - CPU was 30–40% with Live on: fixed, see "CPU fix" below.
-  - Crash when turning Live off from the menu: reproduced with a backtrace and fixed, see "Crash fix" below.
+  - CPU was 30–40% with Live on: fixed in c358c05 (about 45% → 17% with no windows open; details in PR #45).
+  - Crash when turning Live off from the menu: a stack overflow from a closure chain that grew every frame; fixed
+    in a40424f. The user's re-test passed (Live on 5+ minutes, then off from the menu bar).
+- **User decisions for M4 + M5 (2026-10-25):** track 3 displays (D22); restore Tracking at launch, Open at login
+  off by default (D23); build M4 + M5 together in one PR (D24); the proposed defaults for Focus Lock, Pause,
+  icons, calibration, and sensitivity (D27, D30–D32). The user asked to be reached by phone when a decision is
+  needed while away (push notifications; there is no SMS tool).
 - **CI hang fixed:** real-Vision tests hang on GitHub's virtual Macs, so they skip when `CI` is set.
 - **Repo moved** to `~/Developer/Sway` (out of iCloud).
+- **User hardware check of M4 + M5 (2026-10-25):** passed; the user reported it "working great".
 
 ## Orchestrator tasks
 
 | Task | Status | Notes |
 |---|---|---|
-| User decisions for overnight work | Done | Merge #44 when green; build M2 + M3 without waiting for plan approval; drop landmarks from live tracking; use the gate trace as a fixture |
-| Merge PR #44 | Done | Squash-merged after green CI; issues #2, #5–#10 closed |
-| SPEC / CONTRACT / STATUS for M2 + M3 | Done | SPEC D14–D21, F10–F15; CONTRACT §6.2 (landmarks flag), §6.5.1, §6.6, §6.7, §10–§12 |
-| Skeleton | Done (e43db40) | SwayModels `Switching.swift`, `Focus.swift`, `includeLandmarks`; `SwitchEngine` and `FocusControl` stubs; fixture `Tests/SwitchEngineTests/Fixtures/gate-trace-2026-10-24.json`; guard now also blocks cursor/input-event and private APIs. Package builds; all tests pass; lint clean |
-| Builders (4, Sonnet, parallel) | Done | See below |
-| Integrate into the app target | Done | `AppComposition` passes `PoseSwitchEngine()` and `AXFocusController()` (Debug build succeeds, zero warnings); `SwitchEngineTests` and `FocusControlTests` added to the Sway scheme so `xcodebuild test` runs them |
-| `docs/focus-fallbacks.md` | Done | Method, fallback list, and known limits (from builder-focus). The "verified" column holds the user's Focus Test results (2026-10-25): the four cases tested all work; the other rows are marked "Not tested". PR #45 now closes #15 and #18 |
-| Review pass (Opus) | Done | Verdict: ready after fixes. No bugs found in the engine, focus controller, concurrency, or privacy. Fixed: (1) the preview's dwell latency after a dwell restarts on the same display (step 4(a2)); (2) closing the Focus Test window now cancels a focus request in flight. A rate limit interrupted the review once; it was resumed. Orchestrator follow-ups: no-face traces now report "not enough face samples" instead of "no Vision angles" (contract §6.6 step 3 and §6.5.1 amended); UI test defaults now live in the temp directory (they had left 664 `sway.ui.tests.*.plist` files in `~/Library/Preferences`; the user can delete them) |
-| CPU fix after the user's checks | Done | Profiled with `sample` against the user's running app. Live on with no windows: **42–49% → about 14–19%** of one core; Pose Debug open: about 40–50% → about 32%. Causes and fixes: (1) `.windowResizability(.contentMinSize)` re-measured Pose Debug's whole content on every frame (37% of the main thread): the root frame now bounds both sides of each axis; (2) SwiftUI keeps closed windows' and the popover's views alive, so they kept redrawing: live content now draws only while its window is on screen (`WindowVisibilityReader`); (3) Swift Charts rebuilt ~150 trail marks per frame: the trail is a `Canvas` over a chart that redraws only when its domain or clusters change; (4) the numeric readouts refresh five times a second (`LiveReadout`); (5) Vision re-read its revision table on every frame because revision 3 was set even when it is the default (3% of a core). The menu readout is now always one line (dashes when off), so the popover keeps its height when Live is toggled. What's left with no windows open is about 75% Vision face detection at 15 fps; lowering it is M7 work (adaptive frame rate) |
-| Crash fix after the user's checks | Done | The user's `bt all`: a stack overflow on the camera session queue, about 3,000 nested closure releases deep, inside `FrameSampleReceiver.disable()`. Cause: the frame handler sat bare in an `OSAllocatedUnfairLock<(@Sendable (CameraFrame) -> Void)?>`. A function type stored in a generic container is re-abstracted on every `withLock` call, so each frame wrapped the stored handler in two more thunks. The chain grew by about 30 links a second while Live ran, every frame called through all of it, and releasing it at teardown overflowed the 512 KB dispatch-thread stack. Either toggle could trigger it once Live had run long enough (roughly two minutes at 15 fps); the menu toggle just happened to be the one used after long runs. The handler is now a field of a small struct (`Delivery`), which has one fixed representation. Reproduced and confirmed in a standalone build: bare storage crashed after about 3,000 calls on a 512 KB stack and slowed about 30× over 22,000 calls; boxed stayed flat. 3 new tests: delivery stops at `disable()`, `disable()` releases the handler, and a 20,000-frame run then `disable()` on a 512 KB-stack thread (with the old storage this crashes the test process). No other lock or container in the code holds a bare closure |
-| Orchestrator verification, PR, CI | Done | Verified locally: privacy guard, swift-format strict, zero warnings, `swift test` 626 tests, `xcodebuild test` TEST SUCCEEDED (8 targets), Release BUILD SUCCEEDED. **PR #45** (closes #11–#14, #16, #17; #15 and #18 stay open until the user's Focus Test). CI run 1 failed on one timing-dependent test (a 25 ms polling timeout ran out on the slow runner); fixed in `05a052b`. **CI run 2 green**: 626 tests, SwiftLint 0 violations, guard, app build |
+| Decisions | Done | See History (2026-10-25) |
+| SPEC / CONTRACT | Done (b9933fa) | SPEC D22–D33, F16–F23; CONTRACT §6.5.2 (M4 UI), §6.5.3 (M5 UI), §6.8 (`SystemIntegration`), §7, §10–§12 |
+| Skeleton | Done (b9933fa) | SwayModels `CalibrationLibrary.swift`, `SwitchSensitivity.swift`, `SystemIntegration.swift` (30 model tests); `maxTrackedDisplays = 3`; `SystemIntegration` stub in the package and scheme; the guard also blocks `IOHIDManager`. Two SwayUI gate tests still assume a limit of 2 (builder-ui-m4 updates them) |
+| Builders | Done | All three. builder-system and builder-ui-m4 stopped once at the account's usage limit (reset 14:20) and resumed with their work intact. Full `xcodebuild test`: 980 tests, zero warnings |
+| Integrate into the app target | Done | `AppComposition` passes `CarbonHotKeyCenter()` and `MainAppLoginItem()`. Full `xcodebuild test`: 810 tests, zero warnings |
+| Review pass (Opus) | Done | No blockers. Six findings, all fixed by the orchestrator: (1) Setup could call a calibration good after the fitter dropped a display it rarely saw the face on, which can never cover the connected displays: now nothing is saved and the display is named; (2) the camera the calibration is looked up for was guessed in `SwayUI` and could disagree with capture's system-default fallback (start-stop loop, or tracking dying at the first screen lock): now asked of the camera service (`FrameSource.resolvedDevice`), and camera connects/disconnects refresh it; (3) Sway's own request in flight no longer locks the decider, which had cancelled the 0.75 s anti-flap cooldown; (4) Setup's result step no longer holds tracking unseen; (5) a late USB camera at login is noticed; (6) the menu warns about the shortcut only while the chosen one isn't working. +4 tests |
+| Verification, PR, CI | Done | Full `xcodebuild test`: 984 tests, zero warnings; lint and guard clean. PR #47 opened; CI green (SwiftLint 0 violations in 172 files, 984 tests). User notified |
 
 ## Builder agents
 
 | Agent | Module | Task | Model | Status | Report |
 |---|---|---|---|---|---|
-| builder-engine | `SwitchEngine` | Profile fitting, classifier, switch state machine, synthetic and recorded-trace tests (CONTRACT §6.6; issues #11–#13) | Sonnet | **Done** | 102 tests pass; lint and guard clean. **On the user's gate trace: 225/225 held-out samples classified correctly** in both directions (lowest margin 0.34, against a 0.30 enter margin). Exactly the 2 expected switches each way, each at 0.400 s (dwell 0.4 s). After review, a contract amendment added a 1 µs tolerance on time comparisons (timestamps around 3·10⁵ s rounded 0.4 s down to 0.39999999996, so a switch could fire a frame late) and a gap check (a camera stall starts a fresh dwell instead of firing at once); both are implemented and tested |
-| builder-focus | `FocusControl` | Window list z-order, coordinates, AX focus with fallbacks and verification (CONTRACT §6.7; issues #14, #15, #18) | Sonnet | **Done** | 19 small files: pure parsing, filtering, geometry, selection, and frame matching; the fallback sequence runs against a fake platform in tests. 81 tests pass (re-run by the orchestrator); lint and guard clean. The window list was checked live on 3 displays. **AX raise and title paths are untested live** (no Accessibility in the agent's process), so the user's Focus Test is the first real run. Accepted deviations, now in CONTRACT: window-list fallback when AX can't read the focused window; "Cancelled" result. Known limits are in `docs/focus-fallbacks.md` |
-| builder-pose | `PoseEstimator` | `includeLandmarks`: skip the landmark request in live tracking (CONTRACT §6.2) | Sonnet | **Done** | Pure `requestPlan(includeLandmarks:)` helper gates the landmark request; `LivePoseSource` already passed the flag; 5 new tests (plan, flag reaches the estimator both ways, default off, restart uses the new value). 60 tests pass locally and with `CI=true` (3 Vision tests skip). Lint and guard clean. No contract issues |
-| builder-ui | `SwayUI` | Landmarks only during the gate; calibration profile; switch preview; Accessibility onboarding; Focus Test window (CONTRACT §6.5.1; issues #16, #17) | Sonnet | **Done** | 194 tests pass (mutation-checked: removing the landmark switch or the one-at-a-time guard fails tests); lint and guard clean. Accepted interpretations: the preview pauses during a gate test; Focus Lock goes through the decider's `.locked` phase (no reset); dwell latency counts from the first dwelling sample on a display; Focus Test polls only once opened from the menu; titles are cleared when the window closes. Visual checks listed in the morning summary |
+| builder-system | `SystemIntegration` | Carbon hot key center and login item (CONTRACT §6.8; issue #23) | Sonnet | **Done** | 8 small files; the registry owns the Carbon handles behind a lock and runs handlers outside it, so a handler may re-register. 34 tests pass (pure mapping, invalid shortcuts, login item routing against a fake); lint and guard clean. The orchestrator added a guard so asking for the login item's current state calls nothing (the system would only report an error). **The live hot key and `SMAppService` paths are untested** (CONTRACT 12): the user's manual check |
+| builder-ui-m4 | `SwayUI` | Tracking loop, Tracking switch and launch state, Focus Lock and shortcut, status, menu, calibration library (CONTRACT §6.5.2; issues #19, #20, #22, #23) | Sonnet | **Done** | 320 tests pass, three times with no flakes; lint and guard clean. Three tests count observation changes to guard against frame-rate redraws of the menu bar icon, the popover, and the "Looking at" line. Accepted interpretations: camera permission denied keeps Tracking on, blocked (the status says "Camera access needed", and tracking resumes when access is granted); "Not now" on the permission explanation saves Tracking off; a switch request also refuses while any hold applies; "Focus Test running" hold wording. **Orchestrator fix:** "Sway is in front" now also needs a key window, so closing Sway's last window releases the hold (the builder flagged it; +1 test, 321) |
+| builder-ui-m5 | `SwayUI` | Setup window, Settings window, prompts, per-camera calibration (CONTRACT §6.5.3; issues #24–#27) | Sonnet | **Done** | 490 SwayUI tests pass (169 new), 9 runs with no flakes; lint and guard clean. The shortcut recorder's key monitor is behind an injected protocol (the real one is untested). Accepted interpretations: "Skip for now" lasts the app run; Setup shows "Calibrating" while its camera runs; a 2.5 s calibration preset beside the gate window's 3–10 s range; a "Try again" button for a failed camera; confidence step names Relaxed, Easy, Balanced, Firm, Strict. **Orchestrator change:** calibration messages now point at Calibrate… instead of the gate test |
 
 ## Open issues
 
@@ -58,8 +60,6 @@ The user's Focus Test passed. **PR #45 awaits the user:** the crash re-test, the
   - A rerun with live log capture worked normally.
   - Cause unknown; the leading suspect is the window/menu layer reacting to the screens sleeping.
   - If it recurs, run `scripts/sleep-diag.sh` before reproducing. It samples every thread when spindump reports a spin.
-- **Crash on turning Live off:** fixed (see "Crash fix"). Awaits the user's re-test: run Live for 5+ minutes, then
-  turn it off from the menu bar.
 - **AppKit `-layoutSubtreeIfNeeded` warning** appears once per launch, from `MenuBarExtra`. Harmless.
 - **Dependabot PR** (actions/checkout bump) is open; left for the user.
 - **Leftover test files:** earlier UI test runs left `sway.ui.tests.*.plist` files in `~/Library/Preferences` (664). Fixed for future runs. The user can delete the old ones: `rm ~/Library/Preferences/sway.ui.tests.*.plist`.

@@ -108,7 +108,7 @@ struct GateSetupView: View {
             Button("Start test") { Task { await model.startGateTest() } }
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
-                .disabled(!model.canRunGateTest)
+                .disabled(!model.canRunGateTest || model.gateRunState != .idle)
             Button("Open Trace\u{2026}") { model.openTrace() }
             if model.analysis != nil {
                 Button("View last report") { model.isShowingReport = true }

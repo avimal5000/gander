@@ -255,9 +255,9 @@ struct AppModelAnalysisTests {
 
     #if DEBUG
     @Test func recordingSavesAnUnlabeledSegmentOfTheLiveSamples() async throws {
-        let h = Harness.make(autoRun: true)
+        let h = Harness.make(autoRun: true, calibrated: true)
         defer { h.tearDown() }
-        await h.model.setLiveEnabled(true)
+        await h.model.setTrackingEnabled(true)
         _ = await waitUntil { h.model.status.isRunning }
 
         h.model.startRecording()
@@ -291,10 +291,10 @@ struct AppModelAnalysisTests {
     }
 
     @Test func aSaveFailureIsShownAndNothingIsClaimedSaved() async {
-        let h = Harness.make(autoRun: true)
+        let h = Harness.make(autoRun: true, calibrated: true)
         defer { h.tearDown() }
         h.store.setSaveError(.io("read-only volume"))
-        await h.model.setLiveEnabled(true)
+        await h.model.setTrackingEnabled(true)
         _ = await waitUntil { h.model.status.isRunning }
 
         h.model.startRecording()
@@ -309,9 +309,9 @@ struct AppModelAnalysisTests {
     }
 
     @Test func stoppingWithoutSamplesReportsThat() async {
-        let h = Harness.make(autoRun: true)
+        let h = Harness.make(autoRun: true, calibrated: true)
         defer { h.tearDown() }
-        await h.model.setLiveEnabled(true)
+        await h.model.setTrackingEnabled(true)
         _ = await waitUntil { h.model.status.isRunning }
 
         h.model.startRecording()
@@ -322,14 +322,14 @@ struct AppModelAnalysisTests {
     }
 
     @Test func turningTheCameraOffSavesAnActiveRecording() async {
-        let h = Harness.make(autoRun: true)
+        let h = Harness.make(autoRun: true, calibrated: true)
         defer { h.tearDown() }
-        await h.model.setLiveEnabled(true)
+        await h.model.setTrackingEnabled(true)
         _ = await waitUntil { h.model.status.isRunning }
         h.model.startRecording()
         h.run(frames: 4, dt: 0.1)
 
-        await h.model.setLiveEnabled(false)
+        await h.model.setTrackingEnabled(false)
 
         #expect(!h.model.recorder.isRecording)
         #expect(h.store.saved.count == 1)

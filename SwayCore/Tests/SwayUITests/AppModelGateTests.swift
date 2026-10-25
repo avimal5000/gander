@@ -11,16 +11,16 @@ struct AppModelGateTests {
     /// Starts a gate test on a fresh harness and reports the camera as running, leaving the first settle phase open.
     private func startedGate(
         layout: DisplayLayout = Fixtures.twoDisplays, rounds: Int = 2, hold: TimeInterval = 3,
-        liveBefore: Bool = false
+        trackingBefore: Bool = false
     ) async -> Harness {
-        let h = Harness.make(layout: layout)
+        let h = Harness.make(layout: layout, calibrated: trackingBefore)
         h.model.gateConfiguration = GateTestConfiguration(rounds: rounds, holdDuration: hold)
-        if liveBefore {
-            await h.model.setLiveEnabled(true)
+        if trackingBefore {
+            await h.model.setTrackingEnabled(true)
             h.reportRunning()
         }
         await h.model.startGateTest()
-        // With Live already on, the gate test restarts the source with landmarks, so it reports running again.
+        // With Tracking already on, the gate test restarts the source with landmarks, so it reports running again.
         h.reportRunning()
         return h
     }
@@ -114,7 +114,7 @@ struct AppModelGateTests {
         #endif
     }
 
-    @Test func theCameraRunsOnlyForTheTestWhenLiveWasOff() async {
+    @Test func theCameraRunsOnlyForTheTestWhenTrackingWasOff() async {
         let h = await startedGate(rounds: 1)
         defer { h.tearDown() }
         #expect(h.model.isCameraActive)
@@ -124,26 +124,26 @@ struct AppModelGateTests {
 
         #expect(!h.model.isCameraActive)
         #expect(h.pose.stopCount >= 1)
-        #expect(!h.model.liveEnabled)
+        #expect(!h.model.trackingEnabled)
     }
 
-    @Test func theCameraStaysOnAfterTheTestWhenLiveWasOn() async {
-        let h = await startedGate(rounds: 1, liveBefore: true)
+    @Test func theCameraStaysOnAfterTheTestWhenTrackingWasOn() async {
+        let h = await startedGate(rounds: 1, trackingBefore: true)
         defer { h.tearDown() }
 
         runToCompletion(h)
         await h.model.cameraOperation?.value
 
         #expect(h.model.isCameraActive)
-        #expect(h.model.liveEnabled)
+        #expect(h.model.trackingEnabled)
         #expect(h.model.analysis != nil)
-        // Live, then the gate test's restart with landmarks, then Live again without them.
+        // Tracking, then the gate test's restart with landmarks, then Tracking again without them.
         #expect(h.pose.configurations.map(\.includeLandmarks) == [false, true, false])
     }
 
     // MARK: Landmarks (SPEC D15)
 
-    @Test func theGateTestTurnsLandmarksOnAndLiveAfterwardsRunsWithoutThem() async {
+    @Test func theGateTestTurnsLandmarksOnAndTrackingAfterwardsRunsWithoutThem() async {
         let h = await startedGate(rounds: 1)
         defer { h.tearDown() }
         #expect(h.pose.configurations.map(\.includeLandmarks) == [true])
@@ -152,7 +152,7 @@ struct AppModelGateTests {
         await h.model.cameraOperation?.value
         #expect(!h.model.isCameraActive)
 
-        await h.model.setLiveEnabled(true)
+        await h.model.setTrackingEnabled(true)
         #expect(h.pose.configurations.map(\.includeLandmarks) == [true, false])
         #expect(h.model.activeConfiguration?.includeLandmarks == false)
     }
@@ -167,19 +167,19 @@ struct AppModelGateTests {
         #expect(h.pose.configurations == [PoseSourceConfiguration(cameraDeviceID: nil, includeLandmarks: true)])
     }
 
-    @Test func liveAloneNeverAsksForLandmarks() async {
-        let h = Harness.make()
+    @Test func trackingAloneNeverAsksForLandmarks() async {
+        let h = Harness.make(calibrated: true)
         defer { h.tearDown() }
 
-        await h.model.setLiveEnabled(true)
+        await h.model.setTrackingEnabled(true)
 
         #expect(h.pose.configurations.map(\.includeLandmarks) == [false])
     }
 
-    @Test func aGateTestStartedWhileLiveRunsRestartsTheSourceWithLandmarks() async {
-        let h = Harness.make(autoRun: true)
+    @Test func aGateTestStartedWhileTrackingRunsRestartsTheSourceWithLandmarks() async {
+        let h = Harness.make(autoRun: true, calibrated: true)
         defer { h.tearDown() }
-        await h.model.setLiveEnabled(true)
+        await h.model.setTrackingEnabled(true)
         _ = await waitUntil { h.model.status.isRunning }
         h.model.gateConfiguration = GateTestConfiguration(rounds: 1, holdDuration: 3)
 
@@ -190,11 +190,11 @@ struct AppModelGateTests {
         #expect(h.pose.configurations.map(\.includeLandmarks) == [false, true])
         #expect(h.pose.stopCount >= 1)
         // The restart replaces the stream, so the test's frames come from the landmark stream only.
-        #expect(h.model.liveEnabled)
+        #expect(h.model.trackingEnabled)
     }
 
-    @Test func aCancelledGateTestPutsLiveBackWithoutLandmarks() async {
-        let h = await startedGate(liveBefore: true)
+    @Test func aCancelledGateTestPutsTrackingBackWithoutLandmarks() async {
+        let h = await startedGate(trackingBefore: true)
         defer { h.tearDown() }
         #expect(h.model.activeConfiguration?.includeLandmarks == true)
 
@@ -202,7 +202,7 @@ struct AppModelGateTests {
         await h.model.cameraOperation?.value
 
         #expect(h.model.isCameraActive)
-        #expect(h.model.liveEnabled)
+        #expect(h.model.trackingEnabled)
         #expect(h.model.activeConfiguration?.includeLandmarks == false)
         #expect(h.pose.configurations.map(\.includeLandmarks) == [false, true, false])
     }
@@ -308,7 +308,7 @@ struct AppModelGateTests {
         #expect(h.model.gateMessage?.kind == .error)
         #expect(h.model.gateMessage?.text.contains("sensor died") == true)
         #expect(!h.overlay.isShowing)
-        #expect(!h.model.liveEnabled)
+        #expect(!h.model.trackingEnabled)
     }
 
     @Test func aCameraThatNeverStartsTimesOut() async {
@@ -358,8 +358,8 @@ struct AppModelGateTests {
     @Test func layoutChangesFlowThroughTheDisplayStream() async {
         let h = Harness.make()
         defer { h.tearDown() }
-        h.displays.change(to: Fixtures.threeDisplays)
-        let updated = await waitUntil { h.model.layout == Fixtures.threeDisplays }
+        h.displays.change(to: Fixtures.fourDisplays)
+        let updated = await waitUntil { h.model.layout == Fixtures.fourDisplays }
         #expect(updated)
         #expect(h.model.exceedsTrackedDisplays)
     }
@@ -398,22 +398,30 @@ struct AppModelGateTests {
     }
 
     @Test func moreDisplaysThanTheLimitAreFlaggedButStillMeasured() async {
-        let h = await startedGate(layout: Fixtures.threeDisplays, rounds: 1)
+        let h = await startedGate(layout: Fixtures.fourDisplays, rounds: 1)
         defer { h.tearDown() }
+        #expect(SwayPolicy.maxTrackedDisplays == 3)
         #expect(h.model.exceedsTrackedDisplays)
-        #expect(Fixtures.threeDisplays.displays.count > SwayPolicy.maxTrackedDisplays)
+        #expect(Fixtures.fourDisplays.displays.count > SwayPolicy.maxTrackedDisplays)
 
         runToCompletion(h)
 
         let trace = h.analyzer.analyzedTraces.first
-        #expect(trace?.segments.map(\.displayID) == [Fixtures.left.id, Fixtures.right.id, Fixtures.far.id])
+        #expect(
+            trace?.segments.map(\.displayID)
+                == [Fixtures.left.id, Fixtures.right.id, Fixtures.far.id, Fixtures.extra.id])
     }
 
-    @Test func twoDisplaysAreWithinTheTrackedLimit() {
-        let h = Harness.make()
-        defer { h.tearDown() }
-        #expect(!h.model.exceedsTrackedDisplays)
-        #expect(h.model.canRunGateTest)
+    @Test func twoAndThreeDisplaysAreWithinTheTrackedLimit() {
+        let two = Harness.make()
+        defer { two.tearDown() }
+        #expect(!two.model.exceedsTrackedDisplays)
+        #expect(two.model.canRunGateTest)
+
+        let three = Harness.make(layout: Fixtures.threeDisplays)
+        defer { three.tearDown() }
+        #expect(!three.model.exceedsTrackedDisplays, "The limit is 3 displays (SPEC D22)")
+        #expect(three.model.canRunGateTest)
     }
 
     @Test func aDisplayWithoutAScreenBlocksTheStart() async {

@@ -3,10 +3,12 @@ import SwayModels
 
 /// Wording for the Switch preview section. Pure functions of model values.
 enum SwitchPreviewPresentation {
-    static let noProfile = "Run the gate test to calibrate."
-    static let stale = "Displays changed since calibration. Run the gate test again to recalibrate."
-    static let cameraOff = "Turn the camera on to see the preview."
+    static let noProfile = "Not calibrated yet. Choose Calibrate\u{2026} in the menu."
+    static let noMatchingProfile =
+        "No saved calibration fits these displays and this camera. Choose Calibrate\u{2026} in the menu."
+    static let trackingOff = "Turn Tracking on to see the preview."
     static let noSwitches = "No switches yet. Look at another display and hold."
+    static let needsAccessibility = "Accessibility is not granted, so Sway cannot move focus."
 
     /// What the pose points at: the nearest display, "No face", or "Looking elsewhere".
     static func classificationText(_ classification: PoseClassification?, name: (DisplayID) -> String) -> String {
@@ -30,7 +32,7 @@ enum SwitchPreviewPresentation {
         case nil, .idle?: "Watching"
         case .dwelling(let display, _)?: "Dwelling on \(name(display))"
         case .coolingDown?: "Cooling down"
-        case .locked?: "Focus lock is on"
+        case .locked?: "Switching is held"
         }
     }
 
@@ -40,13 +42,22 @@ enum SwitchPreviewPresentation {
         return min(1, max(0, progress))
     }
 
-    /// "Focus (simulated): <name or Unknown>".
-    static func simulatedFocusText(_ focus: DisplayID?, name: (DisplayID) -> String) -> String {
-        "Focus (simulated): \(focus.map(name) ?? "Unknown")"
+    /// "Focus: <name or Unknown>", from the tracking loop's belief about where keyboard focus is.
+    static func focusText(_ focus: DisplayID?, name: (DisplayID) -> String) -> String {
+        "Focus: \(focus.map(name) ?? "Unknown")"
     }
 
-    /// A log line: "Switch to <name> after 0.42 s".
-    static func logText(_ entry: SwitchLogEntry) -> String {
-        "Switch to \(entry.displayName) after \(Formatting.twoDecimals(entry.latency)) s"
+    /// A log line for a focus request's result. Names the app and the display, never a window title.
+    static func logText(for result: FocusResult, display: String, held: TimeInterval) -> String {
+        switch result {
+        case .focused(let window, _, let milliseconds):
+            "Focused \(window.appName) on \(display) in \(milliseconds) ms, held \(Formatting.twoDecimals(held)) s"
+        case .noWindow:
+            "No window on \(display)"
+        case .notTrusted:
+            "Accessibility permission needed"
+        case .failed(_, let reason):
+            "Failed: \(reason)"
+        }
     }
 }

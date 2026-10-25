@@ -78,21 +78,21 @@ struct GateReportView: View {
         }
     }
 
-    /// Whether this trace produced a calibration for the Switch preview, or why not.
+    /// Whether this trace produced a calibration that was saved in the library, or why not.
     @ViewBuilder
     private var calibrationStatus: some View {
         if let message = model.calibrationMessage {
             VStack(alignment: .leading, spacing: 2) {
                 MessageView(message: message)
-                if model.calibrationProfile != nil {
+                if model.activeCalibration != nil {
                     Text("Your previous calibration is still in use.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
-        } else if let profile = model.calibrationProfile {
+        } else if let profile = model.lastFittedProfile {
             Label(
-                "Calibration saved for \(profile.displays.count) displays. Open Pose Debug to try the Switch preview.",
+                "Calibration saved for \(profile.displays.count) displays. Turn Tracking on in the menu to use it.",
                 systemImage: "checkmark.circle"
             )
             .font(.callout)

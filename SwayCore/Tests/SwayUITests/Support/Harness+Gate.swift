@@ -30,9 +30,20 @@ extension Harness {
         return url
     }
 
-    /// Turns Live on, with the camera reported running. Call after the profile exists to get a decider.
-    func startLive() async {
-        await model.setLiveEnabled(true)
+    /// Turns Tracking on, with the camera reported running. Seed a calibration first (`Harness.make(calibrated:)`
+    /// or `openTrace()`) so the camera and the decider exist.
+    func startTracking() async {
+        await model.setTrackingEnabled(true)
         reportRunning()
+    }
+
+    /// Waits for the focused-display poll that tracking started, if one is running.
+    func settlePoll() async {
+        await model.trackingPollTask?.value
+    }
+
+    /// Waits for the focus request in flight, if any, and for the work queued behind it.
+    func settleSwitch() async {
+        await model.focusSwitchTask?.value
     }
 }

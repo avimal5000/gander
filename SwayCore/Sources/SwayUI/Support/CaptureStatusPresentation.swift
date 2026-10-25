@@ -1,6 +1,7 @@
 import SwayModels
 
-/// User-facing wording and menu bar symbols for camera state. Pure functions of model values.
+/// User-facing wording for camera state. Pure functions of model values. (The menu bar symbol and status line come
+/// from `TrackingStatus`.)
 extension CaptureStatus {
     /// True while frames are flowing.
     var isRunning: Bool {
@@ -14,17 +15,6 @@ extension CaptureStatus {
         return nil
     }
 
-    /// SF Symbol for the menu bar label (CONTRACT 6.5).
-    func menuBarSymbol(hasFace: Bool) -> String {
-        switch self {
-        case .stopped: "eye.slash"
-        case .starting: "eye"
-        case .running: hasFace ? "eye.fill" : "eye.trianglebadge.exclamationmark"
-        case .suspended: "pause.circle"
-        case .interrupted, .failed: "exclamationmark.triangle"
-        }
-    }
-
     /// One-line state text, for example "Running" or "Suspended: screen locked".
     var summary: String {
         switch self {
@@ -34,17 +24,6 @@ extension CaptureStatus {
         case .suspended(let reason): "Suspended: \(reason.userDescription)"
         case .interrupted(let message): "Interrupted: \(message)"
         case .failed(let error): "Failed: \(error.userMessage)"
-        }
-    }
-
-    /// State text plus the camera name when known, for the menu status line.
-    func statusLine(cameraName: String?) -> String {
-        switch self {
-        case .running:
-            if let name = device?.name ?? cameraName { return "\(summary) \u{00B7} \(name)" }
-            return summary
-        default:
-            return summary
         }
     }
 }
@@ -89,7 +68,7 @@ extension CalibrationError {
     var userMessage: String {
         switch self {
         case .tooFewDisplays:
-            "Not enough face samples on at least two displays to calibrate. Run the gate test with your face visible."
+            "Not enough face samples on at least two displays to calibrate. Keep your face in view of the camera and try again."
         case .featuresMissing(let features): "This trace has no \(features.title)"
         }
     }
