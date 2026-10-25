@@ -5,6 +5,7 @@
 .build-*/
 SwayCore/.swiftpm/
 DerivedData/
+*.profraw
 
 # Xcode per-user state
 xcuserdata/

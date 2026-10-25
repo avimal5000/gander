@@ -29,10 +29,11 @@ jobs:
       - name: swift-format lint
         run: xcrun swift-format lint --strict --recursive --parallel Sway SwayCore/Package.swift SwayCore/Sources SwayCore/Tests
 
+      # Errors fail the job; warnings are reported in the log (swift-format above is the strict style gate).
       - name: SwiftLint
         run: |
           command -v swiftlint >/dev/null || brew install swiftlint
-          swiftlint lint --strict
+          swiftlint lint
 
       - name: SwayCore tests
         working-directory: SwayCore

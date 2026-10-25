@@ -9,7 +9,8 @@ No focus switching yet.
 
 ## Requirements
 
-macOS 14+, Xcode 26+. No third-party dependencies.
+macOS 14+, Xcode 26+. No third-party dependencies. Keep the repo out of iCloud-synced folders such as
+`~/Documents`: iCloud's file attributes make codesigning of test bundles fail.
 
 ## Build and run
 
