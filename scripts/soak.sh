@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
-# Soak test helper (issue #39): records Sway's CPU, memory, and threads while you use it all day, then summarizes
-# them with the switches and camera events from Sway's own log.
+# Soak test helper (issue #39): records Sway's CPU, memory, and threads while you use it all day, and Sway's own log
+# lines (switches, camera events), then summarizes both.
 #
 #   scripts/soak.sh sample [out.csv] [interval seconds]   run until Ctrl-C (default .build-logs/soak-<date>.csv, 30 s)
 #   scripts/soak.sh report <out.csv>                       summary of a finished or running sample
 #
-# Sampling only reads process statistics (`top`, `pmset`); it never touches the camera or Sway itself. A pid change
-# in the middle of a run means Sway quit or crashed, and the report says so.
+# Sampling only reads process statistics (`top`, `pmset`) and streams Sway's log; it never touches the camera or Sway
+# itself. The log lines go to <out>.log next to the CSV, because macOS keeps info-level log lines only for a few
+# minutes: reading them afterwards would miss most of a day. A pid change in the middle of a run means Sway quit or
+# crashed, and the report says so.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
@@ -19,7 +21,13 @@ sample() {
   local interval="${2:-30}"
   mkdir -p "$(dirname "$out")"
   echo "time,pid,cpu_percent,rss_mb,threads,power" > "$out"
-  echo "Sampling Sway every ${interval} s into $out (Ctrl-C to stop)."
+  local logfile="${out%.csv}.log"
+  : > "$logfile"
+  /usr/bin/log stream --style compact --level info --predicate "$predicate" >> "$logfile" 2>/dev/null &
+  local stream_pid=$!
+  trap 'kill "$stream_pid" 2>/dev/null; exit 0' INT TERM
+  trap 'kill "$stream_pid" 2>/dev/null' EXIT
+  echo "Sampling Sway every ${interval} s into $out and its log lines into $logfile (Ctrl-C to stop)."
   while true; do
     local pid
     pid=$(pgrep -x Sway | head -1 || true)
@@ -86,9 +94,15 @@ report() {
 
   echo
   echo "From Sway's log in that period:"
-  local events
-  events=$(log show --info --style compact --start "$first" --end "$last" \
-    --predicate "$predicate" 2>/dev/null | grep -vE "^Timestamp|^Filtering" || true)
+  local events logfile="${csv%.csv}.log"
+  if [[ -f "$logfile" ]]; then
+    events=$(grep -vE "^Timestamp|^Filtering" "$logfile" || true)
+  else
+    echo "  (no $logfile: only the last few minutes of log lines are still stored, so the counts below are incomplete;"
+    echo "   start a run with 'scripts/soak.sh sample' to capture them)"
+    events=$(/usr/bin/log show --info --style compact --start "$first" --end "$last" \
+      --predicate "$predicate" 2>/dev/null | grep -vE "^Timestamp|^Filtering" || true)
+  fi
   count() { grep -cE "$1" <<<"$events" || true; }
   echo "  switches focused:        $(count 'Focused .* on .* via')"
   echo "  display had no window:   $(count 'No window on')"
