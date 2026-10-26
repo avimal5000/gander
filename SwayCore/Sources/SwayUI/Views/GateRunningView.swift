@@ -35,7 +35,6 @@ struct GateRunningView: View {
             Text(progress.phase == .settle ? "Get ready\u{2026}" : "Hold still")
                 .foregroundStyle(.secondary)
             ProgressView(value: progress.fraction)
-                .tint(SwayPalette.forest)
                 .frame(width: 320)
             if progress.phase == .hold {
                 Text("\(progress.recordedSamples) samples \u{00B7} \(progress.recordedFaces) with a face")

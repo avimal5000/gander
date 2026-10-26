@@ -44,6 +44,21 @@ struct AppearanceTests {
 
     // MARK: Accent choice
 
+    @Test func swiftUIResolvesSwayGreenForEachColorScheme() throws {
+        func hex(_ scheme: ColorScheme) throws -> UInt32 {
+            var environment = EnvironmentValues()
+            environment.colorScheme = scheme
+            let srgb = try #require(CGColorSpace(name: CGColorSpace.sRGB))
+            let color = try #require(
+                SwayPalette.green.resolve(in: environment).cgColor.converted(
+                    to: srgb, intent: .defaultIntent, options: nil))
+            let parts = try #require(color.components).prefix(3).map { UInt32(($0 * 255).rounded()) }
+            return parts[0] << 16 | parts[1] << 8 | parts[2]
+        }
+        #expect(try hex(.light) == SwayPalette.forestHex)
+        #expect(try hex(.dark) == SwayPalette.greenDarkHex)
+    }
+
     @Test func theAccentIsSwayGreenByDefault() {
         let h = Harness.make()
         defer { h.tearDown() }

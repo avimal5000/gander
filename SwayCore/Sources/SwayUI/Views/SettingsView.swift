@@ -3,8 +3,8 @@ import SwayModels
 import SwiftUI
 
 /// The Sway Settings window (SPEC F21, D33): appearance, login item, switching, the Focus Lock shortcut, the camera,
-/// and the saved calibrations. A regular window, because SwiftUI's `Settings` scene cannot be opened reliably from a menu bar
-/// app on macOS 14.
+/// and the saved calibrations. A regular window, because SwiftUI's `Settings` scene cannot be opened reliably from a
+/// menu bar app on macOS 14.
 struct SettingsView: View {
     let model: AppModel
     @Environment(\.openWindow) private var openWindow

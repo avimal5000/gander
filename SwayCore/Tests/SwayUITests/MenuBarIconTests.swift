@@ -154,9 +154,9 @@ struct MenuBarIconTests {
     }
 
     @Test func aBadgeIsCutOutOfTheMarkWithAClearRing() {
-        // Just left of the lock body the arc would pass: the ring around the badge clears it.
-        let beside = CGRect(x: 11.2, y: 12.2, width: 0.6, height: 2)
-        #expect(ink(.tracking, in: beside) == 0, "Nothing there without the badge")
-        #expect(ink(.focusLock, in: beside) == 0, "The ring leaves a gap")
+        // Where the end point meets the alert dot: solid in the plain mark, cleared by the ring around the dot.
+        let ring = CGRect(x: 14.4, y: 4.6, width: 0.4, height: 0.4)
+        #expect(ink(.tracking, in: ring) > 0.99, "The end point is there without the dot")
+        #expect(ink(.attention, in: ring) < 0.05, "The ring leaves a gap")
     }
 }

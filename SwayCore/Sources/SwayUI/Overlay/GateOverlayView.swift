@@ -61,7 +61,7 @@ struct GateOverlayView: View {
             VStack(spacing: 6) {
                 ProgressView(value: progress.fraction)
                     .progressViewStyle(.linear)
-                    .tint(SwayPalette.forest)
+                    .tint(SwayPalette.green)
                     .frame(width: 260)
                 Text("Hold still \u{00B7} \(Int(progress.remaining.rounded(.up))) s")
                     .font(.system(size: 14).monospacedDigit())

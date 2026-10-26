@@ -55,11 +55,17 @@ final class NoticePillView: NSVisualEffectView {
             NSPoint(
                 x: Self.horizontalPadding + iconSize.width + spacing,
                 y: ((size.height - label.frame.height) / 2).rounded()))
-        maskImage = NSImage(size: size, flipped: false) { rect in
+        maskImage = Self.pillMask(size: size)
+        return size
+    }
+
+    /// The pill shape as a mask. Nonisolated: AppKit may run an image's drawing handler on whatever thread draws the
+    /// image, and a closure made in a main-actor method would trap there.
+    private nonisolated static func pillMask(size: NSSize) -> NSImage {
+        NSImage(size: size, flipped: false) { rect in
             NSColor.black.setFill()
             NSBezierPath(roundedRect: rect, xRadius: rect.height / 2, yRadius: rect.height / 2).fill()
             return true
         }
-        return size
     }
 }

@@ -72,7 +72,6 @@ struct SwitchPreviewView: View {
                 HStack(spacing: 8) {
                     Text("Margin").font(.caption).foregroundStyle(.secondary)
                     ProgressView(value: margin, total: 1)
-                        .tint(SwayPalette.forest)
                         .accessibilityLabel("Margin over the next nearest display")
                         .accessibilityValue(Formatting.twoDecimals(margin))
                     Text(Formatting.twoDecimals(margin)).font(.caption.monospacedDigit())
@@ -88,7 +87,6 @@ struct SwitchPreviewView: View {
                 .font(.callout)
             if let progress = SwitchPreviewPresentation.dwellProgress(phase) {
                 ProgressView(value: progress, total: 1)
-                    .tint(SwayPalette.forest)
                     .accessibilityLabel("Dwell progress")
                     .accessibilityValue(Formatting.wholePercent(progress))
             }

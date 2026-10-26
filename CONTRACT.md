@@ -450,8 +450,8 @@ Everything else is internal and up to you, within SPEC.md F1–F9.
 - Esc cancels via a local key monitor or the gate window's cancel button.
 
 **Palette** (internal `SwayPalette`): forest `#2F5D3A`, sage `#9CAF88`, ivory `#F6F3EA`, charcoal `#2B2B2B`.
-Otherwise use system fonts and controls; the app accent color is already forest/sage. Support light and
-dark mode.
+Otherwise use system fonts and controls. The accent is Sway green or the system's, as the user chooses (§6.5.4).
+Support light and dark mode.
 
 **Charts:** Swift Charts (system framework) or `Canvas`. Show no video and no camera preview (SPEC D9).
 

@@ -59,7 +59,8 @@ final class FeedbackOverlayController: FeedbackPresenting {
     // MARK: Panels
 
     private func makeGlowPanel(on screen: NSScreen) -> OverlayPanel {
-        let panel = OverlayPanel(screen: screen, content: EdgeGlowView())
+        let glow = EdgeGlowView(frame: NSRect(origin: .zero, size: screen.frame.size))
+        let panel = OverlayPanel(frame: screen.frame, view: glow)
         panel.animationBehavior = .none
         return panel
     }
@@ -107,13 +108,10 @@ final class FeedbackOverlayController: FeedbackPresenting {
         if duration == 0 { panel.alphaValue = alpha }
     }
 
-    /// Waits `seconds`. False when the task was cancelled meanwhile.
+    /// Waits `seconds`. False when the task was cancelled meanwhile, including just after the sleep ended but before
+    /// this resumed: a newer request has re-presented the shared panel by then, and must not have it ordered out.
     private static func pause(_ seconds: TimeInterval) async -> Bool {
-        do {
-            try await Task.sleep(for: .seconds(seconds))
-            return true
-        } catch {
-            return false
-        }
+        try? await Task.sleep(for: .seconds(seconds))
+        return !Task.isCancelled
     }
 }

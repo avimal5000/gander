@@ -323,13 +323,40 @@ struct ViewSmokeTests {
         #expect(square(5, 5) == 0 && square(94, 94) == 0)
     }
 
+    /// Renders an AppKit view's layer tree at 1x and reads alpha at a pixel, (0, 0) at the top left.
+    private func alphaReader(of view: NSView) -> ((Int, Int) -> Double)? {
+        let width = Int(view.bounds.width)
+        let height = Int(view.bounds.height)
+        guard let layer = view.layer,
+            let context = CGContext(
+                data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
+                space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue),
+            let data = context.data
+        else { return nil }
+        layer.render(in: context)
+        let bytes = Array(
+            UnsafeBufferPointer(
+                start: data.bindMemory(to: UInt8.self, capacity: width * height * 4), count: width * height * 4))
+        return { x, y in Double(bytes[(y * width + x) * 4 + 3]) / 255 }
+    }
+
     @Test func theEdgeGlowHasABorderAtTheEdgeAndAnEmptyMiddle() throws {
-        let glow = try #require(alphaReader(of: EdgeGlowView(), width: 240, height: 140))
+        let view = EdgeGlowView(frame: NSRect(x: 0, y: 0, width: 240, height: 140))
+        let glow = try #require(alphaReader(of: view))
         #expect(glow(0, 70) > 0.99 && glow(239, 70) > 0.99, "The 4 pt border on the left and right")
         #expect(glow(120, 0) > 0.99 && glow(120, 139) > 0.99, "On the top and bottom")
         #expect(glow(3, 70) > 0.99 && glow(4, 70) < 0.5, "The border is 4 pt wide")
-        #expect(glow(5, 70) > glow(12, 70), "The glow fades inward")
-        #expect(glow(14, 70) == 0 && glow(120, 70) == 0, "Nothing past the glow")
+        #expect(glow(5, 70) > glow(12, 70) && glow(234, 70) > glow(227, 70), "The side glows fade inward")
+        #expect(glow(120, 5) > glow(120, 12) && glow(120, 134) > glow(120, 127), "So do the top and bottom ones")
+        #expect(glow(14, 70) == 0 && glow(120, 70) == 0 && glow(120, 14) == 0, "Nothing past the glow")
+    }
+
+    @Test func theEdgeGlowFollowsItsFrameWhenThePanelMovesToAnotherDisplay() throws {
+        let view = EdgeGlowView(frame: NSRect(x: 0, y: 0, width: 240, height: 140))
+        view.setFrameSize(NSSize(width: 300, height: 200))
+        let glow = try #require(alphaReader(of: view))
+        #expect(glow(299, 100) > 0.99 && glow(150, 199) > 0.99, "The border moved to the new right and top edges")
+        #expect(glow(239, 100) == 0, "Nothing left where the old right edge was")
     }
 
     @Test func theWelcomeStepRendersInLightAndDark() {
