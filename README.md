@@ -4,15 +4,22 @@
 looking at, using head pose from the camera, entirely on-device. See PLAN.md (plan), SPEC.md (current phase),
 CONTRACT.md (architecture), STATUS.md (progress).
 
-Current phase: **M2 + M3**: the switch engine (calibration and decider) and the focus controller. The M1 gate
-was GO (`docs/decisions/0001-m1-head-pose-gate.md`). Focus moves only from the Focus Test window's buttons;
-automatic switching arrives in M4.
+Status: the app works end to end (M0–M7): head-pose tracking, switching, Focus Lock, guided setup, settings, and
+hardening for sleep, display changes, and camera conflicts. The first release is built by `scripts/release.sh`
+(see docs/RELEASING.md).
+
+## Install
+
+Download the DMG from the repository's **Releases** page, open it, drag Sway to Applications, and open it from
+there. If macOS says the app cannot be checked for malware (an early build that is not notarized), right-click Sway →
+**Open** → **Open** once. Sway lives in the menu bar; choose **Set Up…** in its menu. There is no auto-update, because
+Sway never uses the network: to update, download the new DMG and replace the app.
 
 ## Permissions
 
 - **Camera:** head pose. Asked on first use.
-- **Accessibility:** to raise and focus the last-used window on a display. Grant it from the Focus Test window
-  (menu → Focus Test Window…). It is tied to the signed build, so run from Xcode.
+- **Accessibility:** to raise and focus the last-used window on a display. Setup asks for it. It is tied to the
+  app's signature, so a different build (Xcode, ad hoc, or the signed release) asks again.
 - No Screen Recording, no network.
 
 ## Requirements
@@ -43,6 +50,8 @@ Numeric pose traces are saved only in DEBUG builds, to `~/Library/Application Su
 is never moved, and Sway neither synthesizes nor globally monitors input events. Window titles are shown in the
 Focus Test window only, never logged or stored. All of this is enforced in CI by `scripts/privacy-guard.sh`.
 
-## Diagnostics
+## Diagnostics and audits
 
 `scripts/sleep-diag.sh` captures Sway's live log and thread samples across a sleep/wake, for hangs.
+`scripts/audit-privacy.sh` checks the entitlements and the built app for any network access or image saving
+(docs/PRIVACY-AUDIT.md). `scripts/soak.sh` records Sway's CPU, memory, and switches over a long run.

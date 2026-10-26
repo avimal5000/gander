@@ -19,7 +19,7 @@ the morning (they have a paid Apple Developer account but no certificate yet).
 | Privacy audit and soak tooling (#38, #39) | Done | `scripts/audit-privacy.sh`, `docs/PRIVACY-AUDIT.md`, `scripts/soak.sh` (57d28ef) |
 | M7 builders | Running | builder-camera-m7, builder-pose-m7, builder-ui-m7 |
 | M7 review (Opus), fixes, full verification, PR | Pending | |
-| M8 release pipeline | Pending | Separate worktree `.build-m8`, branch `feat/40-m8-release`: DMG script, release workflow on `v*` tags, version 0.1.0, notarization steps with secrets the user adds |
+| M8 release pipeline | Done, PR pending | Worktree `.build-m8`, branch `feat/40-m8-release` (based on the M7 branch because it uses the audit script). `scripts/release.sh` builds a universal, hardened-runtime, ad-hoc-signed 0.1.0 DMG in 36 s (tested: mounts, version 0.1.0, camera entitlement only, privacy audit passes); signs with a Developer ID certificate and notarizes when given them. `.github/workflows/release.yml` on `v*` tags. `docs/RELEASING.md` has the user's morning steps. #43 (Sparkle) closed as not planned. #40 stays open until the user adds the certificate |
 
 ## Builder agents
 
