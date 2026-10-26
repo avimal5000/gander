@@ -12,6 +12,15 @@ extension AppModel {
     /// seconds.
     static let cameraFallbackDelay: TimeInterval = 5
 
+    /// The start that the fallback began, while it runs.
+    enum FallbackRestart: Equatable {
+        /// On a stand-in, because the chosen camera has been unplugged for long enough.
+        case standIn
+        /// On the chosen camera, which is connected again. Carries the stand-in it replaces, or `nil` when nothing was
+        /// running (a retry after earlier failed starts).
+        case chosen(replacing: CameraDevice?)
+    }
+
     // MARK: State
 
     /// The camera the user chose, when it was the one running in this session and is no longer connected. `nil` for a
@@ -34,6 +43,18 @@ extension AppModel {
         return devices.contains { $0.id == id }
     }
 
+    /// Capture is interrupted and the chosen camera is the one that went missing.
+    private var isChosenCameraLost: Bool {
+        guard case .interrupted = status else { return false }
+        return unpluggedChosenCamera != nil
+    }
+
+    /// A start that the fallback began failed because the camera was not ready: nothing runs, Tracking is still on, and
+    /// the next device change (or the retry timer) tries again.
+    private var isRetryPending: Bool {
+        cameraLossElapsed && streamTask == nil && trackingEnabled
+    }
+
     /// A connected camera other than the chosen one that has a calibration for the current displays: the built-in if
     /// it qualifies, else the first listed.
     func fallbackCandidate() -> CameraDevice? {
@@ -50,11 +71,16 @@ extension AppModel {
     func syncCameraFallback() {
         if fallbackCamera != nil {
             cancelCameraLossWait()
-            // Never restart the source while the camera is suspended (asleep, locked): that waits for the wake.
-            if isChosenCameraConnected, !isCameraLockedByCalibration, !status.isSuspended { endCameraFallback() }
+            // Never restart the source while the camera is suspended (asleep, locked): that waits for the wake. A switch
+            // back that just failed waits for its retry.
+            if isChosenCameraConnected, !isCameraLockedByCalibration, !status.isSuspended,
+                !fallbackSwitchBackDeferred
+            {
+                endCameraFallback()
+            }
             return
         }
-        guard case .interrupted = status, unpluggedChosenCamera != nil else {
+        guard isChosenCameraLost || isRetryPending else {
             cancelCameraLossWait()
             return
         }
@@ -82,26 +108,103 @@ extension AppModel {
     /// The wait is over: restart on a calibrated stand-in, if there is one now. Otherwise keep waiting, and try again
     /// whenever something changes.
     private func startCameraFallback() {
-        guard trackingEnabled, !isCameraLockedByCalibration, let device = fallbackCandidate() else { return }
+        guard trackingEnabled, !isCameraLockedByCalibration else { return }
+        if isChosenCameraConnected {
+            // Only reached when a start failed and nothing runs: the chosen camera is back, so start on it.
+            cancelCameraLossWait()
+            refreshActiveCalibration(reconcile: false)
+            reconcileForFallback(.chosen(replacing: nil))
+            return
+        }
+        guard let device = fallbackCandidate() else { return }
         cancelCameraLossWait()
         fallbackCamera = device
         log.info("The chosen camera is unplugged; continuing with another calibrated camera")
         // From here the calibration is looked up for the stand-in, and the changed configuration restarts the source.
-        refreshActiveCalibration()
-        reconcileCamera()
+        refreshActiveCalibration(reconcile: false)
+        reconcileForFallback(.standIn)
     }
 
     /// The chosen camera is connected again: restart on it.
     private func endCameraFallback() {
+        guard let standIn = fallbackCamera else { return }
         fallbackCamera = nil
         log.info("The chosen camera is connected again")
-        refreshActiveCalibration()
-        reconcileCamera()
+        refreshActiveCalibration(reconcile: false)
+        reconcileForFallback(.chosen(replacing: standIn))
+    }
+
+    /// Queues the one reconcile that carries out `restart`, marked as the fallback's own so that a start failing
+    /// because the camera is not ready keeps Tracking on. The mark ends with that reconcile, whatever it did.
+    private func reconcileForFallback(_ restart: FallbackRestart) {
+        fallbackRestart = restart
+        fallbackRestartSerial += 1
+        let serial = fallbackRestartSerial
+        enqueueCameraWork { model in
+            await model.performCameraReconcile()
+            if model.fallbackRestartSerial == serial { model.fallbackRestart = nil }
+        }
+    }
+
+    /// A start that the fallback began failed. When the camera was merely not ready to open (`.deviceUnavailable`,
+    /// `.noDevice`: a camera just plugged in), Tracking stays on and the fallback tries again later; returns true.
+    /// Any other error returns false, and the caller handles it as before.
+    func recoverFromFailedFallbackStart() -> Bool {
+        guard let restart = fallbackRestart else { return false }
+        fallbackRestart = nil
+        guard permissionPrompt == nil, case .failed(let error) = status, error.isCameraNotReady else { return false }
+        log.info("The camera was not ready to open; Tracking stays on and the fallback tries again")
+        switch restart {
+        case .chosen(let standIn?):
+            // Back on the stand-in, and not tried again at once: every start of the stand-in would trigger it.
+            fallbackCamera = standIn
+            fallbackSwitchBackDeferred = true
+            refreshActiveCalibration(reconcile: false)
+            reconcileForFallback(.standIn)
+        case .standIn, .chosen(nil):
+            // Nothing runs. The 5 s are over, so the next device change (or the retry) starts a camera again.
+            fallbackCamera = nil
+            cameraLossElapsed = true
+        }
+        scheduleFallbackRetry()
+        return true
+    }
+
+    private func scheduleFallbackRetry() {
+        fallbackRetryTimer?.cancel()
+        fallbackRetryTimer = environment.scheduler.schedule(after: Self.cameraFallbackDelay) { [weak self] in
+            self?.fallbackRetryDue()
+        }
+    }
+
+    private func fallbackRetryDue() {
+        fallbackRetryTimer = nil
+        fallbackSwitchBackDeferred = false
+        syncCameraFallback()
+    }
+
+    /// The device list changed: a switch back that failed may work now.
+    func deviceListDidChange() {
+        fallbackSwitchBackDeferred = false
     }
 
     /// Forgets the stand-in and the wait: the camera stops, or the user chose a camera. Starts nothing.
     func clearCameraFallback() {
         cancelCameraLossWait()
+        fallbackRetryTimer?.cancel()
+        fallbackRetryTimer = nil
+        fallbackSwitchBackDeferred = false
+        fallbackRestart = nil
         if fallbackCamera != nil { fallbackCamera = nil }
+    }
+}
+
+extension CameraError {
+    /// The camera could not be opened right now but may be able to shortly: one just plugged in, or still starting up.
+    var isCameraNotReady: Bool {
+        switch self {
+        case .deviceUnavailable, .noDevice: true
+        case .notAuthorized, .configurationFailed, .runtimeFailure: false
+        }
     }
 }

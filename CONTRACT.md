@@ -1005,6 +1005,9 @@ No public API change. Behavior with a face present and nothing changing does not
      first notification: later notifications still reset the loop but do not extend the timer past that. Log each hold
      at info level when it starts and when it ends: which hold, how long it lasted, and whether a layout, the timeout,
      or the cap ended it (never window titles).
+     After a cap end, notifications that keep arriving less than 0.75 s apart are ignored (no hold, no reset); a pause
+     of 0.75 s or more lets the next notification hold again. (Otherwise a display posting every 0.5 s would start a
+     new hold right after each cap and switching would still stop.)
 2. **Pose demand (SPEC D45).** `AppModel` calls `poseSource.setDemand(_:)` whenever the wanted demand changes
    (deduplicated) and once after each start. `.full` whenever the camera runs for anything but plain tracking
    (Setup's camera check or calibration, the gate test, a calibration running, Pose Debug open, a Focus Test).

@@ -97,7 +97,7 @@ extension AppModel {
         if cameraWasWanted { beginCameraGrace() }
         syncCameraFallback()
         // The new layout is known: the hold that waited for it ends (SPEC D44).
-        endDisplaysChanging()
+        endDisplaysChanging(by: .layout)
     }
 
     /// A camera connected or disconnected. A burst of these (a hub or dock re-attaching) becomes one refresh of the

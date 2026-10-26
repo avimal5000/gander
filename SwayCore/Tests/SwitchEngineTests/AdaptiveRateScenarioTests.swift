@@ -14,35 +14,42 @@ private let seeds: [UInt64] = [11, 22, 33]
 /// demand independently of the production type. The properties checked are the ones that matter for switching:
 /// - while a face has been seen within 2 s, nothing is thinned, so the switching speed is unchanged;
 /// - after an absence the first face is picked up within one throttled interval, and the switch that follows fires
-///   within `dwell` plus one sample interval of the first qualifying sample.
+///   within `dwell` plus one sample interval of the first qualifying sample;
+/// - power constrained (10 fps) a single lost sample does not cancel a dwell (two gaps are 0.2 s, under `maxGap`), so
+///   a switch fires within `dwell` plus two frames even with face drops.
 @Suite struct AdaptiveRateScenarioTests {
     private let settings = SwitchSettings.default
     private let frame = 1 / ScenarioWorld.frameRate
     /// Timestamps are large in the app (host uptime), so the scenarios are shifted to a realistic value.
     private let uptime = 300_000.0
 
-    /// The contract's thinning of a stream under `.adaptive` demand, on a device that delivers every frame given:
-    /// the minimum gap between processed frames is 1/15 s (1/10 s power constrained) while a face was seen within 2 s
-    /// and 1/5 s (1/2 s) otherwise, with a 4 ms tolerance. The first frame counts as a face just seen.
+    /// The contract's thinning of a stream under `.adaptive` demand, on a device that delivers every frame given. The
+    /// intervals are 1/15 s (1/10 s power constrained) while a face was seen within 2 s and 1/5 s (1/2 s) otherwise,
+    /// kept on a nominal schedule: a frame is processed when `t >= slot + interval - 0.004`, and the slot then becomes
+    /// `max(slot + interval, t - interval / 2)`. So a 15 fps camera gets exactly 10 fps for 1/10 s, with gaps of one
+    /// and two frames. The first frame sets the slot and counts as a face just seen.
     private struct AdaptiveRateModel {
         var powerConstrained: Bool
 
         func thin(_ frames: [PoseSample]) -> [PoseSample] {
             var kept: [PoseSample] = []
-            var lastKept: Double?
+            var slot: Double?
             var lastFace = frames.first?.timestamp ?? 0
             for sample in frames {
-                if let last = lastKept {
-                    let faceRecent = sample.timestamp - lastFace < 2
+                let t = sample.timestamp
+                if let due = slot {
+                    let faceRecent = t - lastFace < 2
                     let interval =
                         faceRecent
                         ? (powerConstrained ? 1.0 / 10 : 1.0 / 15)
                         : (powerConstrained ? 1.0 / 2 : 1.0 / 5)
-                    if sample.timestamp - last < interval - 0.004 { continue }
+                    if t < due + interval - 0.004 { continue }
+                    slot = max(due + interval, t - interval / 2)
+                } else {
+                    slot = t
                 }
                 kept.append(sample)
-                lastKept = sample.timestamp
-                if sample.pose != nil { lastFace = sample.timestamp }
+                if sample.pose != nil { lastFace = t }
             }
             return kept
         }
@@ -159,7 +166,9 @@ private let seeds: [UInt64] = [11, 22, 33]
         let interval = scenario.powerConstrained ? 0.5 : 0.2
         #expect(awayTimes.count > 5)
         for (earlier, later) in zip(awayTimes, awayTimes.dropFirst()) {
-            #expect(later - earlier >= interval - 0.004 - 1e-6)
+            // The schedule averages the interval on whole frames, so a gap is within one frame of it (0.5 s alternates
+            // 7 and 8 frames).
+            #expect(later - earlier >= interval - frame + 1e-6)
             #expect(later - earlier <= interval + frame + 1e-6)
         }
         #expect(thinned.count < frames.count - 40)
@@ -174,7 +183,8 @@ private let seeds: [UInt64] = [11, 22, 33]
         let firstFace = try #require(thinned.firstIndex { $0.timestamp >= returnTime })
         let qualifying = try #require(firstQualifying(in: thinned, run: run, target: target, from: firstFace))
         let latency = fired.time - thinned[qualifying].timestamp
-        // A 1/10 s interval is every second frame of a 15 fps device, so the sample interval is 2 frames there.
+        // Power constrained, samples are 1 or 2 frames apart, so a sample that does not support the dwell at its mark
+        // costs up to 2 frames.
         let sampleInterval = scenario.powerConstrained ? 2 * frame : frame
         #expect(latency >= settings.dwell - SwitchStateMachine.timeTolerance)
         #expect(latency <= settings.dwell + sampleInterval + SwitchStateMachine.timeTolerance)
@@ -209,26 +219,32 @@ private let seeds: [UInt64] = [11, 22, 33]
 
     // MARK: Power constrained, face present
 
-    @Test("Power constrained with a face present, 10 looks still switch, within dwell + 2 frames", arguments: seeds)
+    @Test(
+        "Power constrained with a face present and 2% face drops, 20 looks still switch, within dwell + 2 frames",
+        arguments: seeds)
     func powerConstrainedSwitchingWithAFace(seed: UInt64) throws {
         let profile = try ScenarioWorld.profile(seed: seed)
         let displays = [ScenarioWorld.left, ScenarioWorld.right]
         var script = PoseScript(start: ScenarioWorld.target(displays[1]), seed: seed &+ 24)
         script.hold(at: ScenarioWorld.target(displays[1]), seconds: 1)
         var looks: [(target: DisplayID, window: Range<Int>)] = []
-        for look in 0..<10 {
+        for look in 0..<20 {
             let target = displays[look % 2]
             let turn = script.turn(to: ScenarioWorld.target(target), seconds: 0.3)
-            let hold = script.hold(at: ScenarioWorld.target(target), seconds: 2)
+            let hold = script.hold(at: ScenarioWorld.target(target), seconds: 2, dropRate: 0.02)
             looks.append((target, turn.lowerBound..<hold.upperBound))
         }
         let frames = shifted(script.samples)
         let thinned = AdaptiveRateModel(powerConstrained: true).thin(frames)
         let run = ScenarioRunner.run(thinned, profile: profile, initialFocus: displays[1])
 
-        // Every second frame of the 15 fps device.
-        #expect(abs(thinned.count - frames.count / 2) <= 1)
-        #expect(run.switches.count == 10)
+        // Two of every three frames of the 15 fps device: exactly 10 fps.
+        #expect(abs(thinned.count - frames.count * 2 / 3) <= 1)
+        // The drops are really there, and some of them in the thinned stream.
+        #expect(frames.filter { $0.pose == nil }.count > 0)
+        #expect(thinned.filter { $0.pose == nil }.count > 0)
+
+        #expect(run.switches.count == 20)
         for look in looks {
             let lookStart = frames[look.window.lowerBound].timestamp
             let lookEnd = frames[look.window.upperBound - 1].timestamp
@@ -237,6 +253,8 @@ private let seeds: [UInt64] = [11, 22, 33]
             let from = try #require(thinned.firstIndex { $0.timestamp >= lookStart })
             let qualifying = try #require(firstQualifying(in: thinned, run: run, target: look.target, from: from))
             let latency = fired.time - thinned[qualifying].timestamp
+            // The dwell mark (0.4 s, 6 frames) is always a sample at 10 fps. If a dropped face is on it, the next
+            // sample is at most 2 frames later; two gaps are 0.2 s, so the dwell is not cancelled (`maxGap` 0.25 s).
             #expect(latency >= settings.dwell - SwitchStateMachine.timeTolerance)
             #expect(latency <= settings.dwell + 2 * frame + SwitchStateMachine.timeTolerance)
         }

@@ -606,6 +606,200 @@ struct AppModelCameraRecoveryTests {
         #expect(h.pose.configurations.last?.cameraDeviceID == "cam-external")
     }
 
+    // MARK: A failed restart during a fallback never turns Tracking off
+
+    /// A fallback that is running on the built-in camera while the external one stays unplugged.
+    private func standInHarness() async -> Harness {
+        let h = await fallbackHarness()
+        unplugExternal(h)
+        h.scheduler.advance(by: 5)
+        await h.model.cameraOperation?.value
+        _ = await waitUntil { h.model.status == .running(Fixtures.builtInCamera) }
+        return h
+    }
+
+    @Test func aFailedSwitchBackKeepsTrackingOnAndPutsTheStandInBack() async {
+        let h = await standInHarness()
+        defer { h.tearDown() }
+        h.pose.failNextStarts(with: [.deviceUnavailable("Camera is not ready")])
+
+        replugExternal(h)
+        _ = await waitUntil { h.pose.startCount == 4 }
+        await h.model.cameraOperation?.value
+
+        #expect(h.model.trackingEnabled, "A camera just plugged in may not be ready to open")
+        #expect(
+            h.pose.configurations.map(\.cameraDeviceID) == [
+                "cam-external", "cam-builtin", "cam-external", "cam-builtin",
+            ])
+        #expect(h.model.fallbackCamera == builtIn)
+        let running = await waitUntil { h.model.status == .running(Fixtures.builtInCamera) }
+        #expect(running)
+        #expect(h.model.trackingStatus != .cameraFailed)
+        #expect(h.model.selectedCameraID == external.id)
+        #expect(h.defaults.bool(forKey: "sway.trackingEnabled"), "The saved choice is the user's, and still on")
+    }
+
+    @Test func aFailedSwitchBackIsNotRetriedInALoopAndTriesAgainLater() async {
+        let h = await standInHarness()
+        defer { h.tearDown() }
+        h.pose.failNextStarts(with: [.noDevice])
+        replugExternal(h)
+        _ = await waitUntil { h.pose.startCount == 4 }
+        await h.model.cameraOperation?.value
+        _ = await waitUntil { h.model.status == .running(Fixtures.builtInCamera) }
+
+        // The stand-in's own status changes must not trigger another switch back at once.
+        h.model.syncTrackingActivity()
+        h.model.refreshActiveCalibration()
+        await h.model.cameraOperation?.value
+        #expect(h.pose.startCount == 4)
+
+        h.scheduler.advance(by: AppModel.cameraFallbackDelay)
+        await h.model.cameraOperation?.value
+        #expect(h.pose.startCount == 5)
+        #expect(h.pose.configurations.last?.cameraDeviceID == "cam-external")
+        #expect(h.model.fallbackCamera == nil)
+        let back = await waitUntil { h.model.status == .running(Fixtures.externalCamera) }
+        #expect(back)
+        #expect(h.model.trackingEnabled)
+    }
+
+    @Test func aDeviceChangeTriesAFailedSwitchBackAgain() async {
+        let h = await standInHarness()
+        defer { h.tearDown() }
+        h.pose.failNextStarts(with: [.deviceUnavailable("Camera is not ready")])
+        replugExternal(h)
+        _ = await waitUntil { h.pose.startCount == 4 }
+        await h.model.cameraOperation?.value
+
+        h.camera.setDevices([builtIn, external, otherUSB])
+        h.notifications.post(name: connected, object: nil)
+        h.scheduler.advance(by: AppModel.environmentRefreshDelay)
+        await h.model.cameraOperation?.value
+
+        #expect(h.pose.configurations.last?.cameraDeviceID == "cam-external")
+        #expect(h.model.fallbackCamera == nil)
+    }
+
+    @Test func aFailedStandInStartKeepsTrackingOnAndTheNextDeviceChangeTriesAgain() async {
+        let h = await fallbackHarness()
+        defer { h.tearDown() }
+        h.pose.failNextStarts(with: [.noDevice])
+
+        unplugExternal(h)
+        h.scheduler.advance(by: 5)
+        await h.model.cameraOperation?.value
+
+        #expect(h.model.trackingEnabled)
+        #expect(h.defaults.bool(forKey: "sway.trackingEnabled"))
+        #expect(!h.model.isCameraActive)
+        #expect(h.model.fallbackCamera == nil)
+        #expect(h.pose.startCount == 2)
+
+        h.notifications.post(name: disconnected, object: nil)
+        h.scheduler.advance(by: AppModel.environmentRefreshDelay)
+        await h.model.cameraOperation?.value
+
+        #expect(h.pose.configurations.map(\.cameraDeviceID) == ["cam-external", "cam-builtin", "cam-builtin"])
+        #expect(h.model.fallbackCamera == builtIn)
+        let running = await waitUntil { h.model.status == .running(Fixtures.builtInCamera) }
+        #expect(running)
+        #expect(h.model.trackingEnabled)
+    }
+
+    @Test func aFailedStandInStartIsAlsoRetriedByTheTimer() async {
+        let h = await fallbackHarness()
+        defer { h.tearDown() }
+        h.pose.failNextStarts(with: [.deviceUnavailable("Camera is not ready")])
+        unplugExternal(h)
+        h.scheduler.advance(by: 5)
+        await h.model.cameraOperation?.value
+        #expect(!h.model.isCameraActive)
+
+        h.scheduler.advance(by: AppModel.cameraFallbackDelay)
+        await h.model.cameraOperation?.value
+
+        #expect(h.model.fallbackCamera == builtIn)
+        #expect(h.model.isCameraActive)
+        #expect(h.model.trackingEnabled)
+    }
+
+    @Test func aSwitchBackThatFailsAfterTheStandInAlsoFailedStartsTheChosenCameraWhenItIsReady() async {
+        let h = await standInHarness()
+        defer { h.tearDown() }
+        // The switch back fails, and so does the stand-in's restart: nothing runs, Tracking is still on.
+        h.pose.failNextStarts(with: [.deviceUnavailable("Camera is not ready"), .deviceUnavailable("Still busy")])
+        replugExternal(h)
+        _ = await waitUntil { h.pose.startCount == 4 }
+        await h.model.cameraOperation?.value
+        #expect(h.model.trackingEnabled)
+        #expect(!h.model.isCameraActive)
+
+        h.scheduler.advance(by: AppModel.cameraFallbackDelay)
+        await h.model.cameraOperation?.value
+
+        #expect(h.pose.configurations.last?.cameraDeviceID == "cam-external")
+        #expect(h.model.isCameraActive)
+        #expect(h.model.trackingEnabled)
+    }
+
+    @Test func anotherErrorOnTheStandInStartStillTurnsTrackingOff() async {
+        let h = await fallbackHarness()
+        defer { h.tearDown() }
+        h.pose.failNextStarts(with: [.configurationFailed("No format")])
+
+        unplugExternal(h)
+        h.scheduler.advance(by: 5)
+        await h.model.cameraOperation?.value
+
+        #expect(!h.model.trackingEnabled)
+        #expect(h.model.trackingStatus == .cameraFailed)
+    }
+
+    @Test func anotherErrorOnTheSwitchBackStillTurnsTrackingOff() async {
+        let h = await standInHarness()
+        defer { h.tearDown() }
+        h.pose.failNextStarts(with: [.runtimeFailure("Sensor died")])
+
+        replugExternal(h)
+        await h.model.cameraOperation?.value
+
+        #expect(!h.model.trackingEnabled)
+        #expect(h.model.trackingStatus == .cameraFailed)
+        #expect(h.model.fallbackCamera == nil)
+    }
+
+    @Test func aNotReadyCameraWhoseStartTheUserAskedForStillTurnsTrackingOff() async {
+        // Only the restarts the fallback itself begins are forgiven.
+        let h = await standInHarness()
+        defer { h.tearDown() }
+        h.pose.failNextStarts(with: [.deviceUnavailable("Camera is not ready")])
+
+        await h.model.selectCamera(builtIn.id)
+        await h.model.cameraOperation?.value
+
+        #expect(!h.model.trackingEnabled)
+        #expect(h.model.trackingStatus == .cameraFailed)
+    }
+
+    @Test func pausingWhileAFailedFallbackWaitsForItsRetryEndsTheWait() async {
+        let h = await fallbackHarness()
+        defer { h.tearDown() }
+        h.pose.failNextStarts(with: [.noDevice])
+        unplugExternal(h)
+        h.scheduler.advance(by: 5)
+        await h.model.cameraOperation?.value
+        let starts = h.pose.startCount
+
+        await h.model.setTrackingEnabled(false)
+        h.scheduler.advance(by: 30)
+        await h.model.cameraOperation?.value
+
+        #expect(h.pose.startCount == starts)
+        #expect(!h.model.isCameraActive)
+    }
+
     @Test func choosingACameraEndsTheFallback() async {
         let h = await fallbackHarness()
         defer { h.tearDown() }
@@ -666,6 +860,21 @@ struct AppModelCameraRecoveryTests {
 
         feed(h, at: 1.57)
         #expect(h.model.trackingStatus == .tracking)
+    }
+
+    @Test func theDeciderSeesTheRawNoFaceSampleWhileOnlyTheStatusIsSteadied() async {
+        let h = await trackingHarness()
+        defer { h.tearDown() }
+        feed(h, at: 1)
+        let recorder = h.engine.lastRecorder
+
+        feed(h, at: 1.2, face: false)
+
+        #expect(h.model.hasFace, "The status still shows the face")
+        #expect(h.model.trackingStatus == .tracking)
+        #expect(recorder?.samples.count == 2)
+        #expect(recorder?.samples.last?.pose == nil, "The decider got the sample as it was")
+        #expect(h.model.latestSample?.pose == nil)
     }
 
     @Test func aGlitchOfOneFrameNeverShowsNoFace() async {

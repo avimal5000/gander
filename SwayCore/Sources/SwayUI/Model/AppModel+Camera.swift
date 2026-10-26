@@ -197,8 +197,12 @@ extension AppModel {
     ///
     /// The Tracking switch is turned off in memory (never in `UserDefaults`) except when the camera is blocked by its
     /// permission: then it stays on, so the status says "Camera access needed" and tracking resumes once access is
-    /// granted. While the permission is still undecided, the explanation holds the request as a pending intent.
+    /// granted. While the permission is still undecided, the explanation holds the request as a pending intent. The
+    /// one other exception is a restart that the USB camera fallback began (``recoverFromFailedFallbackStart()``).
     private func cameraStartFailed(gateWanted: Bool) {
+        // A restart the USB fallback began that failed only because the camera is not ready to open keeps Tracking on.
+        if !gateWanted, recoverFromFailedFallbackStart() { return }
+        fallbackRestart = nil
         switch permissionPrompt {
         case .explanation:
             pendingIntent = gateWanted ? .gateTest : .tracking

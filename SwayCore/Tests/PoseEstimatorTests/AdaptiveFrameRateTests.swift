@@ -109,13 +109,19 @@ struct AdaptiveFrameRateTests {
         let start: TimeInterval = row.faceRecent ? 100 : 105
         let processed = simulate(&rate, from: start, seconds: 10, fps: 60) { _ in row.faceRecent }
 
-        // 60 fps input has 60 / 15 = 4, 6, 12, or 30 frames per interval, so every interval is a whole number of
-        // frames. The face rows start at the frame just processed, so they count from the next interval.
+        // 60 fps input has 4, 6, 12, or 30 frames per interval, so every interval is a whole number of frames. The
+        // face rows start at the frame just processed, so they count from the next interval.
         let framesPerInterval = (row.interval * 60).rounded()
         let expected = Int((600 / framesPerInterval).rounded(.down)) + (row.faceRecent ? 0 : 1)
         #expect(processed.count == expected)
-        for gap in gaps(processed) {
+        // The absent rows' first frame came 5 s behind the slot, which re-anchors half an interval behind that
+        // frame, so the second frame follows after half an interval; every later gap is a whole interval.
+        let steady = row.faceRecent ? gaps(processed) : Array(gaps(processed).dropFirst())
+        for gap in steady {
             #expect(abs(gap - row.interval) < 1e-6)
+        }
+        if !row.faceRecent, let first = gaps(processed).first {
+            #expect(abs(first - row.interval / 2) < 1e-6)
         }
     }
 
@@ -131,26 +137,28 @@ struct AdaptiveFrameRateTests {
     // MARK: Boundaries and tolerance
 
     @Test(
-        "A frame is processed from interval minus 4 ms after the last one, not before",
+        "A frame is processed from interval minus 4 ms after its slot, not before",
         arguments: table.filter { !$0.faceRecent })
     func toleranceBoundary(row: Row) {
         let interval = row.interval
+        // Frames at 0 and 10 (the face is long gone by then), then one on the grid: the slot of the frame at 10 + I / 2
+        // is its due time 10 + I / 2, so the next one is due at 10 + 3 * I / 2.
+        let dueTime = 10 + 1.5 * interval
         func prepared() -> AdaptiveFrameRate {
             var rate = AdaptiveFrameRate()
             rate.setDemand(row.demand)
             rate.setPowerConstrained(row.constrained)
-            // For the adaptive rows, the face is gone long before the frames below.
-            _ = rate.shouldProcess(frameAt: 0)
-            rate.record(face: false, at: 0)
-            _ = rate.shouldProcess(frameAt: 10)
-            rate.record(face: false, at: 10)
+            for t in [0, 10, 10 + interval / 2] {
+                _ = rate.shouldProcess(frameAt: t)
+                rate.record(face: false, at: t)
+            }
             return rate
         }
 
         var justBefore = prepared()
-        expectProcessed(&justBefore, 10 + interval - tolerance - 1e-6, false)
+        expectProcessed(&justBefore, dueTime - tolerance - 1e-6, false)
         var justAfter = prepared()
-        expectProcessed(&justAfter, 10 + interval - tolerance + 1e-6)
+        expectProcessed(&justAfter, dueTime - tolerance + 1e-6)
     }
 
     @Test func aRejectedFrameDoesNotMoveTheInterval() {
@@ -161,13 +169,23 @@ struct AdaptiveFrameRateTests {
         expectProcessed(&rate, 0.0667)
     }
 
-    @Test func aProcessedFrameMovesTheInterval() {
+    @Test func aProcessedFrameAdvancesTheSlotByOneIntervalNotToItsOwnTime() {
         var rate = AdaptiveFrameRate()
         expectProcessed(&rate, 0)
+        // Early by the 4 ms tolerance: processed, but the slot is the due time 1/15, not 0.0627.
         expectProcessed(&rate, 0.0627)
-        // 0.0627 is the new reference: 0.1 is only 0.0373 later.
-        expectProcessed(&rate, 0.1, false)
-        expectProcessed(&rate, 0.0627 + 0.0627)
+        expectProcessed(&rate, 0.1254, false)  // 0.0627 + 0.0627: measured from the real time it would have passed
+        expectProcessed(&rate, 2.0 / 15 - 0.004 - 1e-6, false)
+        expectProcessed(&rate, 2.0 / 15 - 0.004 + 1e-6)
+    }
+
+    @Test func aFrameFarBehindItsSlotReAnchorsHalfAnIntervalBehindTheFrame() {
+        var rate = AdaptiveFrameRate()
+        expectProcessed(&rate, 0)
+        // 5 s later: the slot becomes 5 - 1/30 (half an interval behind), not 1/15.
+        expectProcessed(&rate, 5)
+        expectProcessed(&rate, 5 + 1.0 / 30 - 0.004 - 1e-6, false)
+        expectProcessed(&rate, 5 + 1.0 / 30 - 0.004 + 1e-6)
     }
 
     @Test func aFrameWithTheSameTimestampIsDropped() {
@@ -176,32 +194,102 @@ struct AdaptiveFrameRateTests {
         expectProcessed(&rate, 5, false)
     }
 
-    @Test func a15FpsDeviceIsNotThinnedByTimestampJitter() {
+    @Test("Timestamp jitter of plus or minus 5 ms (beyond the 4 ms tolerance) drops no frame of a 15 fps camera")
+    func a15FpsDeviceIsNotThinnedByTimestampJitter() {
+        // A fixed, uneven pattern within plus or minus 5 ms. It starts with the earliest frame, which sets the schedule.
+        let jitter = [-0.005, 0.005, 0.0, -0.002, 0.005, -0.004, 0.003, 0.005, -0.005, 0.001, 0.005, -0.003]
         var rate = AdaptiveFrameRate()
         var processed = 0
         for index in 0..<300 {
-            // Alternating plus and minus 1.5 ms: neighbouring gaps differ from 1/15 s by up to 3 ms.
-            let jitter = index.isMultiple(of: 2) ? 0.0015 : -0.0015
-            if rate.shouldProcess(frameAt: 50 + Double(index) / 15 + jitter) { processed += 1 }
+            if rate.shouldProcess(frameAt: 50 + Double(index) / 15 + jitter[index % jitter.count]) { processed += 1 }
         }
 
         #expect(processed == 300)
     }
 
-    @Test("Input above 15 fps is capped at 15 fps", arguments: [20.0, 24.0, 30.0, 60.0, 120.0])
-    func hardCapAt15Fps(deviceRate: Double) {
+    @Test("Alternating plus and minus 5 ms jitter starting late: at most the second frame is lost, then none")
+    func aLateFirstFrameLosesAtMostOneFrameToJitter() {
+        // The first frame sets the schedule, so one that is 5 ms late leaves the next, 5 ms early frame 10 ms short of
+        // 1/15 s. The frame after it re-anchors the slot half an interval behind, which gives headroom for the rest.
         var rate = AdaptiveFrameRate()
-        let processed = simulate(&rate, from: 0, seconds: 10, fps: deviceRate)
+        var dropped: [Int] = []
+        for index in 0..<300 {
+            let jitter = index.isMultiple(of: 2) ? 0.005 : -0.005
+            if !rate.shouldProcess(frameAt: 50 + Double(index) / 15 + jitter) { dropped.append(index) }
+        }
 
-        // At most 15 per second, plus the first frame: no 1-second window holds more than 15 processed frames.
-        #expect(processed.count <= 151)
-        for (index, time) in processed.enumerated() {
-            let inWindow = processed[index...].prefix { $0 < time + 1 - 1e-6 }.count
-            #expect(inWindow <= 15)
+        #expect(dropped == [1])
+    }
+
+    /// A camera frame rate, a demand, and the exact processed rate it must give.
+    struct CameraCase: Sendable, CustomTestStringConvertible {
+        var cameraFPS: Double
+        var demand: PoseDemand
+        var constrained: Bool
+        var expectedFPS: Int
+
+        var testDescription: String {
+            "\(Int(cameraFPS)) fps camera, \(demand)\(constrained ? ", power constrained" : "") gives \(expectedFPS) fps"
         }
     }
 
-    @Test("Exact multiples of the frame period give 15 fps from 30 fps input")
+    static let cameraCases: [CameraCase] = [
+        // The hard cap: 15 fps from every camera that is faster.
+        CameraCase(cameraFPS: 15, demand: .full, constrained: false, expectedFPS: 15),
+        CameraCase(cameraFPS: 20, demand: .full, constrained: false, expectedFPS: 15),
+        CameraCase(cameraFPS: 24, demand: .full, constrained: false, expectedFPS: 15),
+        CameraCase(cameraFPS: 30, demand: .full, constrained: false, expectedFPS: 15),
+        CameraCase(cameraFPS: 60, demand: .full, constrained: false, expectedFPS: 15),
+        CameraCase(cameraFPS: 120, demand: .full, constrained: false, expectedFPS: 15),
+        CameraCase(cameraFPS: 24, demand: .adaptive, constrained: false, expectedFPS: 15),
+        // 1/10 s: 10 fps from a 15 fps camera (gaps of one and two frames) and from the others.
+        CameraCase(cameraFPS: 15, demand: .adaptive, constrained: true, expectedFPS: 10),
+        CameraCase(cameraFPS: 20, demand: .adaptive, constrained: true, expectedFPS: 10),
+        CameraCase(cameraFPS: 24, demand: .adaptive, constrained: true, expectedFPS: 10),
+        CameraCase(cameraFPS: 30, demand: .adaptive, constrained: true, expectedFPS: 10),
+        // 1/5 s and 1/2 s.
+        CameraCase(cameraFPS: 15, demand: .reduced, constrained: false, expectedFPS: 5),
+        CameraCase(cameraFPS: 24, demand: .reduced, constrained: false, expectedFPS: 5),
+        CameraCase(cameraFPS: 15, demand: .reduced, constrained: true, expectedFPS: 2),
+        CameraCase(cameraFPS: 24, demand: .reduced, constrained: true, expectedFPS: 2),
+        CameraCase(cameraFPS: 30, demand: .reduced, constrained: true, expectedFPS: 2),
+    ]
+
+    @Test("Every camera rate gets exactly the table's rate over 10 s", arguments: cameraCases)
+    func exactRateForEveryCameraRate(scenario: CameraCase) {
+        var rate = AdaptiveFrameRate()
+        rate.setDemand(scenario.demand)
+        rate.setPowerConstrained(scenario.constrained)
+        // A face in every frame keeps `.adaptive` active.
+        let processed = simulate(&rate, from: 0, seconds: 10, fps: scenario.cameraFPS) { _ in true }
+
+        #expect(processed.filter { $0 < 10 }.count == 10 * scenario.expectedFPS)
+        // No 1-second window holds more than the rate (and so never more than 15) plus the one frame a half-open
+        // window can catch at its edge.
+        for (index, time) in processed.enumerated() {
+            let inWindow = processed[index...].prefix { $0 < time + 1 - 1e-6 }.count
+            #expect(inWindow <= scenario.expectedFPS + 1)
+        }
+    }
+
+    @Test("A 15 fps camera at 1/10 s alternates gaps of one and two frames")
+    func tenFpsFromAFifteenFpsCameraAlternatesOneAndTwoFrames() {
+        var rate = AdaptiveFrameRate()
+        rate.setDemand(.adaptive)
+        rate.setPowerConstrained(true)
+        let processed = simulate(&rate, from: 0, seconds: 10, fps: 15) { _ in true }
+        let frameGaps = gaps(processed).map { Int(($0 * 15).rounded()) }
+
+        // 1, 2, 1, 2... starting with the first frame at 0 (the frame at 1/15 is too early, the one at 2/15 is in time).
+        #expect(Set(frameGaps) == [1, 2])
+        #expect(frameGaps.starts(with: [2, 1, 2, 1]))
+        // One missed sample leaves two gaps, 3 frames or 0.2 s: under the decider's 0.25 s `maxGap`.
+        for (first, second) in zip(frameGaps, frameGaps.dropFirst()) {
+            #expect(Double(first + second) / 15 <= 0.2 + 1e-9)
+        }
+    }
+
+    @Test("A 30 fps camera gives every second frame at 15 fps")
     func thirtyFpsGivesFifteen() {
         var rate = AdaptiveFrameRate()
         let processed = simulate(&rate, from: 0, seconds: 10, fps: 30)
@@ -233,9 +321,11 @@ struct AdaptiveFrameRateTests {
         expectProcessed(&rate, 12.9)
         rate.record(face: false, at: 12.9)
 
-        // 3 s after the (pulled back) face time, so the 1/5 s interval applies.
-        expectProcessed(&rate, 13.0, false)
-        expectProcessed(&rate, 13.1)
+        // 2.9 s after the (pulled back) face time, so the 1/5 s interval applies: the slot is 12.8 (half an interval
+        // behind the frame at 12.9), so the next frame is due at 12.996, and 12.95 is too early. At the active
+        // 1/15 s interval it would have been in time.
+        expectProcessed(&rate, 12.95, false)
+        expectProcessed(&rate, 13.0)
     }
 
     @Test func aBackwardsJumpKeepsAnOldFaceTime() {
@@ -451,10 +541,14 @@ struct AdaptiveFrameRateTests {
             let processed = simulate(&rate, from: 0, seconds: 60, fps: 15).filter { $0 > 3 }
 
             #expect(processed.count > 20)
+            // The gaps are whole frames around the interval (0.5 s is 7.5 frames: gaps of 7 and 8), and no longer
+            // than the interval plus one frame.
             for gap in gaps(processed) {
-                #expect(gap >= interval - tolerance - 1e-6)
+                #expect(gap >= interval - 1.0 / 15 + 1e-6)
                 #expect(gap <= interval + 1.0 / 15 + 1e-6)
             }
+            // And the average is exact: over 30 s, 5 or 2 per second.
+            #expect(processed.filter { $0 >= 10 && $0 < 40 }.count == (constrained ? 60 : 150))
         }
     }
 }

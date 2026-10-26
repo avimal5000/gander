@@ -14,6 +14,8 @@ final class FakePoseSource: PoseSource {
         var continuation: AsyncStream<PoseSourceEvent>.Continuation?
         var configurations: [PoseSourceConfiguration] = []
         var startError: CameraError?
+        /// Errors the next starts throw, one each, oldest first; after them starts succeed again.
+        var queuedStartErrors: [CameraError] = []
         var stopCount = 0
         var demandCalls: [DemandCall] = []
         /// When set, `start` immediately yields `.starting` and then `.running(device)`.
@@ -38,10 +40,16 @@ final class FakePoseSource: PoseSource {
         state.withLock { $0.startError = error }
     }
 
+    /// Makes the next `errors.count` starts throw those errors in order; starts after them succeed.
+    func failNextStarts(with errors: [CameraError]) {
+        state.withLock { $0.queuedStartErrors = errors }
+    }
+
     func start(_ configuration: PoseSourceConfiguration) async throws -> AsyncStream<PoseSourceEvent> {
         let error = state.withLock { state -> CameraError? in
             state.configurations.append(configuration)
-            return state.startError
+            if let error = state.startError { return error }
+            return state.queuedStartErrors.isEmpty ? nil : state.queuedStartErrors.removeFirst()
         }
         if let error { throw error }
         let (stream, continuation) = AsyncStream<PoseSourceEvent>.makeStream()

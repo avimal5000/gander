@@ -264,7 +264,7 @@ struct LivePoseSourceAdaptiveRateTests {
 
     // MARK: Power
 
-    @Test func powerConstrainedAdaptiveRunsAtAboutTenFpsWithAFace() async throws {
+    @Test func powerConstrainedAdaptiveRunsAtTenFpsWithAFace() async throws {
         let frames = FakeFrameSource()
         let estimator = FakePoseEstimator()
         let source = makeSource(frames, estimator, constrained: OSAllocatedUnfairLock(initialState: true))
@@ -274,8 +274,15 @@ struct LivePoseSourceAdaptiveRateTests {
         emit(frames, 0..<45)
         await source.stop()
 
-        // 1/10 s on a 15 fps device is every second frame.
-        #expect(estimatedIndices(estimator) == Array(stride(from: 0, to: 45, by: 2)))
+        // 1/10 s on a 15 fps device is exactly 10 fps: gaps alternate two and one frames (frames 0, 2, 3, 5, 6...),
+        // 30 estimates in 3 s.
+        let seen = estimatedIndices(estimator)
+        #expect(seen == Array(0..<45).filter { $0 % 3 != 1 })
+        #expect(seen.count == 30)
+        // One missed sample leaves at most 3 frames (0.2 s), under the decider's 0.25 s `maxGap`.
+        for (first, second) in zip(gaps(seen), gaps(seen).dropFirst()) {
+            #expect(first + second <= 3)
+        }
     }
 
     @Test func powerConstrainedAdaptiveRunsAtTwoFpsWithoutAFace() async throws {
@@ -288,10 +295,11 @@ struct LivePoseSourceAdaptiveRateTests {
         emit(frames, 0..<300)
         await source.stop()
 
-        // 1/2 s on a 15 fps device is every eighth frame.
+        // 1/2 s on a 15 fps device is 7.5 frames: gaps alternate 7 and 8, so exactly 2 fps.
         let throttled = estimatedIndices(estimator).filter { $0 >= 45 }
         #expect(throttled.count > 25)
-        #expect(Set(gaps(throttled)) == [8])
+        #expect(Set(gaps(throttled)) == [7, 8])
+        #expect(zip(gaps(throttled), gaps(throttled).dropFirst()).allSatisfy { $0 + $1 == 15 })
     }
 
     @Test func powerConstrainedReducedRunsAtTwoFps() async throws {
@@ -304,7 +312,10 @@ struct LivePoseSourceAdaptiveRateTests {
         emit(frames, 0..<120)
         await source.stop()
 
-        #expect(Set(gaps(estimatedIndices(estimator))) == [8])
+        let seen = estimatedIndices(estimator)
+        #expect(Set(gaps(seen)) == [7, 8])
+        #expect(zip(gaps(seen), gaps(seen).dropFirst()).allSatisfy { $0 + $1 == 15 })
+        #expect(seen.count == 16)  // the first frame, then one per 0.5 s: frames 0, 8, 15, 23... 113 of 0..<120
     }
 
     @Test func fullDemandIsNotLoweredByAPowerConstraint() async throws {
@@ -336,8 +347,11 @@ struct LivePoseSourceAdaptiveRateTests {
 
         let seen = estimatedIndices(estimator)
         #expect(Array(0..<45).allSatisfy(seen.contains))
-        // Constrained from 45 on, noticed within 15 frames (one second), and lifted again the same way.
-        #expect(Set(gaps(seen.filter { $0 >= 60 && $0 < 120 })) == [2])
+        // Constrained from 45 on, noticed within 15 frames (one second): exactly 10 fps, 40 of the 60 frames. Lifted
+        // again the same way.
+        let constrainedStretch = seen.filter { $0 >= 60 && $0 < 120 }
+        #expect(constrainedStretch.count == 40)
+        #expect(Set(gaps(constrainedStretch)) == [1, 2])
         #expect(Array(135..<180).allSatisfy(seen.contains))
     }
 

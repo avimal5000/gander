@@ -48,8 +48,7 @@ final class CaptureSessionController: @unchecked Sendable {
     }
 
     private struct ObserverToken {
-        let center: NotificationCenter
-        let token: any NSObjectProtocol
+        let remove: () -> Void
     }
 
     /// Present from `start` until `stop` (or a fatal failure). Holds the caller's handlers.
@@ -70,11 +69,15 @@ final class CaptureSessionController: @unchecked Sendable {
     private var lastStatus: CaptureStatus?
 
     /// Starts watching the system for suspend conditions right away (they are tracked from now on, even before
-    /// `start`), and seeds `.displaysAsleep` if the main display is already asleep.
+    /// `start`), and seeds `.displaysAsleep` if the main display is already asleep and `.sessionInactive` if this
+    /// is not the console session.
     init(environment: CaptureEnvironment = .live) {
         self.environment = environment
         if environment.isMainDisplayAsleep() {
             _ = suspend.begin(.displaysAsleep)
+        }
+        if environment.isSessionInactive() {
+            _ = suspend.begin(.sessionInactive)
         }
         installSystemObservers()
     }
@@ -532,14 +535,15 @@ extension CaptureSessionController {
     private func installSystemObservers() {
         guard systemObservers.isEmpty else { return }
         let workspace = environment.workspaceCenter
-        let distributed = environment.distributedCenter
 
         observeSystemEvent(NSWorkspace.willSleepNotification, on: workspace, event: .begin(.systemSleep))
         observeSystemEvent(NSWorkspace.didWakeNotification, on: workspace, event: .end(.systemSleep))
         observeSystemEvent(NSWorkspace.screensDidSleepNotification, on: workspace, event: .begin(.displaysAsleep))
         observeSystemEvent(NSWorkspace.screensDidWakeNotification, on: workspace, event: .end(.displaysAsleep))
-        observeSystemEvent(Notification.Name("com.apple.screenIsLocked"), on: distributed, event: .begin(.screenLocked))
-        observeSystemEvent(Notification.Name("com.apple.screenIsUnlocked"), on: distributed, event: .end(.screenLocked))
+        // Lock and unlock come from the distributed center, which would delay them for an inactive app unless the
+        // registration asks for immediate delivery (see `ImmediateDistributedObserver`).
+        observeDistributedEvent(Notification.Name("com.apple.screenIsLocked"), event: .begin(.screenLocked))
+        observeDistributedEvent(Notification.Name("com.apple.screenIsUnlocked"), event: .end(.screenLocked))
         // Fast user switching: while another user's session is in front, this one must not use the camera.
         observeSystemEvent(
             NSWorkspace.sessionDidResignActiveNotification, on: workspace, event: .begin(.sessionInactive))
@@ -558,7 +562,7 @@ extension CaptureSessionController {
 
     private func removeSystemObservers() {
         for observer in systemObservers {
-            observer.center.removeObserver(observer.token)
+            observer.remove()
         }
         systemObservers.removeAll()
     }
@@ -569,13 +573,23 @@ extension CaptureSessionController {
         handler: @escaping @Sendable (Notification) -> Void
     ) {
         let token = center.addObserver(forName: name, object: nil, queue: nil, using: handler)
-        systemObservers.append(ObserverToken(center: center, token: token))
+        systemObservers.append(ObserverToken { center.removeObserver(token) })
     }
 
     private func observeSystemEvent(
         _ name: Notification.Name, on center: NotificationCenter, event: SuspendTracker.Event
     ) {
-        observe(name, on: center) { [weak self] _ in
+        observe(name, on: center, handler: suspendEventHandler(event))
+    }
+
+    private func observeDistributedEvent(_ name: Notification.Name, event: SuspendTracker.Event) {
+        let remove = environment.observeDistributedNotification(name, suspendEventHandler(event))
+        systemObservers.append(ObserverToken(remove: remove))
+    }
+
+    /// Hops onto `queue` and applies `event`. Holds the controller weakly, so an observer never keeps it alive.
+    private func suspendEventHandler(_ event: SuspendTracker.Event) -> @Sendable (Notification) -> Void {
+        { [weak self] _ in
             guard let self else { return }
             self.queue.async { self.handle(event) }
         }

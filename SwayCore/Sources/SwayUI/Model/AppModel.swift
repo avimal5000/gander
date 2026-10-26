@@ -258,6 +258,14 @@ public final class AppModel {
     @ObservationIgnored var displaysChangingTimer: ScheduledAction?
     /// Ends the `spaceChanging` hold.
     @ObservationIgnored var spaceChangingTimer: ScheduledAction?
+    /// When the display hold now running began (the first of its notifications), for its cap and its log line.
+    @ObservationIgnored var displaysHoldStart: TimeInterval?
+    /// When the Space hold now running began, for its log line.
+    @ObservationIgnored var spaceHoldStart: TimeInterval?
+    /// A display hold ended at its cap, so the notifications that keep coming are ignored until they pause.
+    @ObservationIgnored var displaysHoldCapped = false
+    /// When the latest screen-parameter notification arrived.
+    @ObservationIgnored var lastDisplayNotification: TimeInterval?
     /// Waits for a burst of camera connect and disconnect notifications to end before the list is read again.
     @ObservationIgnored var environmentRefreshTimer: ScheduledAction?
     /// Stops the camera 2 s after a display change left no calibration that fits.
@@ -266,6 +274,15 @@ public final class AppModel {
     @ObservationIgnored var cameraLossTimer: ScheduledAction?
     /// The 5 s passed with the chosen camera still unplugged; the fallback starts as soon as one is usable.
     @ObservationIgnored var cameraLossElapsed = false
+    /// Set while a restart that the fallback began is under way, so a start that fails because the camera is not ready
+    /// to open does not turn Tracking off (CONTRACT 6.5.5 item 7).
+    @ObservationIgnored var fallbackRestart: FallbackRestart?
+    /// Counts the restarts the fallback began, so one that ends does not clear the mark of the one queued after it.
+    @ObservationIgnored var fallbackRestartSerial = 0
+    /// Tries again after such a failed restart.
+    @ObservationIgnored var fallbackRetryTimer: ScheduledAction?
+    /// Switching back to the chosen camera just failed: not tried again until the retry timer or a device change.
+    @ObservationIgnored var fallbackSwitchBackDeferred = false
     /// The demand last handed to the pose source for the current stream; `nil` before the first call after a start.
     @ObservationIgnored var appliedPoseDemand: PoseDemand?
     /// The Pose Debug window is open and showing its live content: it needs the full frame rate.
@@ -427,7 +444,9 @@ public final class AppModel {
     /// or disconnects.
     func refreshEnvironment() {
         let previousAuthorization = authorization
+        let previousDevices = devices
         devices = camera.availableDevices()
+        if devices != previousDevices { deviceListDidChange() }
         refreshPredictedCamera()
         authorization = camera.authorizationStatus()
         if authorization == .authorized, permissionPrompt == .denied || permissionPrompt == .restricted {

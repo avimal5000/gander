@@ -17,10 +17,15 @@ import SwayModels
 /// So no table row ever exceeds 15 fps, whatever rate the device delivers. While a face is present the rate is
 /// 15 fps in every unconstrained case, which keeps the switch decider's dwell and gap rules exactly as they are.
 ///
-/// A frame is processed when its time is at least `interval - jitterTolerance` after the last processed frame, so a
-/// 15 fps device is not dropped by timing noise. The effective rate is therefore quantized to the device's frame
-/// period: a 15 fps device gives every frame, every 3rd frame (5 fps), every 2nd frame when 1/10 s applies, and
-/// every 8th frame when 1/2 s applies.
+/// The intervals are averages kept on a nominal schedule. The struct keeps a `slot`, the time the last processed
+/// frame was due. A frame is processed when `t >= slot + interval - jitterTolerance` (a 4 ms slack, so timing noise
+/// does not drop a frame), and the slot then moves on to `max(slot + interval, t - interval / 2)`: one interval on,
+/// or, when the frame came far behind its slot, just half an interval behind the frame. Measuring each interval from
+/// the real time of the last processed frame would round the rate down to the camera's frame grid (1/10 s on a
+/// 15 fps camera would give 7.5 fps), so the slot advances by the interval itself:
+/// - a 15 fps camera gives every frame for 1/15 s, every 3rd frame (5 fps) for 1/5 s, exactly 10 fps for 1/10 s
+///   (gaps alternate one and two frames), and exactly 2 fps for 1/2 s (gaps alternate 7 and 8 frames);
+/// - cameras at 20, 24, 30, 60 fps and more give 15 fps for 1/15 s.
 ///
 /// The type has no clock of its own. It works on frame timestamps in seconds, which only need to be comparable
 /// with each other, so it is pure and tests drive it with made-up times.
@@ -42,8 +47,8 @@ struct AdaptiveFrameRate: Sendable, Equatable {
     private(set) var demand: PoseDemand = .full
     /// Whether Low Power Mode or a serious heat level applies.
     private(set) var isPowerConstrained = false
-    /// Time of the last frame that was processed; `nil` until the first one after a reset.
-    private var lastProcessed: TimeInterval?
+    /// The time the last processed frame was due (see the type's documentation); `nil` until the first frame after a reset.
+    private var slot: TimeInterval?
     /// Time of the last processed frame that had a face, or the first processed frame after a reset (a start counts
     /// as a face just seen); `nil` until that first frame.
     private var lastFaceSeen: TimeInterval?
@@ -66,20 +71,24 @@ struct AdaptiveFrameRate: Sendable, Equatable {
     /// Whether the frame at time `t` should be estimated. A `true` answer counts the frame as processed, so the
     /// caller must then estimate it and call `record(face:at:)`.
     ///
-    /// The first frame after a reset is always processed. A frame earlier than the last processed one (the clock
-    /// restarted) is processed and restarts the interval; it also pulls a face-seen time from the future back to
+    /// The first frame after a reset is always processed and sets the slot to `t`. So is a frame earlier than the
+    /// slot by more than the jitter tolerance (the clock restarted; the tolerance keeps a near-duplicate timestamp
+    /// from passing as a restart): the slot restarts at `t`, and a face-seen time from the future is pulled back to
     /// `t`, so the rate cannot stay active for the length of the jump.
     mutating func shouldProcess(frameAt t: TimeInterval) -> Bool {
-        if let last = lastProcessed {
-            if t < last {
-                if let seen = lastFaceSeen, seen > t { lastFaceSeen = t }
-            } else if t - last < minimumInterval(at: t) - Self.jitterTolerance {
-                return false
-            }
-        } else {
+        guard let due = slot else {
+            slot = t
             lastFaceSeen = t
+            return true
         }
-        lastProcessed = t
+        if t < due - Self.jitterTolerance {
+            if let seen = lastFaceSeen, seen > t { lastFaceSeen = t }
+            slot = t
+            return true
+        }
+        let interval = minimumInterval(at: t)
+        guard t >= due + interval - Self.jitterTolerance else { return false }
+        slot = max(due + interval, t - interval / 2)
         return true
     }
 
@@ -104,7 +113,7 @@ struct AdaptiveFrameRate: Sendable, Equatable {
     /// power state is kept, since it describes the machine and not the run.
     mutating func reset() {
         demand = .full
-        lastProcessed = nil
+        slot = nil
         lastFaceSeen = nil
     }
 
