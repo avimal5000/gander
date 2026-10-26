@@ -9,11 +9,13 @@ struct MenuContentView: View {
     @Environment(\.openWindow) private var openWindow
     /// False while the popover is closed; SwiftUI keeps its views alive between openings (`WindowVisibility`).
     @State private var showsLiveContent = true
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             header
             banner
+                .animation(Self.bannerAnimation(reduceMotion: reduceMotion), value: model.menuBanner)
             TrackingToggle(model: model)
             FocusLockToggle(model: model)
             lookLine
@@ -30,6 +32,7 @@ struct MenuContentView: View {
         }
         .padding(14)
         .frame(width: 300)
+        .tint(model.accentChoice.tint)
         .background(WindowVisibilityReader { showsLiveContent = $0 })
         .onAppear { refresh() }
         // The popover can stay alive between openings, so refresh whenever a window becomes key too.
@@ -43,13 +46,26 @@ struct MenuContentView: View {
         model.refreshAccessibilityTrust()
     }
 
+    /// The fade of a banner coming or going: about 0.2 s, none with Reduce Motion (SPEC F29).
+    static func bannerAnimation(reduceMotion: Bool) -> Animation? {
+        reduceMotion ? nil : .easeInOut(duration: 0.2)
+    }
+
+    /// The Swing mark, in Sway green whatever the accent, and "Sway", over the status line.
     private var header: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("Sway")
-                .font(.headline)
+            HStack(spacing: 6) {
+                SwayMark(color: SwayPalette.green)
+                    .frame(width: Self.markSize, height: Self.markSize)
+                Text("Sway")
+                    .font(.headline)
+            }
             StatusBadge(model: model, lineLimit: 1)
         }
     }
+
+    /// Size of the mark in the header.
+    static let markSize: CGFloat = 16
 
     /// At most one banner (`MenuBanner`).
     @ViewBuilder
@@ -59,6 +75,7 @@ struct MenuContentView: View {
             EmptyView()
         case .cameraPermission?:
             CameraPermissionView(model: model)
+                .transition(.opacity)
         case .firstSetup?:
             infoBanner(MenuBanner.firstSetupText, systemImage: "wand.and.stars", button: "Set Up\u{2026}") {
                 openButtonWindow(of: .firstSetup)
@@ -100,6 +117,7 @@ struct MenuContentView: View {
         }
         .swayCard()
         .accessibilityElement(children: .contain)
+        .transition(.opacity)
     }
 
     /// Always exactly one line, so the popover keeps its height when the camera starts or stops. It draws only while

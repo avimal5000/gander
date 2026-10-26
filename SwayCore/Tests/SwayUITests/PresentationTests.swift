@@ -159,7 +159,7 @@ struct SwitchPreviewWordingTests {
 
     @Test func theSwitchLogNamesTheAppAndTheDisplayNeverTheTitle() {
         let window = Fixtures.window(7, app: "Safari", title: "Secret page")
-        let focused = FocusResult.focused(window, method: .accessibilityRaise, milliseconds: 120)
+        let focused = FocusResult.focused(window, method: .appActivation, milliseconds: 120)
         let text = SwitchPreviewPresentation.logText(for: focused, display: "Right", held: 0.4)
         #expect(text == "Focused Safari on Right in 120 ms, held 0.40 s")
         #expect(!text.contains("Secret"))

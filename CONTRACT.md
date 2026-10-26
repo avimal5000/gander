@@ -1,4 +1,4 @@
-# Sway: Engineering Contract (phase M4 + M5)
+# Sway: Engineering Contract (phase M6)
 
 Builders follow this document exactly. SPEC.md says *what* to build; this file says *where and how*. PLAN.md
 is background only. If anything here is wrong or missing, **stop and report**. Do not invent your own version.
@@ -450,8 +450,8 @@ Everything else is internal and up to you, within SPEC.md F1–F9.
 - Esc cancels via a local key monitor or the gate window's cancel button.
 
 **Palette** (internal `SwayPalette`): forest `#2F5D3A`, sage `#9CAF88`, ivory `#F6F3EA`, charcoal `#2B2B2B`.
-Otherwise use system fonts and controls; the app accent color is already forest/sage. Support light and
-dark mode.
+Otherwise use system fonts and controls. The accent is Sway green or the system's, as the user chooses (§6.5.4).
+Support light and dark mode.
 
 **Charts:** Swift Charts (system framework) or `Canvas`. Show no video and no camera preview (SPEC D9).
 
@@ -811,6 +811,94 @@ window. The needs-calibration banner says "New display setup. Calibrate so Sway 
 - the calibration list: rows, "In use", Delete updating the library and the active calibration;
 - the banners' texts and the buttons opening the Setup window.
 
+#### 6.5.4 M6 additions to `SwayUI` (builder-ui-m6): the design pass
+
+No public API change. New `UserDefaults` keys: `sway.accentChoice` (String: `"sway"` or `"system"`, absent =
+`"sway"`), `sway.edgeGlowEnabled` (Bool, absent = true), `sway.focusLockNoticeEnabled` (Bool, absent = true).
+Behavior (switching, holds, camera rules, calibration) does not change.
+
+**1. Theme and accent (SPEC F24, D34, D35).**
+- `SwayPalette` keeps the brand values (forest `0x2F5D3A`, sage `0x9CAF88`, ivory `0xF6F3EA`, charcoal `0x2B2B2B`) and
+  gains `green`: a dynamic color (`NSColor(name:dynamicProvider:)`), forest in light appearances and `0x6FAF84` in dark
+  ones. `green` is Sway green everywhere (tint, glow, the mark in the popover).
+- `AccentChoice` enum (`.sway`, `.system`), stored as above; `AppModel.accentChoice` with `setAccentChoice(_:)`.
+  `tint: Color?` is `SwayPalette.green` for `.sway` and `nil` for `.system`.
+- Every window's root view and the menu popover apply `.tint(model.accentChoice.tint)`: menu, Pose Debug, gate test,
+  Focus Test, Setup, Settings. Text and glyphs that used `SwayPalette.accent(for:)` keep it.
+- The app has **no** asset-catalog accent color (orchestrator): with one, macOS's Multicolor setting would show it
+  through, so "Match macOS" would still look green. Without it, Match macOS is exactly the system accent.
+
+**2. The Swing mark and the menu bar icon (SPEC F25, D36, D37).**
+- `SwayMarkGeometry`: the mark in a 100 × 100 unit square: an arc `M 24 40 Q 50 86 76 40` (quadratic), a start point
+  at (24, 40) and an end point at (76, 40), y down. One definition shared by the drawing below and a SwiftUI
+  `SwayMark` view (stroke arc with round caps, small start dot, larger end dot; colors as parameters) for the popover
+  header and the welcome step.
+- `MenuBarGlyph` enum: `.tracking`, `.paused`, `.focusLock`, `.attention`, with a pure mapping from `TrackingStatus`
+  exactly as SPEC F25's table. Each glyph has a pure `MenuBarGlyph.Style` (`opacity`, `hollowEnd`, `lockBadge`,
+  `alertDot`): tracking = (1, false, false, false); paused = (0.5, true, false, false); focusLock = (1, false, true,
+  false); attention = (1, false, false, true).
+- `MenuBarIcon.image(for: MenuBarGlyph) -> NSImage`: 18 × 18 pt, `isTemplate = true`, drawn with `NSBezierPath` from
+  `SwayMarkGeometry` scaled to the image (arc width about 1.8 pt, start dot radius about 1.4 pt, end dot about 2 pt;
+  hollow = a 1 pt ring), plus the lock badge at the bottom right or the dot at the top right (cut out from the mark
+  with a clear ring so it reads at 18 pt). Drawn once per glyph and cached (`static let`).
+- `MenuBarLabel` shows `Image(nsImage: MenuBarIcon.image(for: model.menuBarGlyph))` and keeps its accessibility label
+  and value. `menuBarGlyph` derives from `trackingStatus`, which already changes only on status changes.
+- `TrackingStatus.symbol` stays for the popover's status line glyph.
+
+**3. Welcome and Setup restyle (SPEC F26, D40).**
+- `SetupFlow` gains a first step `.welcome`, used only when Setup opens with an empty calibration library. **Get
+  Started** moves to the first step that applies after it. The welcome step is not counted in "Step N of 5".
+- The welcome step's text is exactly SPEC F26's. Layout: the `SwayMark` (64 pt, green arc on an ivory/charcoal
+  rounded square matching the appearance), the title, the line, the privacy text with an SF Symbol `lock.shield`, the
+  button (prominent, tinted).
+- All Setup steps share one header view (the mark at 24 pt and the step title) and the same padding and width.
+
+**4. Edge glow and Focus Lock notice (SPEC F27, F28, D38, D39).**
+- A new internal protocol `FeedbackPresenting` (`@MainActor`), injected as `environment.feedback`:
+  `func showGlow(on display: DisplayInfo, animated: Bool)` and
+  `func showNotice(_ text: String, symbol: String, on display: DisplayInfo, animated: Bool)`.
+  Tests use a fake that records calls. The live `FeedbackOverlayController` reuses `OverlayPanel` (click-through,
+  non-activating, never key or main, `.screenSaver` level, every Space, over full-screen apps).
+  - **Glow:** one reusable panel, moved to the display's frame. A 4 pt `SwayPalette.green` border with a soft outer
+    glow (about 10 pt, 40% opacity) along the screen edges (rounded corners on displays that have them are not
+    required). Animated: fade in 0.1 s, hold 0.05 s, fade out 0.2 s. Not animated: shown for 0.35 s, then hidden. A
+    new glow while one shows restarts it on the new display. Hidden (`orderOut`) between glows.
+  - **Notice:** one reusable panel sized to a pill (`NSVisualEffectView`, `.hudWindow` material, rounded, the SF
+    Symbol and text), centered horizontally, 48 pt below the top of the display's visible frame. Animated: fade in
+    0.15 s, hold 1 s, fade out 0.3 s; not animated: shown for 1.3 s.
+  - The panels are created lazily on first use and kept; nothing runs while hidden.
+- **When:** the glow follows a tracking switch whose result is `.focused`, when `sway.edgeGlowEnabled`. Never for
+  Focus Test requests or failed and no-window results. The notice follows a Focus Lock toggle **from the hot key**
+  only (a separate entry point from the menu switch), when `sway.focusLockNoticeEnabled`; it shows on
+  `loop.focusedDisplay`, else the display with the menu bar (the layout's main display).
+- `animated` is `!environment.reduceMotion()`; live: `!NSWorkspace.shared.accessibilityDisplayShouldReduceMotion`.
+
+**5. Motion (SPEC F29, D41).** SwiftUI: Setup step changes and the menu banner use `.animation(.easeInOut(duration:
+0.2), value:)` with `.transition(.opacity)`, and no animation when `@Environment(\.accessibilityReduceMotion)` is
+true. No other new animations. Nothing animates at the frame rate.
+
+**6. Settings → Appearance (SPEC F24, F27, F28).** A new first section "Appearance":
+- "Accent color" as a segmented picker: **Sway green** / **Match macOS**;
+- "Glow on the display that gets focus" toggle;
+- "Show a notice when the shortcut toggles Focus Lock" toggle.
+Each change saves at once and applies at once.
+
+**7. Popover header.** The `SwayMark` (16 pt, Sway green regardless of the accent) before "Sway".
+
+**8. Tests:**
+- `MenuBarGlyph` mapping for every `TrackingStatus` case, and each glyph's style;
+- `MenuBarIcon` images are 18 × 18 pt templates, one per glyph, the same instance on repeated calls;
+- accent: default, persistence, `tint` per choice;
+- the welcome step: shown only with an empty library, Get Started moves on to the right step, not counted in the
+  step number;
+- glow: one `showGlow` per `.focused` tracking switch with the target display; none when disabled, for `.noWindow`,
+  `.failed`, `.notTrusted`, or Focus Test requests; `animated` follows `reduceMotion`;
+- notice: the hot key toggle shows "Focus Lock on" then "Focus Lock off" with `lock.fill` / `lock.open`, on the
+  focused display or the main one; none from the menu switch; none when disabled;
+- the Appearance settings save and apply;
+- view smoke tests for the welcome step, the Appearance section, and the popover header;
+- no frame-rate observation changes (the existing observation-count tests still pass).
+
 ### 6.6 `SwitchEngine` (builder-engine, M2)
 
 **Public API (exact):**
@@ -1021,23 +1109,24 @@ Everything else is `internal`.
      2 pt. This frame matching is a pure function over plain frames.
    - If none matches and the app has exactly one window, use that one.
    - Otherwise return `.failed(target, reason: "Window not found through Accessibility")`.
-4. `accessibilityRaise`:
+4. `appActivation` (SPEC D42):
    - `AXUIElementPerformAction(window, kAXRaiseAction)`;
    - set `kAXMainAttribute = true` on the window;
-   - set `kAXFrontmostAttribute = true` on the app.
+   - `NSRunningApplication(processIdentifier:)?.activate(options: [])`: no options, so only the app's main and key
+     windows (the raised one) come forward, not every window of the app.
 
    Then verify by polling every 25 ms, for up to 300 ms, until both hold:
    - the frontmost pid equals the target's pid;
    - the app's `kAXFocusedWindowAttribute` is `CFEqual` to the window. If it cannot be read, accept the pid match
      alone.
 
-   On success → `.focused(target, method: .accessibilityRaise, milliseconds:)`.
-5. `appActivation`:
-   - `NSRunningApplication(processIdentifier:)?.activate(from: .current, options: [])` (macOS 14 API);
+   On success → `.focused(target, method: .appActivation, milliseconds:)`.
+5. `accessibilityFrontmost`, the fallback for an app that ignores activation:
+   - set `kAXFrontmostAttribute = true` on the app (this can bring all of its windows forward);
    - the raise again;
    - the same verification.
 
-   On success → `.focused(..., .appActivation, ...)`.
+   On success → `.focused(..., .accessibilityFrontmost, ...)`.
 6. Otherwise → `.failed(target, reason: "Focus did not move to <app>")`.
 7. If the calling task is cancelled between methods → `.failed(target, reason: "Cancelled")`. No further method
    is tried, which lets a Focus Test countdown be cancelled.

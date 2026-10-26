@@ -31,7 +31,6 @@ struct SetupCalibratingStep: View {
             Text(progress.phase == .settle ? "Get ready\u{2026}" : "Hold still")
                 .foregroundStyle(.secondary)
             ProgressView(value: progress.fraction)
-                .tint(SwayPalette.forest)
                 .frame(width: 320)
             Text("Step \(progress.stepNumber) of \(progress.stepCount)")
                 .font(.caption)

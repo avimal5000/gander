@@ -10,10 +10,12 @@ protocol FocusPlatform: Sendable {
     func prepare(_ target: WindowSummary) async -> Handle?
     /// The window's title as Accessibility reports it, if any.
     func title(of handle: Handle) -> String?
-    /// Raises the window, makes it the app's main window, and makes its app frontmost.
+    /// Raises the window and makes it the app's main window. Does not activate the app.
     func raise(_ handle: Handle) async
-    /// Asks the system to activate the app with this process ID.
+    /// Asks the system to activate the app with this process ID, bringing only its main and key windows forward.
     func activateApplication(processID: Int32) async
+    /// Makes the window's app frontmost through Accessibility. This can bring all of the app's windows forward.
+    func makeFrontmost(_ handle: Handle) async
     /// True when the window's app is frontmost and the window is its focused window.
     func isFocused(_ handle: Handle) async -> Bool
 }

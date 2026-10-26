@@ -1,4 +1,4 @@
-# Sway: Spec (current phase: M4 + M5)
+# Sway: Spec (current phase: M6)
 
 Derived from PLAN.md, which stays the source of truth. Where this spec and PLAN.md differ, the difference is
 listed in section 3 with its reason. CONTRACT.md defines the code-level interfaces.
@@ -11,17 +11,14 @@ and typing goes to the last-used window there. The cursor never moves.
 
 ## 2. Scope of this phase
 
-M0–M3 are done (PRs #44 and #45). The M1 gate was **GO** on a C922 with 3 displays
-(`docs/decisions/0001-m1-head-pose-gate.md`); M2 built the switch engine and M3 the focus controller, and the
-user's Focus Test passed (`docs/focus-fallbacks.md`). This phase builds M4 and M5 together (D24).
+M0–M5 are done (PRs #44, #45, #47): Sway tracks, switches focus, calibrates in a Setup window, and has Settings. The
+user's hardware check of M4 + M5 passed. This phase is **M6, the design pass** (issues #28–#32).
 
 | In this phase | Later |
 |---|---|
-| **M4 end-to-end loop:** camera → pose → decider → focus, the Tracking switch (Pause/Resume), Focus Lock and its global shortcut, menu bar status states (issues #19, #20, #22, #23) | M6 design pass (theme, icons, onboarding, edge glow, animation) |
-| **M5 calibration + settings:** guided calibration in a Setup window, saved calibrations per display set and camera, a recalibrate prompt on unknown display setups, sensitivity, launch at login (issues #24–#27) | M7 hardening (sleep, hot-plug, camera conflicts, CPU targets, soak test); M8 release |
+| Theme with a user-chosen accent (#28); the app icon and a custom menu bar icon (#29); a welcome step and restyled Setup (#30); the edge glow (#31); restrained motion and the Focus Lock notice (#32) | M7 hardening (sleep, hot-plug, camera conflicts, CPU targets, soak test); M8 release |
 
-This is the first build that **moves focus automatically**. It does so only while Tracking is on, a calibration
-fits the connected displays and camera, Accessibility is granted, and Focus Lock is off.
+Behavior does not change: switching, holds, the camera rules, and calibration stay as M4 + M5 built them.
 
 ## 3. Decisions and assumptions
 
@@ -48,7 +45,7 @@ Earlier decisions still hold unless marked superseded:
 | D20 | CI fails if code moves the cursor, synthesizes or globally captures input events, or uses private window-server APIs (`scripts/privacy-guard.sh`) | PLAN.md "cursor never moved" |
 | D21 | (Superseded by D22.) `maxTrackedDisplays` stays 2. M4 applies it through the decider's `targets`. The preview considers every calibrated display | User (D3) + PLAN.md |
 
-New decisions for this phase:
+M4 + M5 decisions:
 
 | # | Decision | Source |
 |---|---|---|
@@ -65,7 +62,60 @@ New decisions for this phase:
 | D32 | Menu bar icons are SF Symbol placeholders until M6 | User-approved default |
 | D33 | Settings is a regular window ("Sway Settings"), not SwiftUI's `Settings` scene, which an LSUIElement app cannot reliably open from its menu bar extra on macOS 14 | Orchestrator |
 
+New decisions for this phase (M6):
+
+| # | Decision | Source |
+|---|---|---|
+| D34 | **Native look with Sway accents**: system materials, fonts, and controls, following light and dark mode. Forest green is the accent; ivory, sage, and charcoal appear in the icon, the welcome step, and the glow | User, 2026-10-25 |
+| D35 | **The accent is the user's choice** (Settings → Appearance): "Sway green" (default) or "Match macOS" (the system accent). Applied with SwiftUI `.tint`, because an asset-catalog accent color yields to a system accent the user picked; the app has no asset-catalog accent, so Match macOS under Multicolor shows the system default rather than green | User, 2026-10-25 + orchestrator |
+| D36 | **App icon: option A, "Swing"**: an ivory arc swinging from a small sage point to a larger ivory point, on a forest-green rounded square | User picked A from three drawn options, 2026-10-25 |
+| D37 | **Menu bar icon: the Swing mark** as a template image; state shows as small changes: Tracking (solid), Paused (dimmed, hollow end point), Focus Lock (lock badge), Needs you (dot). Replaces D32's SF Symbols | User, 2026-10-25 |
+| D38 | **Edge glow**: after a verified switch, a thin Sway-green border around the newly focused display fades in and out in about 0.35 s. On by default, with a Settings switch. Click-through; never activates Sway or takes focus; shows on every Space and over full-screen apps | User, 2026-10-25 ("make sure there is a feature in settings that lets you disable it") |
+| D39 | **Focus Lock notice**: when the shortcut toggles Focus Lock, a small "Focus Lock on" / "Focus Lock off" notice near the top of the focused display for about 1 s. On by default, with a Settings switch. The menu switch shows no notice (the change is in front of the user) | User, 2026-10-25 |
+| D40 | **Welcome step**: Setup opens with a welcome on first setup (no saved calibration): the mark, one line on what Sway does, and the privacy promise | User, 2026-10-25 |
+| D41 | **Restrained motion**: short fades for the glow, the notice, Setup step changes, and the menu banner. The menu bar icon does not animate (`MenuBarExtra` labels cannot animate reliably). With Reduce Motion on, nothing fades: the glow and notice just appear and disappear | User, 2026-10-25 + orchestrator |
+| D42 | **Focus brings forward only the target window.** Sway raises the window, then activates its app with no options, which brings only the app's main and key windows forward. The Accessibility "frontmost" call, which can bring every window of the app forward, is now only the fallback. Measured on the user's Mac: activation from a background process brought only Terminal's front window | User report, 2026-10-25 (every Terminal window came forward over Discord) |
+
 ## 4. Features
+
+**M6 features (this phase):**
+
+**F24. Theme and accent (#28, D34, D35).** Every Sway window and the menu use the accent the user chose. Sway green is
+forest green in light mode and a lighter green in dark mode, so it keeps its contrast. Settings → Appearance →
+Accent color: **Sway green** or **Match macOS**.
+
+**F25. Icons (#29, D36, D37).** The app icon is the Swing mark. The menu bar icon shows the same mark in four states:
+
+| Menu bar icon | Statuses (SPEC F19) |
+|---|---|
+| Tracking: solid | Tracking, No face, Calibrating, Starting |
+| Paused: dimmed, hollow end point | Paused, One display, Suspended |
+| Focus Lock: lock badge | Focus Lock |
+| Needs you: dot | Camera blocked, Camera failed, Camera busy, Needs calibration, Needs Accessibility |
+
+The menu's status line still names the exact status.
+
+**F26. Welcome and Setup restyle (#30, D40).** On first setup, Setup opens with:
+- the Swing mark;
+- "Welcome to Sway";
+- "Look at a display, and Sway moves your typing there. The pointer never moves.";
+- "Your camera stays private. Sway reads only which way your head is turned, on this Mac. Video is never recorded,
+  saved, or sent anywhere.";
+- **Get Started**.
+
+Every Setup step gets the same header (the mark and the step title) and layout.
+
+**F27. Edge glow (#31, D38).** After a switch that focused a window, a 4 pt Sway-green border, softly glowing, traces
+the edge of that display and fades out. Settings → Appearance → "Glow on the display that gets focus".
+
+**F28. Focus Lock notice (#32, D39).** Pressing the Focus Lock shortcut shows a small notice with a lock symbol near
+the top of the focused display: "Focus Lock on" or "Focus Lock off". Settings → Appearance → "Show a notice when
+the shortcut toggles Focus Lock".
+
+**F29. Motion (#32, D41).** Fades of about 0.2 s for Setup step changes and the menu banner; the glow and the notice
+fade as F27 and F28 say. Reduce Motion turns every fade off.
+
+**M1–M5 features:**
 
 M1–M3 features F1–F15 are unchanged except where noted: the "Live camera" toggle (F1, F5) becomes the Tracking
 switch (F18); the gate test (F7) also saves its profile into the calibration library (F20); the Switch preview
@@ -172,6 +222,8 @@ Record → press a new combination.
   local key monitor inside the Settings window only, while recording.
 - Window titles are never logged or stored; switch logs name the app and display only.
 - The login item is the system's own (`SMAppService`); nothing else is installed.
+- The glow and the Focus Lock notice (M6) are click-through overlay panels: they never become key or main, never
+  activate Sway, and sit above the normal window layer, so focus switching never picks them.
 
 ## 7. Non-functional
 
@@ -180,36 +232,30 @@ Record → press a new combination.
   (verified or failed within about 700 ms).
 - Tracking adds no per-frame main-thread work beyond the decider, and polls the focused display once a second.
   CPU with Tracking on and no windows open stays near the M3 figure (about 14–19% of one core).
+- The glow and the notice (M6) do no work between switches: their panels are reused, drawn only while shown, and add
+  nothing per frame.
 
 ## 8. Definition of done (this phase)
 
-**M4 done when:**
-- the tracking loop, Focus Lock, Tracking switch, launch state, and status pass the CONTRACT §6.5.2 tests (all
-  against fakes; no test moves real focus);
-- `SystemIntegration` passes CONTRACT §6.8;
-- with Tracking on, a held look moves real focus without moving the cursor (user check).
-
-**M5 done when:**
-- Setup, Settings, the calibration library, the recalibrate prompt, and per-camera calibration pass CONTRACT
-  §6.5.3;
-- a recalibration takes under 30 s and first setup under 2 minutes (user check).
-
-**Both:** the full `xcodebuild` build and test succeed with zero warnings; privacy guard, swift-format, and
-SwiftLint pass; a reviewer has verified conformance to CONTRACT.md.
+**M6 done when:**
+- the theme, accent setting, icons, welcome step, edge glow, Focus Lock notice, and motion pass CONTRACT §6.5.4
+  (against fakes: no test shows a real overlay or registers a hot key);
+- the app icon is in the asset catalog at every size;
+- the full `xcodebuild` build and test succeed with zero warnings; privacy guard, swift-format, and SwiftLint pass;
+  a reviewer has verified conformance to CONTRACT.md;
+- the user has checked the look on their Mac.
 
 ## 9. Manual checks the user must do (cannot be automated here)
 
-1. Rebuild in Xcode (approve the keychain prompt if it appears). Accessibility may need re-granting if the
-   signature changed.
-2. **Setup:** Menu → Calibrate… → follow the steps. It should take under 30 s with permissions granted, and the
-   result should say Good.
-3. **Daily use**, with Tracking on:
-   - hold a look at each display: focus moves to its last-used window, and the cursor never moves;
-   - glances, the keyboard, and looking away: no switch;
-   - ⌃⌥⌘L: the icon shows a lock and nothing switches; ⌃⌥⌘L again unlocks;
-   - with Sway's menu or Settings in front: no switch.
-4. **Pause:** Tracking off → the camera light goes off. Quit and relaunch: Tracking comes back as you left it.
-5. **Displays:** unplug one display → tracking continues on the others; plug it back in → still calibrated.
-6. **Settings:** change Hold time and feel the difference; record another Focus Lock shortcut; turn on Open at
-   login (approve it in System Settings if asked), then log out and in.
-7. CPU with Tracking on and no windows open: about the same as before (around 14–19%).
+1. Rebuild in Xcode. The app icon shows in Finder, in System Settings → Login Items, and in the Accessibility list.
+2. **Menu bar icon:** Tracking shows the solid mark; Tracking off shows it dimmed; ⌃⌥⌘L shows the lock badge; a
+   problem (for example, choose a camera with no calibration) shows the dot. Check light and dark menu bars.
+3. **Edge glow:** a held look at another display flashes a thin green border on it, without taking focus from the
+   window that just got it (keep typing). Check it over a full-screen app, and turn it off in Settings.
+4. **Focus Lock notice:** ⌃⌥⌘L shows "Focus Lock on" near the top of the focused display for about a second, and
+   "Focus Lock off" on the next press. Turn it off in Settings.
+5. **Welcome:** delete every calibration in Settings, then Set Up… shows the welcome step.
+6. **Accent:** Settings → Appearance → Match macOS: switches and buttons take your system accent; Sway green
+   brings the green back. Check light and dark mode.
+7. **Reduce Motion** (System Settings → Accessibility → Display): the glow and notice appear without fading.
+8. CPU with Tracking on and no windows open: still around 14–19% of one core.

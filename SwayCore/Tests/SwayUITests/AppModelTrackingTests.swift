@@ -50,7 +50,7 @@ struct AppModelTrackingTests {
 
     private func focusedRight(app: String = "Safari", ms: Int = 120) -> FocusResult {
         .focused(
-            Fixtures.window(7, app: app, title: "Secret page", on: Fixtures.right), method: .accessibilityRaise,
+            Fixtures.window(7, app: app, title: "Secret page", on: Fixtures.right), method: .appActivation,
             milliseconds: ms)
     }
 

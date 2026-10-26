@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// Sway's brand colors plus a few semantic helpers. System fonts and controls are used everywhere else.
@@ -8,10 +9,30 @@ enum SwayPalette {
     static let ivoryHex: UInt32 = 0xF6F3EA
     static let charcoalHex: UInt32 = 0x2B2B2B
 
+    /// The lighter green that keeps Sway green readable on dark appearances.
+    static let greenDarkHex: UInt32 = 0x6FAF84
+
     static let forest = Color(hex: forestHex)
     static let sage = Color(hex: sageHex)
     static let ivory = Color(hex: ivoryHex)
     static let charcoal = Color(hex: charcoalHex)
+
+    /// Sway green (SPEC F24): forest in light appearances and a lighter green in dark ones, so it keeps its contrast.
+    /// The accent when the user keeps "Sway green", the edge glow, and the mark in the popover.
+    static let green = Color(nsColor: makeGreen())
+
+    /// The hex value of Sway green in a light or dark appearance.
+    static func greenHex(isDark: Bool) -> UInt32 {
+        isDark ? greenDarkHex : forestHex
+    }
+
+    /// A dynamic AppKit color that resolves to ``greenHex(isDark:)`` for the appearance it is drawn in.
+    static func makeGreen() -> NSColor {
+        NSColor(name: nil) { appearance in
+            let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+            return NSColor(hex: greenHex(isDark: isDark))
+        }
+    }
 
     /// Amber used for "marginal" and warnings.
     static let amber = Color(red: 0.78, green: 0.52, blue: 0.10)
@@ -51,6 +72,18 @@ extension Color {
             red: Double((hex >> 16) & 0xFF) / 255,
             green: Double((hex >> 8) & 0xFF) / 255,
             blue: Double(hex & 0xFF) / 255
+        )
+    }
+}
+
+extension NSColor {
+    /// Creates an sRGB color from a 24-bit `0xRRGGBB` value.
+    convenience init(hex: UInt32) {
+        self.init(
+            srgbRed: CGFloat((hex >> 16) & 0xFF) / 255,
+            green: CGFloat((hex >> 8) & 0xFF) / 255,
+            blue: CGFloat(hex & 0xFF) / 255,
+            alpha: 1
         )
     }
 }

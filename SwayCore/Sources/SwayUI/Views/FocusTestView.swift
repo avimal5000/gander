@@ -18,6 +18,7 @@ struct FocusTestView: View {
             .padding(20)
         }
         .frame(minWidth: 560, minHeight: 480)
+        .tint(model.accentChoice.tint)
         .onAppear { model.startFocusTest() }
         .onDisappear { model.stopFocusTest() }
         .launchGuarded(id: SwayWindowID.focusTest, model: model)

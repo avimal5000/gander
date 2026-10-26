@@ -12,6 +12,7 @@ final class FakeFocusPlatform: FocusPlatform {
         case prepare
         case raise
         case activate(Int32)
+        case frontmost
         case check
     }
 
@@ -23,12 +24,16 @@ final class FakeFocusPlatform: FocusPlatform {
         case onCheck(Int)
         /// From the first check after an activation request.
         case afterActivation
+        /// From the first check after the app was made frontmost through Accessibility: an app that ignores
+        /// activation.
+        case afterFrontmost
     }
 
     private struct State {
         var calls: [Call] = []
         var checksSinceFirstRaise = 0
         var activated = false
+        var madeFrontmost = false
     }
 
     private let state = OSAllocatedUnfairLock(initialState: State())
@@ -64,6 +69,13 @@ final class FakeFocusPlatform: FocusPlatform {
         }
     }
 
+    func makeFrontmost(_ handle: Int) async {
+        state.withLock {
+            $0.calls.append(.frontmost)
+            $0.madeFrontmost = true
+        }
+    }
+
     func isFocused(_ handle: Int) async -> Bool {
         let rule = rule
         return state.withLock { state in
@@ -73,6 +85,7 @@ final class FakeFocusPlatform: FocusPlatform {
             case .never: return false
             case .onCheck(let n): return state.checksSinceFirstRaise >= n
             case .afterActivation: return state.activated
+            case .afterFrontmost: return state.madeFrontmost
             }
         }
     }

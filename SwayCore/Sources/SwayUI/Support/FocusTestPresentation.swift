@@ -59,8 +59,8 @@ enum FocusTestPresentation {
 
     private static func methodText(_ method: FocusMethod) -> String {
         switch method {
-        case .accessibilityRaise: "Accessibility raise"
         case .appActivation: "app activation"
+        case .accessibilityFrontmost: "Accessibility frontmost"
         }
     }
 }

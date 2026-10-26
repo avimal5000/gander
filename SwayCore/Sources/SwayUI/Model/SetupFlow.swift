@@ -1,6 +1,9 @@
 /// The pure state machine behind the Set Up Sway window (SPEC F20, CONTRACT 6.5.3): which step shows, decided by a
 /// few facts and by the user's moves. It performs no I/O; `AppModel+Setup` feeds it the facts and acts on its steps.
 ///
+/// On first setup (nothing calibrated yet) the window opens on a `welcome` step; **Get Started** moves on to the first
+/// step below that applies. The welcome step is not one of the five numbered steps.
+///
 /// Steps run in this order, and the window opens at the first one that applies:
 /// 1. `cameraAccess`, unless the camera is authorized;
 /// 2. `accessibility`, unless Accessibility is trusted or the user skipped it;
@@ -9,6 +12,8 @@
 /// 5. `result`.
 struct SetupFlow: Equatable, Sendable {
     enum Step: Int, Equatable, Sendable {
+        /// First setup only: what Sway does and its privacy promise (SPEC F26). Not counted in "Step N of 5".
+        case welcome = 0
         case cameraAccess = 1
         case accessibility
         case cameraCheck
@@ -29,9 +34,10 @@ struct SetupFlow: Equatable, Sendable {
 
     private(set) var step: Step
 
-    /// Opens at the first step that applies to `facts`.
-    init(facts: Facts) {
-        step = Self.firstStep(for: facts)
+    /// Opens at the first step that applies to `facts`, or on the welcome step when `showsWelcome` is set (first
+    /// setup, with an empty calibration library).
+    init(facts: Facts, showsWelcome: Bool = false) {
+        step = showsWelcome ? .welcome : Self.firstStep(for: facts)
     }
 
     /// The first step that applies: camera access unless authorized; Accessibility unless trusted or skipped;
@@ -56,9 +62,12 @@ struct SetupFlow: Equatable, Sendable {
     // MARK: Moves
 
     /// Applies new facts. A granted permission moves the window on; a revoked camera permission moves it back to
-    /// the camera step from any step before the calibration. Later steps never move on their own.
+    /// the camera step from any step before the calibration. Later steps never move on their own, and neither does
+    /// the welcome step: only **Get Started** leaves it.
     mutating func update(_ facts: Facts) {
         switch step {
+        case .welcome:
+            break
         case .cameraAccess:
             if facts.cameraAuthorized { step = Self.firstStep(for: facts) }
         case .accessibility:
@@ -72,6 +81,11 @@ struct SetupFlow: Equatable, Sendable {
         case .calibrating, .result:
             break
         }
+    }
+
+    /// "Get Started" on the welcome step: on to the first step that applies to `facts`.
+    mutating func getStarted(_ facts: Facts) {
+        if step == .welcome { step = Self.firstStep(for: facts) }
     }
 
     /// "Start calibration" on the camera check.

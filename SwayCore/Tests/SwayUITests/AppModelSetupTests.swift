@@ -945,7 +945,7 @@ struct AppModelSetupTests {
                 classification: Fixtures.classification(best: Fixtures.right.id))
         }
         h.focus.setResult(
-            .focused(Fixtures.window(1, on: Fixtures.right), method: .accessibilityRaise, milliseconds: 100))
+            .focused(Fixtures.window(1, on: Fixtures.right), method: .appActivation, milliseconds: 100))
         return h
     }
 

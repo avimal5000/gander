@@ -31,35 +31,36 @@ import Testing
         #expect(platform.calls == [.prepare])
     }
 
-    @Test func raiseThatWorksNeverActivatesTheApp() async {
-        let platform = FakeFocusPlatform(title: "Inbox", rule: .onCheck(1))
+    @Test func theWindowIsRaisedThenItsAppActivatedWithoutTheAppWideFrontmostCall() async {
+        // The user's report: with the app made frontmost through Accessibility, every Terminal window came forward.
+        // Activation brings only the raised window, so the app-wide call is not made when activation works.
+        let platform = FakeFocusPlatform(title: "Inbox", rule: .afterActivation)
         let outcome = await sequence(platform).run(target: target)
-        #expect(outcome == .focused(target.settingTitle("Inbox"), .accessibilityRaise))
-        #expect(platform.calls == [.prepare, .raise, .check])
+        #expect(outcome == .focused(target.settingTitle("Inbox"), .appActivation))
+        #expect(platform.calls == [.prepare, .raise, .activate(321), .check])
     }
 
-    @Test func raiseIsVerifiedByPollingUntilFocusLands() async {
+    @Test func activationIsVerifiedByPollingUntilFocusLands() async {
         let platform = FakeFocusPlatform(rule: .onCheck(4))
         let outcome = await FocusSequence(platform: platform, polling: patient).run(target: target)
-        #expect(outcome == .focused(target, .accessibilityRaise))
-        #expect(platform.calls == [.prepare, .raise, .check, .check, .check, .check])
+        #expect(outcome == .focused(target, .appActivation))
+        #expect(platform.calls == [.prepare, .raise, .activate(321), .check, .check, .check, .check])
     }
 
-    @Test func activationIsTheFallbackWhenTheRaiseDoesNotTakeEffect() async {
-        let platform = FakeFocusPlatform(rule: .afterActivation)
+    @Test func theAppWideFrontmostCallIsOnlyTheFallbackForAnAppThatIgnoresActivation() async {
+        let platform = FakeFocusPlatform(rule: .afterFrontmost)
         let outcome = await sequence(platform).run(target: target)
-        #expect(outcome == .focused(target, .appActivation))
+        #expect(outcome == .focused(target, .accessibilityFrontmost))
 
         let calls = platform.calls
-        #expect(calls.first == .prepare)
-        #expect(calls[1] == .raise)
-        let activationIndex = calls.firstIndex(of: .activate(321))
-        #expect(activationIndex != nil)
-        // The raise comes again right after activation, then the same verification.
-        let after = activationIndex.map { Array(calls[($0 + 1)...]) }
+        #expect(Array(calls.prefix(3)) == [.prepare, .raise, .activate(321)])
+        let frontmostIndex = calls.firstIndex(of: .frontmost)
+        #expect(frontmostIndex != nil)
+        // The raise comes again right after, then the same verification.
+        let after = frontmostIndex.map { Array(calls[($0 + 1)...]) }
         #expect(after == [.raise, .check])
-        // Before activation, the first method was polled more than once.
-        #expect(calls[..<(activationIndex ?? 0)].filter { $0 == .check }.count > 1)
+        // Before the fallback, activation was polled more than once.
+        #expect(calls[..<(frontmostIndex ?? 0)].filter { $0 == .check }.count > 1)
     }
 
     @Test func failureAfterBothMethodsReportsTheSummary() async {
@@ -70,6 +71,7 @@ import Testing
         let calls = platform.calls
         #expect(calls.filter { $0 == .raise }.count == 2)
         #expect(calls.filter { $0 == .activate(321) }.count == 1)
+        #expect(calls.filter { $0 == .frontmost }.count == 1)
     }
 
     @Test func eachMethodWaitsAboutTheFullTimeoutBeforeGivingUp() async {
@@ -90,7 +92,7 @@ import Testing
         task.cancel()
         let outcome = await task.value
         #expect(outcome == .cancelled)
-        #expect(!platform.calls.contains(.activate(321)))
+        #expect(!platform.calls.contains(.frontmost))
     }
 
     @Test func standardPollingIs25MillisecondStepsForUpTo300Milliseconds() {

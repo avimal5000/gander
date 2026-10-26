@@ -31,15 +31,16 @@ extension AppModel {
 
     // MARK: Window lifecycle
 
-    /// The Setup window appeared: open the flow at the first step that applies. Ignored for the copy SwiftUI opens at
-    /// launch, which the launch guard closes unseen (nobody asked for it), and when the flow is already open.
+    /// The Setup window appeared: open the flow at the first step that applies, after the welcome step when nothing is
+    /// calibrated yet (SPEC F26). Ignored for the copy SwiftUI opens at launch, which the launch guard closes unseen
+    /// (nobody asked for it), and when the flow is already open.
     func setupWindowDidAppear() {
         guard hasWindowRequest(SwayWindowID.setup), setupFlow == nil else { return }
         refreshEnvironment()
         refreshAccessibilityTrust()
         setupMessage = nil
         setupResult = nil
-        let flow = SetupFlow(facts: setupFacts)
+        let flow = SetupFlow(facts: setupFacts, showsWelcome: library.profiles.isEmpty)
         setupFlow = flow
         setupFlowDidChange(from: nil, to: flow)
     }
@@ -61,6 +62,18 @@ extension AppModel {
         setupMessage = nil
         setupResult = nil
         setupFlowDidChange(from: old, to: nil)
+    }
+
+    // MARK: Welcome
+
+    /// "Get Started" on the welcome step: on to the first step that applies. The permissions are read again first,
+    /// because the user may have read the welcome for a while.
+    func getStartedFromSetup() {
+        guard setupFlow?.step == .welcome else { return }
+        refreshEnvironment()
+        refreshAccessibilityTrust()
+        let facts = setupFacts
+        mutateSetup { $0.getStarted(facts) }
     }
 
     // MARK: Permission steps

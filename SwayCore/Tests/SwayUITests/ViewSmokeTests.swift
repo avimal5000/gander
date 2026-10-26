@@ -287,4 +287,138 @@ struct ViewSmokeTests {
         #expect(h.model.menuBanner == .needsCameraCalibration("Logitech C922"))
         #expect(renders(MenuContentView(model: h.model), width: 300, height: 520))
     }
+
+    // MARK: Design pass (M6)
+
+    /// Renders `view` at one point per pixel and reads back the opacity of pixel (x, y), counted from the top left.
+    private func alphaReader(of view: some View, width: Int, height: Int) -> ((Int, Int) -> Double)? {
+        let renderer = ImageRenderer(content: view.frame(width: CGFloat(width), height: CGFloat(height)))
+        renderer.scale = 1
+        guard let image = renderer.cgImage,
+            let context = CGContext(
+                data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
+                space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue),
+            let data = context.data
+        else { return nil }
+        context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        // Copied out: the context owns the pixels and goes away when this returns.
+        let bytes = Array(
+            UnsafeBufferPointer(
+                start: data.bindMemory(to: UInt8.self, capacity: width * height * 4), count: width * height * 4))
+        return { x, y in Double(bytes[(y * width + x) * 4 + 3]) / 255 }
+    }
+
+    @Test func theSwingMarkDrawsInsideItsFrameInEveryFraming() throws {
+        let fitted = try #require(
+            alphaReader(of: SwayMark(color: SwayPalette.green), width: 64, height: 64), "Fitted")
+        #expect(fitted(32, 45) > 0.9, "The dip of the arc, in the middle")
+        #expect(fitted(2, 2) == 0 && fitted(61, 61) == 0 && fitted(2, 61) == 0, "The corners are empty")
+
+        let square = try #require(
+            alphaReader(of: SwayMark(color: SwayPalette.green, framing: .unitSquare), width: 100, height: 100),
+            "Unit square")
+        #expect(square(24, 40) > 0.9, "The start point, where the geometry puts it")
+        #expect(square(76, 40) > 0.9, "The end point")
+        #expect(square(50, 63) > 0.9, "The bottom of the arc")
+        #expect(square(5, 5) == 0 && square(94, 94) == 0)
+    }
+
+    /// Renders an AppKit view's layer tree at 1x and reads alpha at a pixel, (0, 0) at the top left.
+    private func alphaReader(of view: NSView) -> ((Int, Int) -> Double)? {
+        let width = Int(view.bounds.width)
+        let height = Int(view.bounds.height)
+        guard let layer = view.layer,
+            let context = CGContext(
+                data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
+                space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue),
+            let data = context.data
+        else { return nil }
+        layer.render(in: context)
+        let bytes = Array(
+            UnsafeBufferPointer(
+                start: data.bindMemory(to: UInt8.self, capacity: width * height * 4), count: width * height * 4))
+        return { x, y in Double(bytes[(y * width + x) * 4 + 3]) / 255 }
+    }
+
+    @Test func theEdgeGlowHasABorderAtTheEdgeAndAnEmptyMiddle() throws {
+        let view = EdgeGlowView(frame: NSRect(x: 0, y: 0, width: 240, height: 140))
+        let glow = try #require(alphaReader(of: view))
+        #expect(glow(0, 70) > 0.99 && glow(239, 70) > 0.99, "The 4 pt border on the left and right")
+        #expect(glow(120, 0) > 0.99 && glow(120, 139) > 0.99, "On the top and bottom")
+        #expect(glow(3, 70) > 0.99 && glow(4, 70) < 0.5, "The border is 4 pt wide")
+        #expect(glow(5, 70) > glow(12, 70) && glow(234, 70) > glow(227, 70), "The side glows fade inward")
+        #expect(glow(120, 5) > glow(120, 12) && glow(120, 134) > glow(120, 127), "So do the top and bottom ones")
+        #expect(glow(14, 70) == 0 && glow(120, 70) == 0 && glow(120, 14) == 0, "Nothing past the glow")
+    }
+
+    @Test func theEdgeGlowFollowsItsFrameWhenThePanelMovesToAnotherDisplay() throws {
+        let view = EdgeGlowView(frame: NSRect(x: 0, y: 0, width: 240, height: 140))
+        view.setFrameSize(NSSize(width: 300, height: 200))
+        let glow = try #require(alphaReader(of: view))
+        #expect(glow(299, 100) > 0.99 && glow(150, 199) > 0.99, "The border moved to the new right and top edges")
+        #expect(glow(239, 100) == 0, "Nothing left where the old right edge was")
+    }
+
+    @Test func theWelcomeStepRendersInLightAndDark() {
+        let h = Harness.make(authorization: .notDetermined)
+        defer { h.tearDown() }
+        h.openSetup(welcome: true)
+        #expect(h.model.setupFlow?.step == .welcome)
+
+        #expect(renders(SetupView(model: h.model), width: 520, height: 420), "Welcome")
+        #expect(
+            renders(SetupView(model: h.model).environment(\.colorScheme, .dark), width: 520, height: 420),
+            "Welcome, dark")
+        #expect(renders(SetupWelcomeStep(model: h.model), width: 472, height: 372), "The step alone")
+        #expect(renders(SetupHeader(step: .cameraCheck), width: 472, height: 60), "The shared header")
+    }
+
+    @Test func theAppearanceSectionRendersWithEveryChoice() {
+        let h = Harness.make(calibrated: true)
+        defer { h.tearDown() }
+        #expect(renders(SettingsView(model: h.model), width: 520, height: 640), "Defaults")
+
+        h.model.setAccentChoice(.system)
+        h.model.setEdgeGlowEnabled(false)
+        h.model.setFocusLockNoticeEnabled(false)
+        #expect(renders(SettingsView(model: h.model), width: 520, height: 640), "Match macOS, both off")
+        #expect(
+            renders(SettingsView(model: h.model).environment(\.colorScheme, .dark), width: 520, height: 640),
+            "Dark")
+    }
+
+    @Test func thePopoverRendersItsHeaderWithEveryAccent() {
+        let h = Harness.make(calibrated: true)
+        defer { h.tearDown() }
+        for choice in AccentChoice.allCases {
+            h.model.setAccentChoice(choice)
+            #expect(renders(MenuContentView(model: h.model), width: 300, height: 500), "\(choice)")
+        }
+        #expect(MenuContentView.markSize == 16)
+    }
+
+    @Test func theOtherWindowsRenderWithTheSystemAccent() {
+        let h = Harness.make(calibrated: true)
+        defer { h.tearDown() }
+        h.model.setAccentChoice(.system)
+
+        #expect(renders(PoseDebugView(model: h.model)))
+        #expect(renders(GateTestView(model: h.model)))
+        #expect(renders(FocusTestView(model: h.model)))
+        #expect(renders(SetupView(model: h.model), width: 520, height: 420))
+    }
+
+    @Test func theMenuBarLabelRendersEveryGlyph() async {
+        let h = Harness.make(calibrated: true)
+        defer { h.tearDown() }
+        #expect(renders(MenuBarLabel(model: h.model), width: 40, height: 24), "Paused")
+        await h.startTracking()
+        h.feed()
+        #expect(renders(MenuBarLabel(model: h.model), width: 40, height: 24), "Tracking")
+        h.model.setFocusLock(true)
+        #expect(renders(MenuBarLabel(model: h.model), width: 40, height: 24), "Focus Lock")
+        h.focus.setTrusted(false)
+        h.model.refreshAccessibilityTrust()
+        #expect(renders(MenuBarLabel(model: h.model), width: 40, height: 24), "Needs Accessibility")
+    }
 }

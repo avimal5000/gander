@@ -19,6 +19,7 @@ struct PoseDebugView: View {
         // minimums, AppKit re-measured the whole content (plot included) on every update, once per camera frame.
         .frame(minWidth: 640, maxWidth: .infinity, minHeight: 640, maxHeight: .infinity)
         .background(WindowVisibilityReader { showsLiveContent = $0 })
+        .tint(model.accentChoice.tint)
         .onAppear { model.refreshEnvironment() }
         .launchGuarded(id: SwayWindowID.poseDebug, model: model)
     }

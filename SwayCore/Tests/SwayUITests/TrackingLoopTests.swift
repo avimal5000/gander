@@ -11,7 +11,7 @@ struct TrackingLoopTests {
     private let far = Fixtures.far.id
 
     private var focused: FocusResult {
-        .focused(Fixtures.window(on: Fixtures.right), method: .accessibilityRaise, milliseconds: 50)
+        .focused(Fixtures.window(on: Fixtures.right), method: .appActivation, milliseconds: 50)
     }
 
     private func look(at display: DisplayID, margin: Double = 0.6) -> PoseClassification {

@@ -31,22 +31,28 @@ final class LiveFocusPlatform: FocusPlatform {
         await queue.run {
             let raiseError = AXElementAccess.raise(handle.window.element)
             guard raiseError != .cannotComplete else {
-                logger.debug("raise timed out; skipping main and frontmost")
+                logger.debug("raise timed out; skipping main")
                 return
             }
             let mainError = AXElementAccess.setTrue(kAXMainAttribute, on: handle.window.element)
-            let frontmostError = AXElementAccess.setTrue(kAXFrontmostAttribute, on: handle.app.element)
-            logger.debug(
-                "raise=\(raiseError.rawValue) main=\(mainError.rawValue) frontmost=\(frontmostError.rawValue)"
-            )
+            logger.debug("raise=\(raiseError.rawValue) main=\(mainError.rawValue)")
         }
     }
 
     func activateApplication(processID: Int32) async {
+        // No options: only the main and key windows come forward, not every window of the app.
         let requested = await MainActor.run {
-            NSRunningApplication(processIdentifier: processID)?.activate(from: .current, options: []) ?? false
+            NSRunningApplication(processIdentifier: processID)?.activate(options: []) ?? false
         }
         logger.debug("activation requested=\(requested)")
+    }
+
+    func makeFrontmost(_ handle: LocatedWindow) async {
+        let logger = logger
+        await queue.run {
+            let frontmostError = AXElementAccess.setTrue(kAXFrontmostAttribute, on: handle.app.element)
+            logger.debug("frontmost=\(frontmostError.rawValue)")
+        }
     }
 
     func isFocused(_ handle: LocatedWindow) async -> Bool {

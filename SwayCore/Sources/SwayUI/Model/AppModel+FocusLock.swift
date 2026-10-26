@@ -14,9 +14,16 @@ extension AppModel {
         SwayLogger.tracking.info("Focus Lock \(locked ? "on" : "off", privacy: .public)")
     }
 
-    /// The shortcut's action.
+    /// Toggles Focus Lock, without any notice.
     func toggleFocusLock() {
         setFocusLock(!focusLocked)
+    }
+
+    /// The shortcut's action: toggles Focus Lock and tells the user on the focused display (SPEC F28). The menu switch
+    /// goes through ``setFocusLock(_:)`` instead and shows nothing, because the change is in front of the user.
+    func focusLockShortcutPressed() {
+        toggleFocusLock()
+        showFocusLockNotice()
     }
 
     // MARK: Shortcut
@@ -26,7 +33,7 @@ extension AppModel {
         guard let shortcut = focusLockShortcut else { return }
         do {
             try hotKeys.register(shortcut, for: .toggleFocusLock) { [weak self] in
-                self?.toggleFocusLock()
+                self?.focusLockShortcutPressed()
             }
             shortcutMessage = nil
             isShortcutRegistered = true
@@ -60,7 +67,7 @@ extension AppModel {
         }
         do {
             try hotKeys.register(shortcut, for: .toggleFocusLock) { [weak self] in
-                self?.toggleFocusLock()
+                self?.focusLockShortcutPressed()
             }
         } catch {
             shortcutMessage = Self.shortcutMessage(for: error, shortcut: shortcut)
@@ -80,7 +87,7 @@ extension AppModel {
         guard let previous else { return false }
         do {
             try hotKeys.register(previous, for: .toggleFocusLock) { [weak self] in
-                self?.toggleFocusLock()
+                self?.focusLockShortcutPressed()
             }
             return true
         } catch {

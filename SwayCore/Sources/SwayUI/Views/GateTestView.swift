@@ -11,6 +11,7 @@ struct GateTestView: View {
             content
         }
         .frame(minWidth: 700, minHeight: 600)
+        .tint(model.accentChoice.tint)
         .onAppear { model.refreshEnvironment() }
         .launchGuarded(id: SwayWindowID.gateTest, model: model)
         // Closing the window must never leave overlays on screen with no way to cancel them.

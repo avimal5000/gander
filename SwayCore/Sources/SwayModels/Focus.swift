@@ -28,10 +28,11 @@ public struct WindowSummary: Sendable, Equatable, Identifiable {
 
 /// Which step of the focus fallback list succeeded.
 public enum FocusMethod: String, Sendable, Equatable, Codable {
-    /// `AXRaise` on the window, `AXMain` on the window, and `AXFrontmost` on its app.
-    case accessibilityRaise
-    /// The raise, then `NSRunningApplication` activation.
+    /// `AXRaise` and `AXMain` on the window, then `NSRunningApplication` activation of its app, which brings only the
+    /// app's main and key windows forward (SPEC D42).
     case appActivation
+    /// The fallback: `AXFrontmost` on the app, then the raise again. This can bring all of the app's windows forward.
+    case accessibilityFrontmost
 }
 
 /// Outcome of a focus request.

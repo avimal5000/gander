@@ -18,6 +18,7 @@ struct Harness {
     let loginItem: FakeLoginItem
     let system: FakeSystem
     let overlay: FakeOverlay
+    let feedback: FakeFeedback
     let clock: TestClock
     let appState: FakeAppState
     let keyMonitor: FakeKeyMonitor
@@ -73,6 +74,7 @@ struct Harness {
         let loginItem = FakeLoginItem()
         let system = FakeSystem()
         let overlay = FakeOverlay()
+        let feedback = FakeFeedback()
         let clock = TestClock()
         let appState = FakeAppState()
         let keyMonitor = FakeKeyMonitor()
@@ -84,6 +86,8 @@ struct Harness {
             now: { Date(timeIntervalSince1970: 1_700_000_000) },
             system: system,
             overlay: overlay,
+            feedback: feedback,
+            reduceMotion: { [appState] in appState.reduceMotion },
             notificationCenter: notifications,
             workspaceNotificationCenter: workspace,
             isAppActive: { [appState] in appState.isActive },
@@ -102,7 +106,7 @@ struct Harness {
         return Harness(
             model: model, camera: camera, pose: pose, displays: displays, store: store, analyzer: analyzer,
             engine: engine, focus: focus, hotKeys: hotKeys, loginItem: loginItem, system: system, overlay: overlay,
-            clock: clock, appState: appState, keyMonitor: keyMonitor, notifications: notifications,
+            feedback: feedback, clock: clock, appState: appState, keyMonitor: keyMonitor, notifications: notifications,
             workspace: workspace, defaults: defaults, suiteName: suiteName
         )
     }
@@ -142,6 +146,7 @@ struct Harness {
     ) -> AppModel {
         let environment = AppModelEnvironment(
             clock: clock.reading, now: { Date() }, system: FakeSystem(), overlay: FakeOverlay(),
+            feedback: FakeFeedback(), reduceMotion: { false },
             notificationCenter: NotificationCenter(), workspaceNotificationCenter: NotificationCenter(),
             isAppActive: { false }, gateTickInterval: nil, focusTickInterval: nil, trackingTickInterval: nil,
             setupTickInterval: nil, keyMonitor: FakeKeyMonitor(), cameraStartTimeout: 10
