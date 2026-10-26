@@ -29,6 +29,7 @@ enum Fixtures {
 
     static let builtInCamera = CameraDevice(id: "cam-builtin", name: "FaceTime HD Camera", isBuiltIn: true)
     static let externalCamera = CameraDevice(id: "cam-external", name: "Logitech C922", isBuiltIn: false)
+    static let secondExternalCamera = CameraDevice(id: "cam-other", name: "Other USB", isBuiltIn: false)
 
     static func pose(
         yaw: Double = 0, pitch: Double = 0, landmarkYaw: Double? = nil, landmarkPitch: Double? = nil

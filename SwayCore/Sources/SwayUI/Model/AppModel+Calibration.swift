@@ -54,6 +54,7 @@ extension AppModel {
         library = updated
         persistLibrary()
         refreshActiveCalibration()
+        syncCameraFallback()
     }
 
     /// Removes the calibration saved under `key` (M5's Settings list).
@@ -64,14 +65,23 @@ extension AppModel {
         library = updated
         persistLibrary()
         refreshActiveCalibration()
+        syncCameraFallback()
     }
 
     // MARK: Resolution
 
-    /// The name of the camera the calibration is looked up for: the running camera, else the one capture would pick
-    /// (CONTRACT 6.1, asked of the camera service so the two never disagree).
+    /// The name of the camera the calibration is looked up for: the running camera, else the one the session is waiting
+    /// for or has been moved to (SPEC D46), else the one capture would pick (CONTRACT 6.1, asked of the camera service
+    /// so the two never disagree).
+    ///
+    /// While the chosen camera is unplugged, capture's own rule would name the built-in camera. The session still
+    /// belongs to the chosen camera though, and dropping its calibration would stop the camera we are waiting for.
     var trackingCameraName: String? {
-        status.device?.name ?? predictedCameraName
+        if let name = status.device?.name { return name }
+        // Also while the source restarts for it: no stream then, but the stand-in is still the camera in use.
+        if let fallbackCamera { return fallbackCamera.name }
+        if let lost = unpluggedChosenCamera { return lost.name }
+        return predictedCameraName
     }
 
     /// Re-asks the camera service which device capture would open, assigning only on a change.

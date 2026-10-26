@@ -9,6 +9,12 @@ extension CaptureStatus {
         return false
     }
 
+    /// True while the camera is torn down for sleep, a lock, or another user's session.
+    var isSuspended: Bool {
+        if case .suspended = self { return true }
+        return false
+    }
+
     /// The device in use, when running.
     var device: CameraDevice? {
         if case .running(let device) = self { return device }

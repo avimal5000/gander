@@ -1,13 +1,16 @@
 import SwayModels
 
-/// The reason-set state machine behind sleep/lock suspension (PLAN.md privacy guarantee).
+/// The reason-set state machine behind sleep/lock suspension (PLAN.md privacy guarantee, SPEC D43).
 ///
 /// It tracks which `SuspendReason`s are active and whether the caller wants capture. It performs no I/O: it
 /// only says what the owner should do, so the rules are testable without a camera.
 ///
 /// - Capture is torn down when the first reason arrives and rebuilt only when every reason has cleared.
 /// - Reasons are ordered by arrival; the status reports the earliest one still active.
-/// - After `captureStopped()` nothing ever resumes capture, and incoming reasons are ignored.
+/// - Suspension is sticky: reasons are recorded and cleared whether or not capture is requested, and
+///   `captureStopped()` keeps them. A later `captureRequested()` therefore answers `.suspend` while the Mac is
+///   still asleep or locked, and an `end` that arrives while capture is stopped clears its reason without
+///   resuming anything (it returns `.none`, because nobody asked for capture).
 struct SuspendTracker: Sendable, Equatable {
     /// What the owner must do after an input.
     enum Directive: Sendable, Equatable {
@@ -19,6 +22,12 @@ struct SuspendTracker: Sendable, Equatable {
         case reasonChanged(SuspendReason)
         /// Build the session and report `.starting`.
         case resume
+    }
+
+    /// A system condition that began or ended, as the notifications report it.
+    enum Event: Sendable, Equatable {
+        case begin(SuspendReason)
+        case end(SuspendReason)
     }
 
     /// Active reasons, oldest first, without duplicates.
@@ -39,26 +48,51 @@ struct SuspendTracker: Sendable, Equatable {
         return .resume
     }
 
-    /// The caller stopped capture. Forgets every reason; later `end` calls cannot resume anything.
+    /// The caller stopped capture. Active reasons stay: the Mac is still asleep or locked, and the next
+    /// `captureRequested()` must see that.
     mutating func captureStopped() {
         isCaptureRequested = false
-        reasons.removeAll()
     }
 
-    /// A suspend condition began (sleep, display sleep, or screen lock).
+    /// A suspend condition began (sleep, display sleep, screen lock, or another user's session). Recorded even
+    /// while capture is not requested; the directive is `.none` then.
     mutating func begin(_ reason: SuspendReason) -> Directive {
-        guard isCaptureRequested, !reasons.contains(reason) else { return .none }
+        guard !reasons.contains(reason) else { return .none }
         let wasSuspended = isSuspended
         reasons.append(reason)
-        return wasSuspended ? .none : .suspend(reason)
+        guard isCaptureRequested, !wasSuspended else { return .none }
+        return .suspend(reason)
     }
 
-    /// A suspend condition ended (wake or unlock).
+    /// A suspend condition ended (wake, unlock, or the other user's session left). Cleared even while capture is
+    /// not requested; the directive is `.none` then.
     mutating func end(_ reason: SuspendReason) -> Directive {
-        guard isCaptureRequested, let index = reasons.firstIndex(of: reason) else { return .none }
+        end([reason])
+    }
+
+    /// Several conditions ended at the same moment. The directive describes the combined change, so the owner
+    /// never sees an intermediate `.reasonChanged` for a reason that is cleared in the same step.
+    mutating func end(_ ended: [SuspendReason]) -> Directive {
         let previousFirst = reasons.first
-        reasons.remove(at: index)
+        reasons.removeAll { ended.contains($0) }
+        guard isCaptureRequested, previousFirst != nil else { return .none }
         guard let newFirst = reasons.first else { return .resume }
         return newFirst == previousFirst ? .none : .reasonChanged(newFirst)
+    }
+
+    /// Applies a system event, with the self-heal for a missed display wake: when any condition ends and the main
+    /// display is awake (`isMainDisplayAsleep` says so), `.displaysAsleep` is cleared too. A lost
+    /// `screensDidWake` must not leave capture suspended. The check runs only when it can matter.
+    mutating func apply(_ event: Event, isMainDisplayAsleep: () -> Bool) -> Directive {
+        switch event {
+        case .begin(let reason):
+            return begin(reason)
+        case .end(let reason):
+            var ended = [reason]
+            if reason != .displaysAsleep, reasons.contains(.displaysAsleep), !isMainDisplayAsleep() {
+                ended.append(.displaysAsleep)
+            }
+            return end(ended)
+        }
     }
 }

@@ -14,11 +14,14 @@ extension AppModel {
     // MARK: State
 
     /// Why automatic switching is held right now, if it is: the first that applies of Focus Lock, Sway being the
-    /// active app, a Focus Test request, and Sway's own request in flight.
+    /// active app, a Focus Test request, the displays or the Spaces changing (SPEC D44), and Sway's own request in
+    /// flight.
     var trackingHold: TrackingHold? {
         if focusLocked { return .focusLock }
         if isAppActive { return .swayInFront }
         if focusActivity != .idle { return .focusTest }
+        if displaysChanging { return .displaysChanging }
+        if spaceChanging { return .spaceChanging }
         if isSwitching { return .switching }
         return nil
     }
@@ -117,9 +120,11 @@ extension AppModel {
 
     // MARK: Per sample
 
-    /// Runs one tracked sample through the decider with the loop's focus and holds, and acts on its decision.
+    /// Runs one tracked sample through the decider with the loop's focus and holds, and acts on its decision. Only a
+    /// camera that reports running switches: a sample that arrives after the status left running (an interruption, a
+    /// suspension) is stale.
     func processTracking(_ sample: PoseSample) {
-        guard isTrackingActive else { return }
+        guard status.isRunning, isTrackingActive else { return }
         // Sway's own request in flight is not a lock: a lock cancels the decider's cooldown, which must run from the
         // switch. The loop already reports the target as focused and refuses a second request.
         let hold = trackingHold
@@ -183,7 +188,10 @@ extension AppModel {
         focusSwitchTask = nil
         loop.finishAttempt(target, result: result)
         syncLoopState()
-        if case .notTrusted = result, isAccessibilityTrusted { isAccessibilityTrusted = false }
+        if case .notTrusted = result, isAccessibilityTrusted {
+            isAccessibilityTrusted = false
+            syncPoseDemand()
+        }
         let display = displayName(for: target)
         appendSwitchLog(SwitchPreviewPresentation.logText(for: result, display: display, held: held))
         logSwitch(result, display: display)
@@ -228,8 +236,16 @@ extension AppModel {
 
     // MARK: Focused-display poll
 
-    /// Starts or stops the focused-display poll to match whether the camera runs for tracking. Cheap to call.
+    /// Starts or stops the focused-display poll to match whether the camera runs for tracking, and keeps the pose
+    /// demand and the camera fallback in step with the state. Cheap to call.
     func syncTrackingActivity() {
+        syncFocusedDisplayPoll()
+        // After the poll: its first step reads Accessibility, which the pose demand depends on.
+        syncPoseDemand()
+        syncCameraFallback()
+    }
+
+    private func syncFocusedDisplayPoll() {
         let shouldPoll = isTrackingActive && status.isRunning
         guard shouldPoll != isPollingFocus else { return }
         isPollingFocus = shouldPoll
@@ -282,6 +298,9 @@ extension AppModel {
     /// Reads Accessibility trust (never prompts) into `isAccessibilityTrusted`, assigning only on a change.
     func refreshAccessibilityTrust() {
         let trusted = focus.isTrusted()
-        if trusted != isAccessibilityTrusted { isAccessibilityTrusted = trusted }
+        guard trusted != isAccessibilityTrusted else { return }
+        isAccessibilityTrusted = trusted
+        // Missing Accessibility lowers the frame rate (nothing can switch), granting it raises it again.
+        syncPoseDemand()
     }
 }

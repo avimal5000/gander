@@ -20,6 +20,8 @@ struct Harness {
     let overlay: FakeOverlay
     let feedback: FakeFeedback
     let clock: TestClock
+    /// Runs the one-shot delays (holds, grace, refresh coalescing) when a test advances it.
+    let scheduler: FakeScheduler
     let appState: FakeAppState
     let keyMonitor: FakeKeyMonitor
     /// Where `NSApplication` notifications are posted.
@@ -76,6 +78,7 @@ struct Harness {
         let overlay = FakeOverlay()
         let feedback = FakeFeedback()
         let clock = TestClock()
+        let scheduler = FakeScheduler()
         let appState = FakeAppState()
         let keyMonitor = FakeKeyMonitor()
         appState.isActive = appActive
@@ -95,6 +98,7 @@ struct Harness {
             focusTickInterval: nil,
             trackingTickInterval: nil,
             setupTickInterval: nil,
+            scheduler: scheduler,
             keyMonitor: keyMonitor,
             cameraStartTimeout: 10
         )
@@ -106,7 +110,8 @@ struct Harness {
         return Harness(
             model: model, camera: camera, pose: pose, displays: displays, store: store, analyzer: analyzer,
             engine: engine, focus: focus, hotKeys: hotKeys, loginItem: loginItem, system: system, overlay: overlay,
-            feedback: feedback, clock: clock, appState: appState, keyMonitor: keyMonitor, notifications: notifications,
+            feedback: feedback, clock: clock, scheduler: scheduler, appState: appState, keyMonitor: keyMonitor,
+            notifications: notifications,
             workspace: workspace, defaults: defaults, suiteName: suiteName
         )
     }
@@ -149,7 +154,7 @@ struct Harness {
             feedback: FakeFeedback(), reduceMotion: { false },
             notificationCenter: NotificationCenter(), workspaceNotificationCenter: NotificationCenter(),
             isAppActive: { false }, gateTickInterval: nil, focusTickInterval: nil, trackingTickInterval: nil,
-            setupTickInterval: nil, keyMonitor: FakeKeyMonitor(), cameraStartTimeout: 10
+            setupTickInterval: nil, scheduler: FakeScheduler(), keyMonitor: FakeKeyMonitor(), cameraStartTimeout: 10
         )
         return AppModel(
             camera: camera, poseSource: pose, displays: FakeDisplayProvider(layout: layout),

@@ -33,6 +33,9 @@ struct AppModelEnvironment {
     /// How often the Setup window re-reads the camera and Accessibility permissions while it waits for one; `nil`
     /// disables the timer (tests call `AppModel.setupTick()` instead).
     var setupTickInterval: Duration?
+    /// Runs the one-shot delays: the display and Space holds, the coalesced camera list refresh, the camera grace after a
+    /// display change, and the USB camera wait. Tests move time by hand.
+    var scheduler: any DelayScheduling
     /// Delivers key presses to the Focus Lock shortcut recorder, only while it records.
     var keyMonitor: any ShortcutKeyMonitoring
     /// How long the camera may take to start before a gate test gives up.
@@ -56,6 +59,7 @@ struct AppModelEnvironment {
             focusTickInterval: .milliseconds(100),
             trackingTickInterval: .seconds(AppModel.focusedDisplayPollInterval),
             setupTickInterval: .seconds(1),
+            scheduler: TaskDelayScheduler(),
             keyMonitor: LocalShortcutKeyMonitor(),
             cameraStartTimeout: 10
         )

@@ -11,6 +11,7 @@ extension AppModel {
     func setFocusLock(_ locked: Bool) {
         guard locked != focusLocked else { return }
         focusLocked = locked
+        syncPoseDemand()
         SwayLogger.tracking.info("Focus Lock \(locked ? "on" : "off", privacy: .public)")
     }
 

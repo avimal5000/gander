@@ -22,6 +22,8 @@ enum TrackingStatus: Equatable {
     case starting
     /// The camera is interrupted; carries the interruption text.
     case cameraBusy(String)
+    /// The camera the user chose is unplugged and Sway is waiting for it (SPEC D46); carries its name.
+    case cameraDisconnected(String)
     case needsAccessibility
     case focusLock
     case tracking
@@ -40,6 +42,9 @@ enum TrackingStatus: Equatable {
         var accessibilityTrusted: Bool
         var focusLocked: Bool
         var hasFace: Bool
+        /// The name of the camera the user chose when it is unplugged and no other camera has taken over; with an
+        /// interrupted capture, the status then names it.
+        var disconnectedCamera: String?
     }
 
     /// How alarming the status is, for the dot in the popover.
@@ -76,6 +81,7 @@ enum TrackingStatus: Equatable {
         case .suspended(let reason):
             return .suspended(reason)
         case .interrupted(let text):
+            if let name = snapshot.disconnectedCamera { return .cameraDisconnected(name) }
             return .cameraBusy(text)
         case .starting, .stopped, .failed:
             // `.stopped` with Tracking on and a calibration is the moment before the camera starts.
@@ -91,7 +97,7 @@ enum TrackingStatus: Equatable {
     /// (`MenuBarGlyph`, SPEC D37).
     var symbol: String {
         switch self {
-        case .cameraBlocked, .cameraFailed, .cameraBusy: "exclamationmark.triangle"
+        case .cameraBlocked, .cameraFailed, .cameraBusy, .cameraDisconnected: "exclamationmark.triangle"
         case .paused: "eye.slash"
         case .calibrating: "scope"
         case .oneDisplay: "display"
@@ -118,6 +124,7 @@ enum TrackingStatus: Equatable {
         case .starting: "Starting camera"
         case .cameraBusy(let text):
             Self.isUsedByAnotherApp(text) ? "Camera busy" : CaptureStatus.interrupted(text).summary
+        case .cameraDisconnected(let name): "\(name) disconnected"
         case .needsAccessibility: "Needs Accessibility"
         case .focusLock: "Focus Lock on"
         case .tracking: "Tracking"
@@ -127,7 +134,7 @@ enum TrackingStatus: Equatable {
 
     var tone: Tone {
         switch self {
-        case .cameraBlocked, .cameraFailed, .cameraBusy: .problem
+        case .cameraBlocked, .cameraFailed, .cameraBusy, .cameraDisconnected: .problem
         case .paused, .oneDisplay: .idle
         case .calibrating, .needsCalibration, .suspended, .starting, .needsAccessibility: .attention
         case .focusLock, .tracking, .noFace: .active

@@ -13,6 +13,10 @@ import os
 /// echoes that come from layering on a frame source: its own `.starting` right after ours, and the `.failed` it
 /// reports just before its `start` throws, which this source then reports too. The stream therefore carries one
 /// `.starting` and at most one `.failed` per run.
+///
+/// Not every frame is estimated (SPEC D45). An `AdaptiveFrameRate` decides per frame, before the estimator runs, so
+/// the rate never exceeds 15 fps whatever the device delivers, and falls further when `setDemand` asks for less or
+/// when no face has been seen for a while. A skipped frame yields nothing and is not kept.
 public final class LivePoseSource: PoseSource {
     /// The mutable run state, guarded by `state`.
     private struct RunState: Sendable {
@@ -23,10 +27,18 @@ public final class LivePoseSource: PoseSource {
         var continuation: AsyncStream<PoseSourceEvent>.Continuation?
         /// The last status yielded on the active run's stream, for dropping consecutive duplicates.
         var lastStatus: CaptureStatus?
+        /// Which frames to estimate; reset on every start, which also puts the demand back to `.full`.
+        var rate = AdaptiveFrameRate()
+        /// Frame time of the last read of the power state, so it is read at most once per second of frame time.
+        var lastPowerPoll: TimeInterval?
     }
+
+    /// Seconds of frame time between reads of the power state.
+    private static let powerPollInterval: TimeInterval = 1
 
     private let frameSource: any FrameSource
     private let estimator: any PoseEstimating
+    private let isPowerConstrained: @Sendable () -> Bool
     private let logger = SwayLog.logger(category: "pose")
     private let state = OSAllocatedUnfairLock(initialState: RunState())
     /// Serializes `start` and `stop` so they never interleave across their suspension points.
@@ -35,18 +47,40 @@ public final class LivePoseSource: PoseSource {
     /// test can observe events of a run whose `start` throws (the caller never receives that stream).
     private let streamObserver: (@Sendable (AsyncStream<PoseSourceEvent>) -> Void)?
 
-    public convenience init(frameSource: any FrameSource, estimator: any PoseEstimating) {
-        self.init(frameSource: frameSource, estimator: estimator, streamObserver: nil)
+    /// Creates a source that feeds the frames of `frameSource` to `estimator`.
+    /// - Parameter isPowerConstrained: whether Low Power Mode or a serious heat level applies, which lowers the
+    ///   adaptive rates. Read at most once per second of frame time, on the capture queue. Tests inject their own.
+    public convenience init(
+        frameSource: any FrameSource,
+        estimator: any PoseEstimating,
+        isPowerConstrained: @escaping @Sendable () -> Bool = LivePoseSource.systemPowerConstrained
+    ) {
+        self.init(
+            frameSource: frameSource, estimator: estimator, isPowerConstrained: isPowerConstrained, streamObserver: nil)
     }
 
     init(
         frameSource: any FrameSource,
         estimator: any PoseEstimating,
+        isPowerConstrained: @escaping @Sendable () -> Bool = LivePoseSource.systemPowerConstrained,
         streamObserver: (@Sendable (AsyncStream<PoseSourceEvent>) -> Void)?
     ) {
         self.frameSource = frameSource
         self.estimator = estimator
+        self.isPowerConstrained = isPowerConstrained
         self.streamObserver = streamObserver
+    }
+
+    /// Whether the machine asks apps to save power: Low Power Mode, or a serious or critical heat level. The default
+    /// for `init`'s `isPowerConstrained`, so it is public.
+    public static func systemPowerConstrained() -> Bool {
+        let info = ProcessInfo.processInfo
+        return isConstrained(lowPowerMode: info.isLowPowerModeEnabled, thermalState: info.thermalState)
+    }
+
+    /// The pure rule behind `systemPowerConstrained`.
+    static func isConstrained(lowPowerMode: Bool, thermalState: ProcessInfo.ThermalState) -> Bool {
+        lowPowerMode || thermalState == .serious || thermalState == .critical
     }
 
     deinit {
@@ -78,6 +112,8 @@ public final class LivePoseSource: PoseSource {
             state.generation &+= 1
             state.continuation = continuation
             state.lastStatus = .starting
+            state.rate.reset()
+            state.lastPowerPoll = nil
             return state.generation
         }
         continuation.onTermination = { [weak self] _ in
@@ -90,13 +126,22 @@ public final class LivePoseSource: PoseSource {
 
         let state = state
         let estimator = estimator
+        let isPowerConstrained = isPowerConstrained
+        let logger = logger
         do {
             try await frameSource.start(
                 deviceID: configuration.cameraDeviceID,
                 frameRate: configuration.frameRate,
                 frameHandler: { frame in
-                    guard state.withLock({ $0.generation == generation }) else { return }
+                    guard
+                        Self.shouldEstimate(
+                            frameAt: frame.timestamp, generation: generation, state: state,
+                            isPowerConstrained: isPowerConstrained, logger: logger)
+                    else { return }
                     let pose = estimator.estimate(frame, includeLandmarks: configuration.includeLandmarks)
+                    state.withLock { state in
+                        if state.generation == generation { state.rate.record(face: pose != nil, at: frame.timestamp) }
+                    }
                     continuation.yield(.sample(PoseSample(timestamp: frame.timestamp, pose: pose)))
                 },
                 statusHandler: { status in
@@ -114,6 +159,49 @@ public final class LivePoseSource: PoseSource {
         await gate.acquire()
         defer { gate.release() }
         await endRun()
+    }
+
+    /// Changes how much frame rate is wanted. Takes effect on the next frame and lasts until the next call or the
+    /// next `start`, which goes back to `.full`.
+    public func setDemand(_ demand: PoseDemand) {
+        let changed = state.withLock { state -> Bool in
+            guard state.rate.demand != demand else { return false }
+            state.rate.setDemand(demand)
+            return true
+        }
+        if changed { logger.debug("Pose demand: \(String(describing: demand), privacy: .public)") }
+    }
+
+    /// Whether the frame at `t` on the run with `generation` should be estimated. Runs on the capture queue for
+    /// every frame the device delivers, so it stays cheap.
+    ///
+    /// The power state is read at most once per second of frame time, outside the lock. Frames of a retired run
+    /// are never estimated.
+    private static func shouldEstimate(
+        frameAt t: TimeInterval,
+        generation: UInt64,
+        state: OSAllocatedUnfairLock<RunState>,
+        isPowerConstrained: @Sendable () -> Bool,
+        logger: Logger
+    ) -> Bool {
+        let pollIsDue = state.withLock { state -> Bool in
+            guard state.generation == generation else { return false }
+            if let last = state.lastPowerPoll, t >= last, t - last < Self.powerPollInterval { return false }
+            state.lastPowerPoll = t
+            return true
+        }
+        let constrained = pollIsDue ? isPowerConstrained() : nil
+        let (process, newConstraint) = state.withLock { state -> (process: Bool, newConstraint: Bool?) in
+            guard state.generation == generation else { return (false, nil) }
+            var newConstraint: Bool?
+            if let constrained, constrained != state.rate.isPowerConstrained {
+                state.rate.setPowerConstrained(constrained)
+                newConstraint = constrained
+            }
+            return (state.rate.shouldProcess(frameAt: t), newConstraint)
+        }
+        if let newConstraint { logger.info("Power constrained: \(newConstraint, privacy: .public)") }
+        return process
     }
 
     /// Ends the active run if it is still the run with `generation` (the consumer abandoned its stream).

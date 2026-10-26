@@ -18,7 +18,8 @@ enum MenuBarGlyph: CaseIterable, Hashable, Sendable {
             self = .paused
         case .focusLock:
             self = .focusLock
-        case .cameraBlocked, .cameraFailed, .cameraBusy, .needsCalibration, .needsAccessibility:
+        case .cameraBlocked, .cameraFailed, .cameraBusy, .cameraDisconnected, .needsCalibration,
+            .needsAccessibility:
             self = .attention
         }
     }
