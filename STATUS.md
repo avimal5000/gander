@@ -6,7 +6,10 @@ Phase: **M6, M7, and M8 are merged.** Updated by the orchestrator.
 Still open: **#40**, signing and notarization, until the user adds a Developer ID certificate and the five repository
 secrets (docs/RELEASING.md), and **#39**, the all-day soak test, which the user runs with `scripts/soak.sh`. The
 user's hardware checks for M6 and M7 (SPEC §9) are still to do. Decisions: no auto-update, first version 0.1.0.
-Then: tag `v0.1.0` to release.
+The user chose to release v0.1.0 unsigned (ad hoc): no Apple Developer account, so #40 stays open. After their M7
+hardware checks, they asked that an unplugged chosen camera with nothing calibrated to fall back to turns Tracking
+off (SPEC D46 revised; PR from `fix/camera-loss-turns-tracking-off`). CPU away was about 6% on their Mac, the camera
+light goes off on lock, and display and camera unplugging worked. Then: tag `v0.1.0` to release.
 
 ## Orchestrator tasks
 

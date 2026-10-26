@@ -22,7 +22,8 @@ enum TrackingStatus: Equatable {
     case starting
     /// The camera is interrupted; carries the interruption text.
     case cameraBusy(String)
-    /// The camera the user chose is unplugged and Sway is waiting for it (SPEC D46); carries its name.
+    /// The camera the user chose is unplugged: Sway waits for it, or turned Tracking off when no calibrated camera was
+    /// left (SPEC D46); carries its name.
     case cameraDisconnected(String)
     case needsAccessibility
     case focusLock
@@ -42,8 +43,9 @@ enum TrackingStatus: Equatable {
         var accessibilityTrusted: Bool
         var focusLocked: Bool
         var hasFace: Bool
-        /// The name of the camera the user chose when it is unplugged and no other camera has taken over; with an
-        /// interrupted capture, the status then names it.
+        /// The name of the camera the user chose when it is unplugged and no other camera has taken over. With an
+        /// interrupted capture the status names it; with Tracking turned off for it (SPEC D46) it names it instead of
+        /// "Paused".
         var disconnectedCamera: String?
     }
 
@@ -69,7 +71,10 @@ enum TrackingStatus: Equatable {
         if snapshot.trackingEnabled, denied { return .cameraBlocked }
         if case .failed = snapshot.capture { return .cameraFailed }
         if snapshot.calibrationRunning { return .calibrating }
-        if !snapshot.trackingEnabled { return .paused }
+        if !snapshot.trackingEnabled {
+            if let name = snapshot.disconnectedCamera { return .cameraDisconnected(name) }
+            return .paused
+        }
         if snapshot.displayCount < 2 { return .oneDisplay }
         if !snapshot.hasCalibration { return .needsCalibration }
         return nil

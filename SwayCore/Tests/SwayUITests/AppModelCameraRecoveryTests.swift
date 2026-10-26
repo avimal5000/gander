@@ -395,24 +395,20 @@ struct AppModelCameraRecoveryTests {
         #expect(h.model.trackingStatus == .noFace)
     }
 
-    @Test func onlyACameraWithACalibrationTakesOverAndOtherwiseSwayKeepsWaiting() async {
-        let h = await fallbackHarness(calibrated: [external])
+    @Test func aCalibratedCameraTakesOverWhileTheWaitBeforeItShowsTheMissingCamera() async {
+        let h = await fallbackHarness(calibrated: [external, builtIn])
         defer { h.tearDown() }
 
         unplugExternal(h)
-        h.scheduler.advance(by: 30)
+        h.scheduler.advance(by: 4.99)
         await h.model.cameraOperation?.value
+        #expect(h.model.statusLine == "Logitech C922 disconnected", "Waiting for the five seconds")
+        #expect(h.model.trackingEnabled)
+        #expect(h.pose.stopCount == 0)
 
-        #expect(h.pose.startCount == 1)
-        #expect(h.pose.stopCount == 0, "The camera session is kept, waiting")
-        #expect(h.model.fallbackCamera == nil)
-        #expect(h.model.isCameraActive)
-        #expect(h.model.statusLine == "Logitech C922 disconnected")
-        #expect(h.model.activeCalibration != nil)
-
-        // A calibration for the built-in camera appears: it takes over without another 5 s.
-        h.model.saveToLibrary(Fixtures.profile(cameraName: builtIn.name))
+        h.scheduler.advance(by: 0.01)
         await h.model.cameraOperation?.value
+        #expect(h.model.trackingEnabled, "A calibrated camera exists: nothing turns off")
         #expect(h.pose.configurations.map(\.cameraDeviceID) == ["cam-external", "cam-builtin"])
     }
 
@@ -457,6 +453,7 @@ struct AppModelCameraRecoveryTests {
 
         #expect(h.model.fallbackCamera == nil, "The built-in camera has a calibration but is not connected")
         #expect(h.pose.startCount == 1)
+        #expect(!h.model.trackingEnabled, "Nothing usable is left, so Tracking is off")
     }
 
     @Test func aCameraStillConnectedButBusyNeverFallsBack() async {
@@ -604,6 +601,275 @@ struct AppModelCameraRecoveryTests {
         await h.model.cameraOperation?.value
         #expect(h.model.fallbackCamera == nil)
         #expect(h.pose.configurations.last?.cameraDeviceID == "cam-external")
+    }
+
+    // MARK: No usable fallback turns Tracking off (SPEC D46, revised)
+
+    /// The external camera is unplugged and only it is calibrated; five seconds have passed.
+    private func lostCameraHarness() async -> Harness {
+        let h = await fallbackHarness(calibrated: [external])
+        unplugExternal(h)
+        h.scheduler.advance(by: AppModel.cameraFallbackDelay)
+        await h.model.cameraOperation?.value
+        return h
+    }
+
+    @Test func withNoCalibratedCameraTheFiveSecondsTurnTrackingOffAndStopTheCamera() async {
+        let h = await fallbackHarness(calibrated: [external])
+        defer { h.tearDown() }
+        unplugExternal(h)
+
+        h.scheduler.advance(by: 4.99)
+        await h.model.cameraOperation?.value
+        #expect(h.model.trackingEnabled, "Not yet")
+        #expect(h.model.isCameraActive)
+        #expect(h.model.statusLine == "Logitech C922 disconnected")
+
+        h.scheduler.advance(by: 0.01)
+        await h.model.cameraOperation?.value
+        #expect(!h.model.trackingEnabled)
+        #expect(!h.model.isCameraActive, "The camera light goes off")
+        #expect(h.pose.stopCount >= 1)
+        #expect(h.model.status == .stopped)
+        #expect(!h.scheduler.hasPending, "No timer is left behind")
+        #expect(h.model.fallbackCamera == nil)
+        #expect(h.pose.startCount == 1)
+    }
+
+    @Test func turningTrackingOffForALostCameraNeverWritesTheSavedChoice() async {
+        let h = await lostCameraHarness()
+        defer { h.tearDown() }
+
+        #expect(!h.model.trackingEnabled)
+        #expect(h.defaults.bool(forKey: "sway.trackingEnabled"), "The saved choice is the user's, still on (D23)")
+        #expect(h.relaunchedModel().trackingEnabled)
+        #expect(h.model.selectedCameraID == external.id)
+        #expect(h.defaults.string(forKey: "sway.cameraDeviceID") == external.id)
+    }
+
+    @Test func whileTheCameraIsGoneTheStatusNamesItInsteadOfPaused() async {
+        let h = await lostCameraHarness()
+        defer { h.tearDown() }
+
+        #expect(h.model.trackingStatus == .cameraDisconnected(external.name))
+        #expect(h.model.statusLine == "Logitech C922 disconnected")
+        #expect(h.model.menuBarGlyph == .attention, "The same \"needs you\" glyph as before")
+    }
+
+    @Test func whenTheCameraComesBackTheStatusIsPausedAndTrackingStaysOff() async {
+        let h = await lostCameraHarness()
+        defer { h.tearDown() }
+        let starts = h.pose.startCount
+
+        replugExternal(h)
+        await h.model.cameraOperation?.value
+        h.scheduler.advance(by: 30)
+        await h.model.cameraOperation?.value
+
+        #expect(h.model.trackingStatus == .paused)
+        #expect(h.model.statusLine == "Paused")
+        #expect(!h.model.trackingEnabled, "Tracking does not come back by itself")
+        #expect(h.pose.startCount == starts)
+        #expect(!h.model.isCameraActive)
+        #expect(h.model.menuBarGlyph == .paused)
+    }
+
+    @Test func theUserCanTurnTrackingOnAfterTheCameraReturnsAndItRunsOnTheChosenCamera() async {
+        let h = await lostCameraHarness()
+        defer { h.tearDown() }
+        replugExternal(h)
+
+        await h.model.setTrackingEnabled(true)
+
+        #expect(h.model.trackingEnabled)
+        #expect(h.pose.configurations.last?.cameraDeviceID == "cam-external")
+        let running = await waitUntil { h.model.status == .running(Fixtures.externalCamera) }
+        #expect(running)
+        #expect(h.model.activeCalibration?.saved.cameraName == external.name)
+        #expect(h.defaults.bool(forKey: "sway.trackingEnabled"))
+    }
+
+    @Test func turningTrackingOnWhileTheCameraIsStillGoneAddsNoLoop() async {
+        let h = await lostCameraHarness()
+        defer { h.tearDown() }
+        let starts = h.pose.startCount
+
+        // Nothing is calibrated for the camera capture would open now: Tracking waits for a calibration, as before.
+        await h.model.setTrackingEnabled(true)
+        await h.model.cameraOperation?.value
+        h.scheduler.advance(by: 60)
+        await h.model.cameraOperation?.value
+
+        #expect(h.model.trackingEnabled)
+        #expect(h.model.trackingStatus == .needsCalibration)
+        #expect(h.pose.startCount == starts)
+        #expect(!h.scheduler.hasPending)
+    }
+
+    @Test func turningTrackingOnWhileTheCameraIsStillGoneAndNotReadyUsesTheExistingFailurePath() async {
+        let h = await lostCameraHarness()
+        defer { h.tearDown() }
+        // The built-in camera gets a calibration, so capture's own rule has something to start; the camera is not ready.
+        h.model.saveToLibrary(Fixtures.profile(cameraName: builtIn.name))
+        h.pose.failNextStarts(with: [.noDevice])
+
+        await h.model.setTrackingEnabled(true)
+        await h.model.cameraOperation?.value
+
+        #expect(!h.model.trackingEnabled, "Turned off again, as for any camera that cannot start")
+        #expect(h.model.trackingStatus == .cameraFailed)
+        h.scheduler.advance(by: 60)
+        await h.model.cameraOperation?.value
+        #expect(h.pose.startCount == 2, "One try, no loop")
+        #expect(!h.scheduler.hasPending)
+    }
+
+    @Test func pickingAnotherCameraEndsTheLostCameraStatus() async {
+        let h = await lostCameraHarness()
+        defer { h.tearDown() }
+
+        await h.model.selectCamera(builtIn.id)
+
+        #expect(h.model.trackingStatus != .cameraDisconnected(external.name))
+        #expect(h.model.lostCameraID == nil)
+    }
+
+    @Test func aStandInThatIsAlsoDisconnectedWithNothingElseUsableTurnsTrackingOff() async {
+        let h = await standInHarness()
+        defer { h.tearDown() }
+        #expect(h.model.fallbackCamera == builtIn)
+
+        h.camera.setDevices([])
+        h.model.handle(.status(.interrupted("Camera disconnected")))
+        h.notifications.post(name: disconnected, object: nil)
+        h.scheduler.advance(by: AppModel.environmentRefreshDelay)
+        h.scheduler.advance(by: 4.99)
+        await h.model.cameraOperation?.value
+        #expect(h.model.trackingEnabled, "Not yet")
+
+        h.scheduler.advance(by: 0.01)
+        await h.model.cameraOperation?.value
+
+        #expect(!h.model.trackingEnabled)
+        #expect(!h.model.isCameraActive)
+        #expect(h.model.fallbackCamera == nil)
+        #expect(h.model.trackingStatus == .cameraDisconnected(external.name), "The camera the user chose")
+        #expect(h.defaults.bool(forKey: "sway.trackingEnabled"))
+        #expect(!h.scheduler.hasPending)
+    }
+
+    @Test func aStandInThatIsAlsoDisconnectedMovesToAnotherCalibratedCameraIfThereIsOne() async {
+        let h = await fallbackHarness(
+            cameras: [builtIn, external, otherUSB], calibrated: [external, builtIn, otherUSB])
+        defer { h.tearDown() }
+        unplugExternal(h, leaving: [builtIn, otherUSB])
+        h.scheduler.advance(by: 5)
+        await h.model.cameraOperation?.value
+        _ = await waitUntil { h.model.status == .running(Fixtures.builtInCamera) }
+        #expect(h.model.fallbackCamera == builtIn)
+
+        h.camera.setDevices([otherUSB])
+        h.model.handle(.status(.interrupted("Camera disconnected")))
+        h.notifications.post(name: disconnected, object: nil)
+        h.scheduler.advance(by: AppModel.environmentRefreshDelay)
+        h.scheduler.advance(by: 5)
+        await h.model.cameraOperation?.value
+
+        #expect(h.model.trackingEnabled)
+        #expect(h.model.fallbackCamera == otherUSB)
+        #expect(h.pose.configurations.last?.cameraDeviceID == "cam-other")
+    }
+
+    @Test func aFailedRetryWithNothingLeftToUseTurnsTrackingOffAndClearsTheRetry() async {
+        let h = await fallbackHarness(calibrated: [external, builtIn])
+        defer { h.tearDown() }
+        h.pose.failNextStarts(with: [.noDevice])
+        unplugExternal(h)
+        h.scheduler.advance(by: 5)
+        await h.model.cameraOperation?.value
+        #expect(h.model.trackingEnabled, "The first failure only waits for the next try")
+        #expect(h.scheduler.hasPending, "A retry is waiting")
+
+        h.camera.setDevices([])
+        h.notifications.post(name: disconnected, object: nil)
+        h.scheduler.advance(by: AppModel.environmentRefreshDelay)
+        await h.model.cameraOperation?.value
+
+        #expect(!h.model.trackingEnabled)
+        #expect(h.model.trackingStatus == .cameraDisconnected(external.name))
+        #expect(!h.scheduler.hasPending, "The retry is cancelled with it")
+    }
+
+    @Test func nothingTurnsOffWhileTheSetupWindowRunsAndItDoesAfterItCloses() async {
+        let h = await fallbackHarness(calibrated: [external])
+        defer { h.tearDown() }
+        h.openSetup()
+        await h.model.cameraOperation?.value
+
+        unplugExternal(h)
+        h.scheduler.advance(by: 30)
+        await h.model.cameraOperation?.value
+        #expect(h.model.trackingEnabled)
+        #expect(h.model.isCameraActive)
+
+        h.model.closeSetup()
+        await h.model.cameraOperation?.value
+        #expect(!h.model.trackingEnabled, "The wait had already run out")
+        #expect(!h.model.isCameraActive)
+    }
+
+    @Test func nothingTurnsOffWhileTheGateTestRuns() async {
+        let h = await fallbackHarness(calibrated: [external])
+        defer { h.tearDown() }
+        h.model.gateRunState = .startingCamera
+
+        unplugExternal(h)
+        h.scheduler.advance(by: 30)
+        await h.model.cameraOperation?.value
+
+        #expect(h.model.trackingEnabled)
+        #expect(h.model.isCameraActive)
+        #expect(h.model.lostCameraID == nil)
+
+        h.model.gateRunState = .idle
+        h.model.syncTrackingActivity()
+        await h.model.cameraOperation?.value
+        #expect(!h.model.trackingEnabled, "The run is over")
+    }
+
+    @Test func nothingTurnsOffWhileTheCameraIsSuspended() async {
+        let h = await fallbackHarness(calibrated: [external])
+        defer { h.tearDown() }
+        unplugExternal(h)
+        h.scheduler.advance(by: 3)
+
+        h.model.handle(.status(.suspended(.screenLocked)))
+        h.scheduler.advance(by: 60)
+        await h.model.cameraOperation?.value
+        #expect(h.model.trackingEnabled)
+        #expect(h.model.isCameraActive)
+        #expect(h.pose.stopCount == 0)
+
+        // After the wake the camera is still missing: the five seconds start again.
+        h.model.handle(.status(.interrupted("Camera disconnected")))
+        h.scheduler.advance(by: 4.99)
+        await h.model.cameraOperation?.value
+        #expect(h.model.trackingEnabled)
+        h.scheduler.advance(by: 0.01)
+        await h.model.cameraOperation?.value
+        #expect(!h.model.trackingEnabled)
+    }
+
+    @Test func aChosenCameraThatIsStillConnectedNeverTurnsTrackingOff() async {
+        let h = await fallbackHarness(calibrated: [external])
+        defer { h.tearDown() }
+
+        h.model.handle(.status(.interrupted("Camera is in use by another app")))
+        h.scheduler.advance(by: 60)
+        await h.model.cameraOperation?.value
+
+        #expect(h.model.trackingEnabled)
+        #expect(h.model.statusLine == "Camera busy")
     }
 
     // MARK: A failed restart during a fallback never turns Tracking off

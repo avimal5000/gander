@@ -192,6 +192,30 @@ struct TrackingStatusTests {
         #expect(MenuBarGlyph(waiting) == .attention)
     }
 
+    @Test func trackingTurnedOffForAnUnpluggedCameraNamesItInsteadOfPaused() {
+        let lost = status {
+            $0.trackingEnabled = false; $0.capture = .stopped; $0.disconnectedCamera = "Logitech C922"
+        }
+        #expect(lost == .cameraDisconnected("Logitech C922"))
+        #expect(lost.line == "Logitech C922 disconnected")
+        #expect(MenuBarGlyph(lost) == .attention)
+        #expect(
+            status {
+                $0.trackingEnabled = false; $0.capture = .stopped
+            } == .paused, "No lost camera: Paused")
+    }
+
+    @Test func aRunningCalibrationOrAFailedCameraBeatsTheLostCameraWhileTrackingIsOff() {
+        #expect(
+            status {
+                $0.trackingEnabled = false; $0.disconnectedCamera = "Logitech C922"; $0.calibrationRunning = true
+            } == .calibrating)
+        #expect(
+            status {
+                $0.trackingEnabled = false; $0.disconnectedCamera = "Logitech C922"; $0.capture = .failed(.noDevice)
+            } == .cameraFailed)
+    }
+
     @Test func theUnpluggedCameraOnlyCountsWhileCaptureIsInterruptedAndNothingBeatsItAbove() {
         #expect(status { $0.disconnectedCamera = "Logitech C922" } == .tracking, "Running: the stand-in works")
         #expect(

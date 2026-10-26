@@ -4,9 +4,11 @@ import SwayModels
 // The USB camera fallback (SPEC D46, CONTRACT 6.5.5 item 7). When the camera the user chose is unplugged and capture
 // stays interrupted for 5 s, Sway restarts the pose source on a connected camera that has a calibration for the
 // current displays (the built-in first), and restarts it on the chosen camera once that is connected again. With no
-// calibrated stand-in it keeps waiting, and the status says which camera is missing. The saved camera choice
-// (`selectedCameraID`) is never touched: the stand-in lives in `fallbackCamera` and in the pose source configuration
-// alone. Cameras are never swapped while a calibration, the gate test, or the Setup window runs.
+// calibrated camera to use, Sway turns Tracking off in memory (the saved choice stays, as for a camera failure, D23)
+// and the status names the missing camera until it is connected again; the user turns Tracking back on. The saved
+// camera choice (`selectedCameraID`) is never touched: the stand-in lives in `fallbackCamera` and in the pose source
+// configuration alone. Nothing changes while a calibration, the gate test, or the Setup window runs, or while the
+// camera is suspended.
 extension AppModel {
     /// How long the chosen camera may stay unplugged, with capture interrupted, before a stand-in takes over, in
     /// seconds.
@@ -43,16 +45,41 @@ extension AppModel {
         return devices.contains { $0.id == id }
     }
 
-    /// Capture is interrupted and the chosen camera is the one that went missing.
-    private var isChosenCameraLost: Bool {
+    /// A stand-in that was running and is no longer connected.
+    private var unpluggedStandIn: CameraDevice? {
+        guard streamTask != nil, let standIn = fallbackCamera, let device = runningDevice, device.id == standIn.id,
+            !devices.contains(where: { $0.id == standIn.id })
+        else { return nil }
+        return device
+    }
+
+    /// Capture is interrupted and the camera it runs, the chosen one or its stand-in, is the one that went missing.
+    private var isRunningCameraLost: Bool {
         guard case .interrupted = status else { return false }
-        return unpluggedChosenCamera != nil
+        return unpluggedChosenCamera != nil || unpluggedStandIn != nil
     }
 
     /// A start that the fallback began failed because the camera was not ready: nothing runs, Tracking is still on, and
     /// the next device change (or the retry timer) tries again.
     private var isRetryPending: Bool {
         cameraLossElapsed && streamTask == nil && trackingEnabled
+    }
+
+    /// Remembers every listed camera's name, so a camera that has gone is still called by it.
+    func rememberCameraNames() {
+        for device in devices { knownCameraNames[device.id] = device.name }
+    }
+
+    /// What the status names as disconnected. With Tracking on, the chosen camera while capture waits for it. With
+    /// Tracking off, the chosen camera that Tracking was turned off for, until it is connected again.
+    var disconnectedCameraName: String? {
+        if !trackingEnabled {
+            guard let id = lostCameraID, id == selectedCameraID, !devices.contains(where: { $0.id == id }) else {
+                return nil
+            }
+            return knownCameraNames[id] ?? "The chosen camera"
+        }
+        return fallbackCamera == nil ? unpluggedChosenCamera?.name : nil
     }
 
     /// A connected camera other than the chosen one that has a calibration for the current displays: the built-in if
@@ -69,18 +96,18 @@ extension AppModel {
     /// Brings the fallback in line with the camera state. Idempotent and cheap: called whenever the capture status, the
     /// device list, the calibrations, the displays, or a calibration or Setup run changes.
     func syncCameraFallback() {
-        if fallbackCamera != nil {
+        // The camera Tracking was turned off for is back, or the user took over: the status is "Paused" again.
+        if lostCameraID != nil, trackingEnabled || isChosenCameraConnected { lostCameraID = nil }
+        if fallbackCamera != nil, isChosenCameraConnected {
             cancelCameraLossWait()
             // Never restart the source while the camera is suspended (asleep, locked): that waits for the wake. A switch
             // back that just failed waits for its retry.
-            if isChosenCameraConnected, !isCameraLockedByCalibration, !status.isSuspended,
-                !fallbackSwitchBackDeferred
-            {
+            if !isCameraLockedByCalibration, !status.isSuspended, !fallbackSwitchBackDeferred {
                 endCameraFallback()
             }
             return
         }
-        guard isChosenCameraLost || isRetryPending else {
+        guard trackingEnabled, isRunningCameraLost || isRetryPending else {
             cancelCameraLossWait()
             return
         }
@@ -105,10 +132,10 @@ extension AppModel {
         cameraLossElapsed = false
     }
 
-    /// The wait is over: restart on a calibrated stand-in, if there is one now. Otherwise keep waiting, and try again
-    /// whenever something changes.
+    /// The wait is over: restart on a calibrated stand-in, if there is one now. Otherwise nothing is left to use, and
+    /// Tracking is turned off.
     private func startCameraFallback() {
-        guard trackingEnabled, !isCameraLockedByCalibration else { return }
+        guard trackingEnabled, !isCameraLockedByCalibration, !status.isSuspended else { return }
         if isChosenCameraConnected {
             // Only reached when a start failed and nothing runs: the chosen camera is back, so start on it.
             cancelCameraLossWait()
@@ -116,13 +143,32 @@ extension AppModel {
             reconcileForFallback(.chosen(replacing: nil))
             return
         }
-        guard let device = fallbackCandidate() else { return }
+        guard let device = fallbackCandidate() else {
+            turnTrackingOffForLostCamera()
+            return
+        }
         cancelCameraLossWait()
         fallbackCamera = device
         log.info("The chosen camera is unplugged; continuing with another calibrated camera")
         // From here the calibration is looked up for the stand-in, and the changed configuration restarts the source.
         refreshActiveCalibration(reconcile: false)
         reconcileForFallback(.standIn)
+    }
+
+    /// No connected camera has a calibration for these displays: turn Tracking off, in memory only (the saved choice is
+    /// the user's, as for a camera failure, D23), and let the camera go. The status names the chosen camera until it
+    /// is connected again, and Tracking stays off until the user turns it on.
+    private func turnTrackingOffForLostCamera() {
+        guard let id = selectedCameraID else { return }
+        log.info("The chosen camera is unplugged and no other camera is calibrated; Tracking is turned off")
+        clearCameraFallback()
+        lostCameraID = id
+        // A failed retry left "failed" on screen; the lost camera is the reason, and the status names it.
+        if case .failed = status { status = .stopped }
+        trackingEnabled = false
+        resetTracking()
+        syncTrackingActivity()
+        reconcileCamera()
     }
 
     /// The chosen camera is connected again: restart on it.
