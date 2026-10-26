@@ -18,6 +18,15 @@ struct StatusPresentationTests {
         #expect(CaptureStatus.failed(.runtimeFailure("boom")).summary == "Failed: boom")
     }
 
+    @Test func anotherUsersSessionReadsAsSuch() {
+        #expect(SuspendReason.sessionInactive.userDescription == "another user's session")
+        #expect(
+            CaptureStatus.suspended(.sessionInactive).summary == "Suspended: another user's session")
+        #expect(CaptureStatus.suspended(.sessionInactive).isSuspended)
+        #expect(!CaptureStatus.running(nil).isSuspended)
+        #expect(!CaptureStatus.interrupted("x").isSuspended)
+    }
+
     @Test func traceErrorsExplainThemselves() {
         #expect(TraceStoreError.disabledInReleaseBuilds.userMessage == "Traces are only saved in debug builds.")
         #expect(TraceStoreError.io("disk full").userMessage.contains("disk full"))
@@ -155,6 +164,11 @@ struct SwitchPreviewWordingTests {
         #expect(TrackingHold.swayInFront.text == "Sway is in front")
         #expect(TrackingHold.switching.text == "Switching\u{2026}")
         #expect(TrackingHold.focusTest.text == "Focus Test running")
+    }
+
+    @Test func theDisplayAndSpaceHoldsHaveTheirOwnWording() {
+        #expect(TrackingHold.displaysChanging.text == "Displays changing\u{2026}")
+        #expect(TrackingHold.spaceChanging.text == "Space changing\u{2026}")
     }
 
     @Test func theSwitchLogNamesTheAppAndTheDisplayNeverTheTitle() {

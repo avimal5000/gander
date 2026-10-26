@@ -123,7 +123,8 @@ enum PreviewSupport {
                 feedback: PreviewFeedback(), reduceMotion: { false },
                 notificationCenter: NotificationCenter(), workspaceNotificationCenter: NotificationCenter(),
                 isAppActive: { false }, gateTickInterval: nil, focusTickInterval: nil, trackingTickInterval: nil,
-                setupTickInterval: nil, keyMonitor: PreviewKeyMonitor(), cameraStartTimeout: 10
+                setupTickInterval: nil, scheduler: TaskDelayScheduler(), keyMonitor: PreviewKeyMonitor(),
+                cameraStartTimeout: 10
             )
         )
         if withAnalysis {

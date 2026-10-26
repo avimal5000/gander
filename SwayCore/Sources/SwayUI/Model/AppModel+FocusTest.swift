@@ -22,6 +22,7 @@ extension AppModel {
     func startFocusTest() {
         guard hasWindowRequest(SwayWindowID.focusTest), !focusTestVisible else { return }
         focusTestVisible = true
+        syncPoseDemand()
         nextFocusPoll = environment.clock() + Self.focusPollInterval
         startFocusTimer()
         refreshFocusTest()
@@ -32,6 +33,7 @@ extension AppModel {
     /// while the window shows them.
     func stopFocusTest() {
         focusTestVisible = false
+        syncPoseDemand()
         focusTickTask?.cancel()
         focusTickTask = nil
         focusPollTask?.cancel()
@@ -133,7 +135,10 @@ extension AppModel {
 
     private func finishFocus(_ result: FocusResult) {
         appendFocusLog(FocusTestPresentation.logText(for: result, displayName: { displayName(for: $0) }))
-        if case .notTrusted = result { isAccessibilityTrusted = false }
+        if case .notTrusted = result {
+            isAccessibilityTrusted = false
+            syncPoseDemand()
+        }
         focusActivity = .idle
         focusRequestTask = nil
         // Show the outcome at once instead of up to a second later.

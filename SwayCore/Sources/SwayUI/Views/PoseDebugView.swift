@@ -18,9 +18,19 @@ struct PoseDebugView: View {
         // Bounds on both sides of each axis: the window's minimum size then comes from this frame alone. With only
         // minimums, AppKit re-measured the whole content (plot included) on every update, once per camera frame.
         .frame(minWidth: 640, maxWidth: .infinity, minHeight: 640, maxHeight: .infinity)
-        .background(WindowVisibilityReader { showsLiveContent = $0 })
+        .background(
+            WindowVisibilityReader {
+                showsLiveContent = $0
+                model.setPoseDebugVisible($0)
+            }
+        )
         .tint(model.accentChoice.tint)
-        .onAppear { model.refreshEnvironment() }
+        .onAppear {
+            model.refreshEnvironment()
+            // Its live numbers and plot need every frame (SPEC D45): the pose source runs at the full rate meanwhile.
+            model.setPoseDebugVisible(true)
+        }
+        .onDisappear { model.setPoseDebugVisible(false) }
         .launchGuarded(id: SwayWindowID.poseDebug, model: model)
     }
 

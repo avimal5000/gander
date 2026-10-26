@@ -93,6 +93,8 @@ struct AppModelTrackingSwitchTests {
 
         h.camera.setDevices([Fixtures.builtInCamera, Fixtures.externalCamera])
         h.notifications.post(name: Notification.Name("AVCaptureDeviceWasConnectedNotification"), object: nil)
+        // The device list is read 0.5 s after the last notification, not on each one (CONTRACT 6.5.5 item 5).
+        h.scheduler.advance(by: AppModel.environmentRefreshDelay)
         #expect(h.model.predictedCameraName == Fixtures.externalCamera.name)
         #expect(h.model.activeCalibration != nil)
     }

@@ -4,11 +4,20 @@ import os
 
 /// A pose source whose event stream the test controls.
 final class FakePoseSource: PoseSource {
+    /// One `setDemand` call and how many starts had happened by then.
+    struct DemandCall: Sendable, Equatable {
+        var demand: PoseDemand
+        var startsSoFar: Int
+    }
+
     struct State: Sendable {
         var continuation: AsyncStream<PoseSourceEvent>.Continuation?
         var configurations: [PoseSourceConfiguration] = []
         var startError: CameraError?
+        /// Errors the next starts throw, one each, oldest first; after them starts succeed again.
+        var queuedStartErrors: [CameraError] = []
         var stopCount = 0
+        var demandCalls: [DemandCall] = []
         /// When set, `start` immediately yields `.starting` and then `.running(device)`.
         var autoRunDevice: CameraDevice?
     }
@@ -23,15 +32,24 @@ final class FakePoseSource: PoseSource {
     var startCount: Int { configurations.count }
     var stopCount: Int { state.withLock { $0.stopCount } }
     var isStreaming: Bool { state.withLock { $0.continuation != nil } }
+    var demandCalls: [DemandCall] { state.withLock { $0.demandCalls } }
+    /// The demand of every call, oldest first.
+    var demands: [PoseDemand] { demandCalls.map(\.demand) }
 
     func setStartError(_ error: CameraError?) {
         state.withLock { $0.startError = error }
     }
 
+    /// Makes the next `errors.count` starts throw those errors in order; starts after them succeed.
+    func failNextStarts(with errors: [CameraError]) {
+        state.withLock { $0.queuedStartErrors = errors }
+    }
+
     func start(_ configuration: PoseSourceConfiguration) async throws -> AsyncStream<PoseSourceEvent> {
         let error = state.withLock { state -> CameraError? in
             state.configurations.append(configuration)
-            return state.startError
+            if let error = state.startError { return error }
+            return state.queuedStartErrors.isEmpty ? nil : state.queuedStartErrors.removeFirst()
         }
         if let error { throw error }
         let (stream, continuation) = AsyncStream<PoseSourceEvent>.makeStream()
@@ -40,7 +58,7 @@ final class FakePoseSource: PoseSource {
             state.continuation = continuation
             guard let fallback = state.autoRunDevice else { return nil }
             // Run the camera that was asked for when it is a known one, as the real source does.
-            let known = [Fixtures.builtInCamera, Fixtures.externalCamera]
+            let known = [Fixtures.builtInCamera, Fixtures.externalCamera, Fixtures.secondExternalCamera]
             return known.first { $0.id == configuration.cameraDeviceID } ?? fallback
         }
         if let device {
@@ -48,6 +66,10 @@ final class FakePoseSource: PoseSource {
             continuation.yield(.status(.running(device)))
         }
         return stream
+    }
+
+    func setDemand(_ demand: PoseDemand) {
+        state.withLock { $0.demandCalls.append(DemandCall(demand: demand, startsSoFar: $0.configurations.count)) }
     }
 
     func stop() async {

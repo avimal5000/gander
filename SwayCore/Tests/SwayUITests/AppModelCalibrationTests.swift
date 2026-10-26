@@ -327,6 +327,9 @@ struct AppModelCalibrationTests {
 
         h.model.layoutDidChange(Fixtures.threeDisplays)
         await h.model.cameraOperation?.value
+        #expect(h.model.isCameraActive, "The camera waits out its 2 s grace after a display change")
+        h.scheduler.advance(by: AppModel.cameraGraceDelay)
+        await h.model.cameraOperation?.value
         #expect(!h.model.isCameraActive, "An unknown display set stops the camera")
         #expect(h.pose.stopCount >= 1)
 

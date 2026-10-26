@@ -70,8 +70,8 @@ struct TrackingStatusTests {
     @Test func everySymbolResolvesAsASystemSymbol() {
         let all: [TrackingStatus] = [
             .cameraBlocked, .cameraFailed, .paused, .calibrating, .oneDisplay, .needsCalibration,
-            .suspended(.screenLocked), .starting, .cameraBusy("x"), .needsAccessibility, .focusLock, .tracking,
-            .noFace,
+            .suspended(.screenLocked), .starting, .cameraBusy("x"), .cameraDisconnected("Logitech C922"),
+            .needsAccessibility, .focusLock, .tracking, .noFace,
         ]
         for status in all {
             #expect(
@@ -170,6 +170,42 @@ struct TrackingStatusTests {
             status {
                 $0.focusLocked = true; $0.hasFace = false
             } == .focusLock)
+    }
+
+    // MARK: M7 additions
+
+    @Test func anotherUsersSessionIsSuspendedWithItsOwnText() {
+        let session = status { $0.capture = .suspended(.sessionInactive) }
+        #expect(session == .suspended(.sessionInactive))
+        #expect(session.symbol == "pause.circle")
+        #expect(session.line == "Suspended: another user's session")
+    }
+
+    @Test func anUnpluggedChosenCameraNamesItselfWhileCaptureIsInterrupted() {
+        let waiting = status {
+            $0.capture = .interrupted("Camera disconnected"); $0.disconnectedCamera = "Logitech C922"
+        }
+        #expect(waiting == .cameraDisconnected("Logitech C922"))
+        #expect(waiting.line == "Logitech C922 disconnected")
+        #expect(waiting.symbol == "exclamationmark.triangle")
+        #expect(waiting.tone == .problem)
+        #expect(MenuBarGlyph(waiting) == .attention)
+    }
+
+    @Test func theUnpluggedCameraOnlyCountsWhileCaptureIsInterruptedAndNothingBeatsItAbove() {
+        #expect(status { $0.disconnectedCamera = "Logitech C922" } == .tracking, "Running: the stand-in works")
+        #expect(
+            status {
+                $0.capture = .suspended(.systemSleep); $0.disconnectedCamera = "Logitech C922"
+            } == .suspended(.systemSleep))
+        #expect(
+            status {
+                $0.capture = .interrupted("x"); $0.disconnectedCamera = "Logitech C922"; $0.hasCalibration = false
+            } == .needsCalibration)
+        #expect(
+            status {
+                $0.capture = .interrupted("x"); $0.disconnectedCamera = "Logitech C922"; $0.accessibilityTrusted = false
+            } == .cameraDisconnected("Logitech C922"))
     }
 
     @Test func aStoppedCameraWithTrackingOnAndACalibrationIsAboutToStart() {

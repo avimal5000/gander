@@ -12,6 +12,7 @@ final class FakeFrameSource: FrameSource {
         var fallbackDevice: CameraDevice?
         var requestCount = 0
         var stopCount = 0
+        var deviceListCalls = 0
     }
 
     private let state: OSAllocatedUnfairLock<State>
@@ -26,6 +27,8 @@ final class FakeFrameSource: FrameSource {
 
     var requestCount: Int { state.withLock { $0.requestCount } }
     var stopCount: Int { state.withLock { $0.stopCount } }
+    /// How many times the device list was read (`availableDevices()`).
+    var deviceListCalls: Int { state.withLock { $0.deviceListCalls } }
 
     func setAuthorization(_ value: CameraAuthorization) {
         state.withLock { $0.authorization = value }
@@ -52,7 +55,10 @@ final class FakeFrameSource: FrameSource {
     }
 
     func availableDevices() -> [CameraDevice] {
-        state.withLock { $0.devices }
+        state.withLock {
+            $0.deviceListCalls += 1
+            return $0.devices
+        }
     }
 
     func resolvedDevice(for deviceID: String?) -> CameraDevice? {

@@ -4,7 +4,8 @@ import SwayModels
 import os
 
 /// A deterministic `PoseEstimating`: the pose is a pure function of the frame timestamp, so tests can tell
-/// which frame produced which sample. A negative timestamp means "no face".
+/// which frame produced which sample. A negative timestamp means "no face", unless the test gives `hasFace`, which
+/// then decides for every timestamp (so a scripted stream of increasing times can still have faces come and go).
 final class FakePoseEstimator: PoseEstimating {
     private struct Calls {
         var timestamps: [TimeInterval] = []
@@ -12,6 +13,11 @@ final class FakePoseEstimator: PoseEstimating {
     }
 
     private let calls = OSAllocatedUnfairLock(initialState: Calls())
+    private let hasFace: @Sendable (TimeInterval) -> Bool
+
+    init(hasFace: @escaping @Sendable (TimeInterval) -> Bool = { $0 >= 0 }) {
+        self.hasFace = hasFace
+    }
 
     /// Timestamps of every frame estimated so far, in call order.
     var estimatedTimestamps: [TimeInterval] { calls.withLock { $0.timestamps } }
@@ -38,6 +44,7 @@ final class FakePoseEstimator: PoseEstimating {
             $0.timestamps.append(frame.timestamp)
             $0.includeLandmarks.append(includeLandmarks)
         }
-        return Self.pose(at: frame.timestamp)
+        guard hasFace(frame.timestamp) else { return nil }
+        return Self.pose(at: abs(frame.timestamp))
     }
 }

@@ -44,6 +44,9 @@ public enum SuspendReason: Sendable, Equatable {
     case systemSleep
     case displaysAsleep
     case screenLocked
+    /// Another user's session is active (fast user switching): the camera must not run for a session in the
+    /// background.
+    case sessionInactive
 }
 
 /// Lifecycle state of a frame or pose source.

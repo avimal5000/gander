@@ -29,11 +29,12 @@ extension AppModel {
                 MainActor.assumeIsolated { self?.windowKeyStatusChanged(window, resigned: resigned) }
             }
         }
-        // Another app came to the front: ask where focus is now. Posted on the main thread by AppKit.
-        let activation = environment.workspaceNotificationCenter.addObserver(
-            forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: nil
+        // Displays plugged, unplugged, or rearranged: switching holds until the new layout is known (SPEC D44). Posted
+        // on the main thread by AppKit.
+        let screenParameters = center.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: nil
         ) { [weak self] _ in
-            MainActor.assumeIsolated { self?.pollFocusedDisplay() }
+            MainActor.assumeIsolated { self?.displayParametersDidChange() }
         }
         // A camera connected or disconnected (a late USB camera at login, a dock unplugged): the camera capture would
         // pick, and so the calibration that fits, may have changed. AVFoundation's notification names, spelled out
@@ -41,11 +42,28 @@ extension AppModel {
         let cameraChanges = ["AVCaptureDeviceWasConnectedNotification", "AVCaptureDeviceWasDisconnectedNotification"]
             .map { name in
                 center.addObserver(forName: Notification.Name(name), object: nil, queue: .main) { [weak self] _ in
-                    MainActor.assumeIsolated { self?.refreshEnvironment() }
+                    MainActor.assumeIsolated { self?.cameraDevicesDidChange() }
                 }
             }
-        notificationObservers = [terminate, resign, become] + windowKeyChanges + cameraChanges
-        workspaceObservers = [activation]
+        notificationObservers = [terminate, resign, become, screenParameters] + windowKeyChanges + cameraChanges
+        observeWorkspaceNotifications()
+    }
+
+    /// Watches app activations and Space changes on the injected workspace notification center.
+    private func observeWorkspaceNotifications() {
+        // Another app came to the front: ask where focus is now. Posted on the main thread by AppKit.
+        let activation = environment.workspaceNotificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: nil
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.pollFocusedDisplay() }
+        }
+        // A Space changed: switching holds for a moment (SPEC D44). Posted on the main thread by AppKit.
+        let spaceChange = environment.workspaceNotificationCenter.addObserver(
+            forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: nil
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.activeSpaceDidChange() }
+        }
+        workspaceObservers = [activation, spaceChange]
     }
 
     /// Follows the display layout; a change during a gate test cancels it.
@@ -61,6 +79,7 @@ extension AppModel {
 
     func layoutDidChange(_ newLayout: DisplayLayout) {
         guard newLayout != layout else { return }
+        let cameraWasWanted = wantsCamera
         layout = newLayout
         displayLabels = DisplayLabeler.labels(for: newLayout)
         // Display identities may have changed, so a dwell or the believed focus no longer means anything. A changed
@@ -74,6 +93,29 @@ extension AppModel {
             let noun = gatePurpose.noun
             cancelRunningGate(reason: "The display arrangement changed, so the \(noun) was cancelled.")
         }
+        // A camera left without a calibration by this change stays up for a short grace, in case the layout recovers.
+        if cameraWasWanted { beginCameraGrace() }
+        syncCameraFallback()
+        // The new layout is known: the hold that waited for it ends (SPEC D44).
+        endDisplaysChanging(by: .layout)
+    }
+
+    /// A camera connected or disconnected. A burst of these (a hub or dock re-attaching) becomes one refresh of the
+    /// device list 0.5 s after the last, and none while the camera is suspended, where nothing needs the list: one
+    /// refresh runs when the camera leaves that state.
+    func cameraDevicesDidChange() {
+        environmentRefreshTimer?.cancel()
+        environmentRefreshTimer = nil
+        guard !status.isSuspended else { return }
+        environmentRefreshTimer = environment.scheduler.schedule(after: Self.environmentRefreshDelay) { [weak self] in
+            self?.refreshEnvironmentIfDue()
+        }
+    }
+
+    private func refreshEnvironmentIfDue() {
+        environmentRefreshTimer = nil
+        guard !status.isSuspended else { return }
+        refreshEnvironment()
     }
 
     /// A window of Sway became or stopped being key. Re-reads whether Sway is in front, and ends a shortcut recording
@@ -114,6 +156,7 @@ extension AppModel {
     /// Tracking is turned off in memory only: the saved choice (`sway.trackingEnabled`) is the user's, so the next
     /// launch restores it.
     func applicationWillTerminate() {
+        cancelPendingTimers()
         if gateRunState != .idle {
             gateSession?.cancel()
             endGate(message: nil)
@@ -134,8 +177,19 @@ extension AppModel {
         }
     }
 
+    /// Drops every pending one-shot delay: the holds, the device list refresh, the camera grace, and the USB camera
+    /// wait. Quitting stops the camera at once, so none of them has anything left to do.
+    func cancelPendingTimers() {
+        cancelDisplayAndSpaceHolds()
+        cancelCameraGrace()
+        clearCameraFallback()
+        environmentRefreshTimer?.cancel()
+        environmentRefreshTimer = nil
+    }
+
     /// Stops the gate test and the camera and waits until the camera is off.
     func shutdown() async {
+        cancelPendingTimers()
         if gateRunState != .idle {
             gateSession?.cancel()
             endGate(message: nil)

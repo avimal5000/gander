@@ -1,4 +1,4 @@
-# Sway: Spec (current phase: M6)
+# Sway: Spec (current phase: M7)
 
 Derived from PLAN.md, which stays the source of truth. Where this spec and PLAN.md differ, the difference is
 listed in section 3 with its reason. CONTRACT.md defines the code-level interfaces.
@@ -11,14 +11,15 @@ and typing goes to the last-used window there. The cursor never moves.
 
 ## 2. Scope of this phase
 
-M0–M5 are done (PRs #44, #45, #47): Sway tracks, switches focus, calibrates in a Setup window, and has Settings. The
-user's hardware check of M4 + M5 passed. This phase is **M6, the design pass** (issues #28–#32).
+M0–M6 are done (PRs #44, #45, #47, #48): Sway tracks, switches focus, calibrates in Setup, has Settings, and has its
+design. This phase is **M7, hardening** (issues #33–#39): make sleep, lock, display changes, camera conflicts,
+Spaces, and CPU use behave, and audit privacy.
 
 | In this phase | Later |
 |---|---|
-| Theme with a user-chosen accent (#28); the app icon and a custom menu bar icon (#29); a welcome step and restyled Setup (#30); the edge glow (#31); restrained motion and the Focus Lock notice (#32) | M7 hardening (sleep, hot-plug, camera conflicts, CPU targets, soak test); M8 release |
+| Sleep, lock, and user switching keep the camera off (#33); display hot-plug (#34); camera conflicts and USB camera fallback (#35); full-screen and Spaces (#36); adaptive frame rate for CPU and battery (#37); privacy audit (#38); soak-test tooling (#39) | M8 release: signing, notarization, DMG, release workflow (auto-update is not planned, D48) |
 
-Behavior does not change: switching, holds, the camera rules, and calibration stay as M4 + M5 built them.
+Behavior while the user is present and looking around does not change: the same dwell, the same switching.
 
 ## 3. Decisions and assumptions
 
@@ -76,7 +77,38 @@ New decisions for this phase (M6):
 | D41 | **Restrained motion**: short fades for the glow, the notice, Setup step changes, and the menu banner. The menu bar icon does not animate (`MenuBarExtra` labels cannot animate reliably). With Reduce Motion on, nothing fades: the glow and notice just appear and disappear | User, 2026-10-25 + orchestrator |
 | D42 | **Focus brings forward only the target window.** Sway raises the window, then activates its app with no options, which brings only the app's main and key windows forward. The Accessibility "frontmost" call, which can bring every window of the app forward, is now only the fallback. Measured on the user's Mac: activation from a background process brought only Terminal's front window | User report, 2026-10-25 (every Terminal window came forward over Discord) |
 
+New decisions for this phase (M7):
+
+| # | Decision | Source |
+|---|---|---|
+| D43 | **Suspension is sticky.** Sleep, display sleep, screen lock, and a fast user switch to another user are tracked for as long as Sway runs, including while the camera is off. The camera can therefore never start while the Mac is asleep or locked, even if Tracking, the displays, or the camera change in the meantime | Audit finding (the camera could turn on at the lock screen), 2026-10-26 |
+| D44 | **Switching waits while displays or Spaces change.** From a display-change notification until the new layout is known (at most 0.75 s), and for 0.6 s after a Space change, Sway does not switch, then it polls the focused display again | Audit finding |
+| D45 | **Adaptive frame rate.** At most 15 frames per second always. While Tracking, 5 per second after 2 s with no face, back to full within one frame when a face returns. Focus Lock and Needs Accessibility use 5 per second. In Low Power Mode or at a serious heat level: 10 per second with a face, 2 per second without. Calibration, the gate test, Setup's camera check, and Pose Debug always use the full rate. Nothing changes the switching speed while a face is present | User chose "no face + Low Power Mode", 2026-10-26 |
+| D46 | **A missing USB camera falls back.** If the chosen camera is unplugged for 5 s, Sway uses a connected camera that has a calibration for these displays, and switches back when the chosen camera returns. With no calibration for any other camera, it waits and says so | Orchestrator, from the audit's recommendation (user to confirm), 2026-10-26 |
+| D47 | **Gentler retries and no Center Stage.** After a camera problem, retries start after 1 s and back off to 10 s (a stalled camera: up to 60 s). Sway turns Center Stage off for its own session so the framing cannot shift against the calibration | Audit finding |
+| D48 | **No auto-update; first version 0.1.0.** Sway never uses the network, so there is no Sparkle. New versions are downloaded from GitHub Releases | User, 2026-10-26 |
+
+An extra, uncalibrated display (a fourth monitor, Sidecar, AirPlay) still stops tracking until it is calibrated (D25).
+
 ## 4. Features
+
+**M7 features (this phase):**
+
+**F30. The camera stays off when the Mac is asleep, locked, or in another user's session (#33, D43).** The menu
+says "Suspended: …" and tracking resumes by itself, with no switch until you hold a look.
+
+**F31. Display and Space changes (#34, #36, D44).** Plugging or unplugging a display, or changing Spaces, never
+sends focus to the wrong window; switching resumes within a second.
+
+**F32. Camera conflicts (#35, D46, D47).** Another app using the camera, or the camera unplugged, shows a clear
+status and recovers on its own, with bounded retries. A missing USB camera falls back as D46 says.
+
+**F33. Lower CPU when you are away (#37, D45).** About 5% of one core or less with no face; the same switching speed
+as before when you are there.
+
+**F34. Privacy audit and soak test (#38, #39).** `docs/PRIVACY-AUDIT.md` and `scripts/audit-privacy.sh`;
+`scripts/soak.sh` for the all-day test.
+
 
 **M6 features (this phase):**
 
@@ -222,6 +254,9 @@ Record → press a new combination.
   local key monitor inside the Settings window only, while recording.
 - Window titles are never logged or stored; switch logs name the app and display only.
 - The login item is the system's own (`SMAppService`); nothing else is installed.
+- The camera never runs while the Mac is asleep, its displays are asleep, the screen is locked, or another user's
+  session is active, whatever else changes meanwhile (D43). After the displays change, the camera may stay on for up
+  to 2 s before it stops for lack of a calibration that fits (this avoids a blinking light while a dock re-attaches).
 - The glow and the Focus Lock notice (M6) are click-through overlay panels: they never become key or main, never
   activate Sway, and sit above the normal window layer, so focus switching never picks them.
 
@@ -237,25 +272,34 @@ Record → press a new combination.
 
 ## 8. Definition of done (this phase)
 
-**M6 done when:**
-- the theme, accent setting, icons, welcome step, edge glow, Focus Lock notice, and motion pass CONTRACT §6.5.4
-  (against fakes: no test shows a real overlay or registers a hot key);
-- the app icon is in the asset catalog at every size;
+**M7 done when:**
+- CONTRACT §6.1 (suspend), §6.2 (adaptive frame rate), and §6.5.5 pass their tests, against fakes: no test touches a
+  real camera, power setting, or display;
 - the full `xcodebuild` build and test succeed with zero warnings; privacy guard, swift-format, and SwiftLint pass;
   a reviewer has verified conformance to CONTRACT.md;
-- the user has checked the look on their Mac.
+- `scripts/audit-privacy.sh` passes and `docs/PRIVACY-AUDIT.md` is current;
+- the user has run the hardware checks below, and the soak test has been started.
 
 ## 9. Manual checks the user must do (cannot be automated here)
 
-1. Rebuild in Xcode. The app icon shows in Finder, in System Settings → Login Items, and in the Accessibility list.
-2. **Menu bar icon:** Tracking shows the solid mark; Tracking off shows it dimmed; ⌃⌥⌘L shows the lock badge; a
-   problem (for example, choose a camera with no calibration) shows the dot. Check light and dark menu bars.
-3. **Edge glow:** a held look at another display flashes a thin green border on it, without taking focus from the
-   window that just got it (keep typing). Check it over a full-screen app, and turn it off in Settings.
-4. **Focus Lock notice:** ⌃⌥⌘L shows "Focus Lock on" near the top of the focused display for about a second, and
-   "Focus Lock off" on the next press. Turn it off in Settings.
-5. **Welcome:** delete every calibration in Settings, then Set Up… shows the welcome step.
-6. **Accent:** Settings → Appearance → Match macOS: switches and buttons take your system accent; Sway green
-   brings the green back. Check light and dark mode.
-7. **Reduce Motion** (System Settings → Accessibility → Display): the glow and notice appear without fading.
-8. CPU with Tracking on and no windows open: still around 14–19% of one core.
+Run `scripts/sleep-diag.sh 1800` in Terminal before the sleep checks.
+
+1. **Lock:** Tracking on; lock with ⌃⌘Q. The camera light goes out within a second and the menu says "Suspended:
+   screen locked". Unlock: the light and "Tracking" return within about 2 s, and nothing switches until you hold a look.
+2. **The old bug:** lock the screen, unplug a display (or the USB camera) for 5 s, plug it back in, wait 10 s while
+   still locked. The camera light must stay **off**.
+3. **Display sleep and system sleep:** `pmset displaysleepnow`, then move the mouse; then Apple menu → Sleep and wake.
+   Same results as 1. Close and reopen the lid, on battery and (if you use it) in clamshell mode.
+4. **Display changes:** with 3 displays tracking, unplug one. Switching works between the other two with no
+   wrong-display switch. Plug it back in: all three work within about 2 s. A resolution change or rearranging keeps
+   the calibration.
+5. **Cameras:** open Photo Booth, FaceTime, or Zoom while Tracking: the status stays sensible and their video is
+   smooth. Select the USB camera, unplug it, wait 30 s: Sway falls back to a calibrated camera or says it is
+   waiting, and recovers when you plug it back in.
+6. **Full-screen apps and Spaces:** make an app full screen on one display and look at it: typing goes there and the
+   glow shows over it. Switch Spaces on another display while looking around; focus never lands in the wrong window.
+7. **CPU:** Build Release (Product → Profile, or Archive), run it outside Xcode, and read Sway's CPU in Activity
+   Monitor: with you at the desk, then away for 30 s. Away should be about 5% or less; at the desk about 15% or less.
+   Sit back down: "Tracking" within a second, and a look switches as quickly as before. Try Low Power Mode.
+8. **Soak:** run `scripts/soak.sh sample` for a working day, then `scripts/soak.sh report <file>`, and note any
+   switch you did not want.

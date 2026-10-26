@@ -85,7 +85,11 @@ struct AppModelCameraTests {
         #expect(h.model.menuBarSymbol == "eye.fill")
         #expect(!h.model.history.points.isEmpty)
 
+        // "No face" shows only after half a second without one (CONTRACT 6.5.5 item 8); the last face was at 3.93 s.
         h.model.handle(.sample(Fixtures.sample(at: 4.1, face: false)))
+        #expect(h.model.hasFace)
+        #expect(h.model.menuBarSymbol == "eye.fill")
+        h.model.handle(.sample(Fixtures.sample(at: 4.5, face: false)))
         #expect(!h.model.hasFace)
         #expect(h.model.menuBarSymbol == "eye.trianglebadge.exclamationmark")
     }

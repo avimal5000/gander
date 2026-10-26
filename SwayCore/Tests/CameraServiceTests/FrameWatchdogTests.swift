@@ -126,4 +126,19 @@ struct FrameWatchdogTests {
         #expect(watchdog.check(at: 1) == .stalled)
         #expect(watchdog.check(at: 3) == .retryDue)
     }
+
+    @Test func aLongerRetryIntervalDelaysTheNextRetryFromTheLastAttempt() {
+        var watchdog = armed()
+        #expect(watchdog.check(at: 3) == .stalled)
+        #expect(watchdog.check(at: 13) == .retryDue)
+        watchdog.setRetryInterval(30)
+        #expect(watchdog.retryInterval == 30)
+        watchdog.arm(at: 14)
+        #expect(watchdog.check(at: 43) == nil)
+        #expect(watchdog.check(at: 44) == .retryDue)
+        watchdog.setRetryInterval(60)
+        watchdog.arm(at: 45)
+        #expect(watchdog.check(at: 104) == nil)
+        #expect(watchdog.check(at: 105) == .retryDue)
+    }
 }

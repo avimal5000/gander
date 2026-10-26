@@ -60,6 +60,12 @@ public final class AppModel {
     var trackingEnabled = false
     /// Name of the camera most recently reported as running.
     var runningCameraName: String?
+    /// The camera the current session most recently reported as running; `nil` once the session ends. It tells a lost
+    /// camera that was the chosen one from a stand-in capture opened on its own.
+    var runningDevice: CameraDevice?
+    /// The connected camera Sway uses while the chosen one is unplugged (SPEC D46); `nil` when it uses the chosen
+    /// camera. Never saved: the user's choice (`selectedCameraID`) stays as it was.
+    var fallbackCamera: CameraDevice?
     /// The explanation or instructions currently shown for camera permission, if any.
     var permissionPrompt: CameraPermissionPrompt?
     /// Most recent pose sample; `nil` when the camera is off.
@@ -131,6 +137,10 @@ public final class AppModel {
     var trackingFocus: DisplayID?
     /// True while Sway's own focus request runs (`loop.isFocusing`).
     var isSwitching = false
+    /// The displays are changing and the new layout is not known yet (SPEC D44). Switching holds.
+    var displaysChanging = false
+    /// A Space just changed (SPEC D44). Switching holds for a moment.
+    var spaceChanging = false
     /// Sway is in front: the active app with its menu or one of its windows key (SPEC D28).
     var isAppActive = false
     /// The popover's "Looking at" line, assigned only when it changes.
@@ -244,6 +254,41 @@ public final class AppModel {
     @ObservationIgnored var windowRefs: [String: WeakWindow] = [:]
     @ObservationIgnored var notificationObservers: [any NSObjectProtocol] = []
     @ObservationIgnored var workspaceObservers: [any NSObjectProtocol] = []
+    /// Ends the `displaysChanging` hold when no new layout arrives in time.
+    @ObservationIgnored var displaysChangingTimer: ScheduledAction?
+    /// Ends the `spaceChanging` hold.
+    @ObservationIgnored var spaceChangingTimer: ScheduledAction?
+    /// When the display hold now running began (the first of its notifications), for its cap and its log line.
+    @ObservationIgnored var displaysHoldStart: TimeInterval?
+    /// When the Space hold now running began, for its log line.
+    @ObservationIgnored var spaceHoldStart: TimeInterval?
+    /// A display hold ended at its cap, so the notifications that keep coming are ignored until they pause.
+    @ObservationIgnored var displaysHoldCapped = false
+    /// When the latest screen-parameter notification arrived.
+    @ObservationIgnored var lastDisplayNotification: TimeInterval?
+    /// Waits for a burst of camera connect and disconnect notifications to end before the list is read again.
+    @ObservationIgnored var environmentRefreshTimer: ScheduledAction?
+    /// Stops the camera 2 s after a display change left no calibration that fits.
+    @ObservationIgnored var cameraGraceTimer: ScheduledAction?
+    /// Counts the 5 s the chosen camera may stay unplugged before a calibrated camera takes over.
+    @ObservationIgnored var cameraLossTimer: ScheduledAction?
+    /// The 5 s passed with the chosen camera still unplugged; the fallback starts as soon as one is usable.
+    @ObservationIgnored var cameraLossElapsed = false
+    /// Set while a restart that the fallback began is under way, so a start that fails because the camera is not ready
+    /// to open does not turn Tracking off (CONTRACT 6.5.5 item 7).
+    @ObservationIgnored var fallbackRestart: FallbackRestart?
+    /// Counts the restarts the fallback began, so one that ends does not clear the mark of the one queued after it.
+    @ObservationIgnored var fallbackRestartSerial = 0
+    /// Tries again after such a failed restart.
+    @ObservationIgnored var fallbackRetryTimer: ScheduledAction?
+    /// Switching back to the chosen camera just failed: not tried again until the retry timer or a device change.
+    @ObservationIgnored var fallbackSwitchBackDeferred = false
+    /// The demand last handed to the pose source for the current stream; `nil` before the first call after a start.
+    @ObservationIgnored var appliedPoseDemand: PoseDemand?
+    /// The Pose Debug window is open and showing its live content: it needs the full frame rate.
+    @ObservationIgnored var poseDebugVisible = false
+    /// Steadies the "No face" status (CONTRACT 6.5.5 item 8).
+    @ObservationIgnored var faceDebounce = FaceDebounce()
     #if DEBUG
     @ObservationIgnored let recorder = TraceRecorder()
     #endif
@@ -366,7 +411,8 @@ public final class AppModel {
                 hasCalibration: activeCalibration != nil,
                 accessibilityTrusted: isAccessibilityTrusted,
                 focusLocked: focusLocked,
-                hasFace: hasFace
+                hasFace: hasFace,
+                disconnectedCamera: fallbackCamera == nil ? unpluggedChosenCamera?.name : nil
             ))
     }
 
@@ -398,7 +444,9 @@ public final class AppModel {
     /// or disconnects.
     func refreshEnvironment() {
         let previousAuthorization = authorization
+        let previousDevices = devices
         devices = camera.availableDevices()
+        if devices != previousDevices { deviceListDidChange() }
         refreshPredictedCamera()
         authorization = camera.authorizationStatus()
         if authorization == .authorized, permissionPrompt == .denied || permissionPrompt == .restricted {
@@ -406,6 +454,7 @@ public final class AppModel {
         }
         // The camera that capture would pick may have changed with the device list.
         refreshActiveCalibration()
+        syncCameraFallback()
         // Access granted in System Settings: a Tracking switch left on, blocked, starts the camera now.
         if authorization == .authorized, previousAuthorization != .authorized, wantsCamera, streamTask == nil {
             reconcileCamera()

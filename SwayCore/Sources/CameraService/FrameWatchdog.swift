@@ -26,12 +26,18 @@ struct FrameWatchdog: Sendable, Equatable {
     }
 
     let timeout: TimeInterval
-    let retryInterval: TimeInterval
+    /// How long a stall waits before the next `.retryDue`. The owner lengthens it between attempts (`RetryBackoff`).
+    private(set) var retryInterval: TimeInterval
     private var phase = Phase.idle
 
     init(timeout: TimeInterval = defaultTimeout, retryInterval: TimeInterval = defaultRetryInterval) {
         self.timeout = timeout
         self.retryInterval = retryInterval
+    }
+
+    /// Sets the wait before the next `.retryDue`. It applies from the last attempt (or the stall) already in progress.
+    mutating func setRetryInterval(_ interval: TimeInterval) {
+        retryInterval = interval
     }
 
     /// True while the camera is considered stalled.

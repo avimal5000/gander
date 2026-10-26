@@ -23,7 +23,7 @@ struct LivePoseSourceTests {
     @Test func eventsArriveInOrderStartingStatusesThenSamples() async throws {
         let frames = FakeFrameSource()
         let estimator = FakePoseEstimator()
-        let source = LivePoseSource(frameSource: frames, estimator: estimator)
+        let source = LivePoseSource(frameSource: frames, estimator: estimator, isPowerConstrained: { false })
 
         let stream = try await source.start(PoseSourceConfiguration(cameraDeviceID: "abc", frameRate: 12))
         frames.emitStatus(.running(camera))
@@ -49,7 +49,7 @@ struct LivePoseSourceTests {
 
     @Test func frameWithoutFaceBecomesSampleWithNilPose() async throws {
         let frames = FakeFrameSource()
-        let source = LivePoseSource(frameSource: frames, estimator: FakePoseEstimator())
+        let source = LivePoseSource(frameSource: frames, estimator: FakePoseEstimator(), isPowerConstrained: { false })
 
         let stream = try await source.start(PoseSourceConfiguration())
         frames.emitFrame(timestamp: -1)
@@ -61,7 +61,7 @@ struct LivePoseSourceTests {
 
     @Test func stopFinishesTheStreamAndEmitsStoppedOnce() async throws {
         let frames = FakeFrameSource()
-        let source = LivePoseSource(frameSource: frames, estimator: FakePoseEstimator())
+        let source = LivePoseSource(frameSource: frames, estimator: FakePoseEstimator(), isPowerConstrained: { false })
 
         let stream = try await source.start(PoseSourceConfiguration())
         await source.stop()
@@ -74,7 +74,7 @@ struct LivePoseSourceTests {
 
     @Test func stopWithoutStartIsHarmless() async {
         let frames = FakeFrameSource()
-        let source = LivePoseSource(frameSource: frames, estimator: FakePoseEstimator())
+        let source = LivePoseSource(frameSource: frames, estimator: FakePoseEstimator(), isPowerConstrained: { false })
 
         await source.stop()
         await source.stop()
@@ -85,7 +85,7 @@ struct LivePoseSourceTests {
     @Test func frameSourceReportingStoppedItselfDoesNotDuplicateStopped() async throws {
         let frames = FakeFrameSource()
         frames.state.withLock { $0.emitsStoppedOnStop = true }
-        let source = LivePoseSource(frameSource: frames, estimator: FakePoseEstimator())
+        let source = LivePoseSource(frameSource: frames, estimator: FakePoseEstimator(), isPowerConstrained: { false })
 
         let stream = try await source.start(PoseSourceConfiguration())
         await source.stop()
@@ -97,7 +97,7 @@ struct LivePoseSourceTests {
     @Test func framesAfterStopAreIgnored() async throws {
         let frames = FakeFrameSource()
         let estimator = FakePoseEstimator()
-        let source = LivePoseSource(frameSource: frames, estimator: estimator)
+        let source = LivePoseSource(frameSource: frames, estimator: estimator, isPowerConstrained: { false })
 
         let stream = try await source.start(PoseSourceConfiguration())
         let staleHandler = try #require(frames.frameHandler)
@@ -111,7 +111,7 @@ struct LivePoseSourceTests {
 
     @Test func secondStartFinishesTheFirstStream() async throws {
         let frames = FakeFrameSource()
-        let source = LivePoseSource(frameSource: frames, estimator: FakePoseEstimator())
+        let source = LivePoseSource(frameSource: frames, estimator: FakePoseEstimator(), isPowerConstrained: { false })
 
         let first = try await source.start(PoseSourceConfiguration())
         frames.emitFrame(timestamp: 1)
@@ -132,7 +132,7 @@ struct LivePoseSourceTests {
     @Test func staleHandlersFromAPreviousRunNeverReachTheNewStream() async throws {
         let frames = FakeFrameSource()
         let estimator = FakePoseEstimator()
-        let source = LivePoseSource(frameSource: frames, estimator: estimator)
+        let source = LivePoseSource(frameSource: frames, estimator: estimator, isPowerConstrained: { false })
 
         _ = try await source.start(PoseSourceConfiguration())
         let staleHandler = try #require(frames.frameHandler)
@@ -151,7 +151,7 @@ struct LivePoseSourceTests {
     func includeLandmarksFromTheConfigurationReachesTheEstimator(includeLandmarks: Bool) async throws {
         let frames = FakeFrameSource()
         let estimator = FakePoseEstimator()
-        let source = LivePoseSource(frameSource: frames, estimator: estimator)
+        let source = LivePoseSource(frameSource: frames, estimator: estimator, isPowerConstrained: { false })
 
         let stream = try await source.start(PoseSourceConfiguration(includeLandmarks: includeLandmarks))
         frames.emitFrame(timestamp: 1)
@@ -165,7 +165,7 @@ struct LivePoseSourceTests {
     @Test func landmarksAreOffByDefault() async throws {
         let frames = FakeFrameSource()
         let estimator = FakePoseEstimator()
-        let source = LivePoseSource(frameSource: frames, estimator: estimator)
+        let source = LivePoseSource(frameSource: frames, estimator: estimator, isPowerConstrained: { false })
 
         let stream = try await source.start(PoseSourceConfiguration())
         frames.emitFrame(timestamp: 1)
@@ -178,7 +178,7 @@ struct LivePoseSourceTests {
     @Test func aRestartWithADifferentIncludeLandmarksValueUsesTheNewOne() async throws {
         let frames = FakeFrameSource()
         let estimator = FakePoseEstimator()
-        let source = LivePoseSource(frameSource: frames, estimator: estimator)
+        let source = LivePoseSource(frameSource: frames, estimator: estimator, isPowerConstrained: { false })
 
         let first = try await source.start(PoseSourceConfiguration(includeLandmarks: false))
         let firstHandler = try #require(frames.frameHandler)
@@ -201,7 +201,7 @@ struct LivePoseSourceTests {
     @Test(arguments: [CameraAuthorization.notDetermined, .denied, .restricted])
     func unauthorizedStartThrowsAndNeverStartsTheFrameSource(authorization: CameraAuthorization) async {
         let frames = FakeFrameSource(authorization: authorization)
-        let source = LivePoseSource(frameSource: frames, estimator: FakePoseEstimator())
+        let source = LivePoseSource(frameSource: frames, estimator: FakePoseEstimator(), isPowerConstrained: { false })
 
         await #expect(throws: CameraError.notAuthorized) {
             _ = try await source.start(PoseSourceConfiguration())
@@ -211,7 +211,7 @@ struct LivePoseSourceTests {
 
     @Test func unauthorizedStartStillEndsThePreviousRun() async throws {
         let frames = FakeFrameSource()
-        let source = LivePoseSource(frameSource: frames, estimator: FakePoseEstimator())
+        let source = LivePoseSource(frameSource: frames, estimator: FakePoseEstimator(), isPowerConstrained: { false })
 
         let first = try await source.start(PoseSourceConfiguration())
         frames.state.withLock { $0.authorization = .denied }
@@ -226,7 +226,7 @@ struct LivePoseSourceTests {
 
     @Test func consumerCancellationStopsTheFrameSource() async throws {
         let frames = FakeFrameSource()
-        let source = LivePoseSource(frameSource: frames, estimator: FakePoseEstimator())
+        let source = LivePoseSource(frameSource: frames, estimator: FakePoseEstimator(), isPowerConstrained: { false })
 
         let stream = try await source.start(PoseSourceConfiguration())
         let consumer = Task {
@@ -247,7 +247,7 @@ struct LivePoseSourceTests {
 
     @Test func droppingTheStreamStopsTheFrameSource() async throws {
         let frames = FakeFrameSource()
-        let source = LivePoseSource(frameSource: frames, estimator: FakePoseEstimator())
+        let source = LivePoseSource(frameSource: frames, estimator: FakePoseEstimator(), isPowerConstrained: { false })
 
         do {
             let stream = try await source.start(PoseSourceConfiguration())
@@ -260,7 +260,7 @@ struct LivePoseSourceTests {
 
     @Test func cancellingAnOldStreamDoesNotStopTheNewRun() async throws {
         let frames = FakeFrameSource()
-        let source = LivePoseSource(frameSource: frames, estimator: FakePoseEstimator())
+        let source = LivePoseSource(frameSource: frames, estimator: FakePoseEstimator(), isPowerConstrained: { false })
 
         let first = try await source.start(PoseSourceConfiguration())
         let second = try await source.start(PoseSourceConfiguration())
@@ -285,7 +285,8 @@ struct LivePoseSourceTests {
         let frames = FakeFrameSource()
         frames.state.withLock { $0.startError = CameraError.deviceUnavailable("busy") }
         let observed = OSAllocatedUnfairLock<AsyncStream<PoseSourceEvent>?>(initialState: nil)
-        let source = LivePoseSource(frameSource: frames, estimator: FakePoseEstimator()) { stream in
+        let source = LivePoseSource(frameSource: frames, estimator: FakePoseEstimator(), isPowerConstrained: { false })
+        { stream in
             observed.withLock { $0 = stream }
         }
 
@@ -309,7 +310,7 @@ struct LivePoseSourceTests {
         // first, so the camera's is an echo.
         let frames = FakeFrameSource()
         frames.state.withLock { $0.statusesDuringStart = [.starting, .running(camera)] }
-        let source = LivePoseSource(frameSource: frames, estimator: FakePoseEstimator())
+        let source = LivePoseSource(frameSource: frames, estimator: FakePoseEstimator(), isPowerConstrained: { false })
 
         let stream = try await source.start(PoseSourceConfiguration())
         frames.emitStatus(.running(camera))  // the watchdog's "first frame" report repeats `.running`
@@ -329,7 +330,8 @@ struct LivePoseSourceTests {
             $0.statusesDuringStart = [.starting, .failed(error)]
         }
         let observed = OSAllocatedUnfairLock<AsyncStream<PoseSourceEvent>?>(initialState: nil)
-        let source = LivePoseSource(frameSource: frames, estimator: FakePoseEstimator()) { stream in
+        let source = LivePoseSource(frameSource: frames, estimator: FakePoseEstimator(), isPowerConstrained: { false })
+        { stream in
             observed.withLock { $0 = stream }
         }
 
@@ -348,7 +350,7 @@ struct LivePoseSourceTests {
 
     @Test func changingStatusesAreAllReportedButImmediateRepeatsAreNot() async throws {
         let frames = FakeFrameSource()
-        let source = LivePoseSource(frameSource: frames, estimator: FakePoseEstimator())
+        let source = LivePoseSource(frameSource: frames, estimator: FakePoseEstimator(), isPowerConstrained: { false })
 
         let stream = try await source.start(PoseSourceConfiguration())
         for status: CaptureStatus in [
@@ -372,7 +374,7 @@ struct LivePoseSourceTests {
         // Deduplication is per run: the new run's `.starting` is never swallowed by the old run's last status.
         let frames = FakeFrameSource()
         frames.state.withLock { $0.statusesDuringStart = [.starting] }
-        let source = LivePoseSource(frameSource: frames, estimator: FakePoseEstimator())
+        let source = LivePoseSource(frameSource: frames, estimator: FakePoseEstimator(), isPowerConstrained: { false })
 
         let first = try await source.start(PoseSourceConfiguration())
         let second = try await source.start(PoseSourceConfiguration())
@@ -387,7 +389,8 @@ struct LivePoseSourceTests {
         let frames = FakeFrameSource()
         frames.state.withLock { $0.startError = Boom() }
         let observed = OSAllocatedUnfairLock<AsyncStream<PoseSourceEvent>?>(initialState: nil)
-        let source = LivePoseSource(frameSource: frames, estimator: FakePoseEstimator()) { stream in
+        let source = LivePoseSource(frameSource: frames, estimator: FakePoseEstimator(), isPowerConstrained: { false })
+        { stream in
             observed.withLock { $0 = stream }
         }
 
@@ -407,7 +410,7 @@ struct LivePoseSourceTests {
     @Test func sourceRecoversAfterAFailedStart() async throws {
         let frames = FakeFrameSource()
         frames.state.withLock { $0.startError = CameraError.noDevice }
-        let source = LivePoseSource(frameSource: frames, estimator: FakePoseEstimator())
+        let source = LivePoseSource(frameSource: frames, estimator: FakePoseEstimator(), isPowerConstrained: { false })
         await #expect(throws: CameraError.noDevice) {
             _ = try await source.start(PoseSourceConfiguration())
         }
@@ -423,7 +426,7 @@ struct LivePoseSourceTests {
 
     @Test func concurrentStartsAndStopsLeaveNothingCapturing() async {
         let frames = FakeFrameSource()
-        let source = LivePoseSource(frameSource: frames, estimator: FakePoseEstimator())
+        let source = LivePoseSource(frameSource: frames, estimator: FakePoseEstimator(), isPowerConstrained: { false })
 
         await withTaskGroup(of: Void.self) { group in
             for _ in 0..<8 {

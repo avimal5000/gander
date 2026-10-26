@@ -1,61 +1,39 @@
 # Status
 
-Phase: **M6, the design pass** (theme, icons, welcome, edge glow, motion; issues #28–#32). Updated by the
-orchestrator.
+Phase: **M7, hardening** (issues #33–#39) and, in parallel, **M8, release** (#40–#43). Updated by the orchestrator.
 
-**Current state:** branch `feat/28-m6-design`. M4 + M5 merged as PR #47 (974c9f7); the user's hardware check passed.
-The user made the M6 design decisions (SPEC D34–D41) and picked icon option A, "Swing", from drawn options
-(https://claude.ai/artifact/PgqPsH9GcpEbK3onhqPSPm). Built, reviewed, and fixed; the Terminal focus fix is in too. Next: the PR and the user's check on their Mac.
-
-## History
-
-- **M4 + M5:** merged in PR #47 (2026-10-25). 984 tests. The user's hardware check passed ("working great").
-- **M2 + M3:** merged in PR #45 (2026-10-25). 638 tests.
-- **M0 + M1:** merged in PR #44 (2026-10-25). 361 tests; the gate was **GO** (`docs/decisions/0001-m1-head-pose-gate.md`).
-- **User hardware checks (2026-10-25), all passed:**
-  - gate run, overlays, and C922 selection;
-  - no launch flashes;
-  - Live guess correct;
-  - light mode;
-  - camera off on sleep and back on after unlock.
-- **User hardware checks of M2 + M3 (2026-10-25):**
-  - Focus Test worked; light and dark mode fine; no flickers.
-  - Full Focus Test passed: each display (immediate and after 3 s from another app), a full-screen app, a
-    second Space, and a window spanning two displays. Results are in `docs/focus-fallbacks.md`.
-  - CPU was 30–40% with Live on: fixed in c358c05 (about 45% → 17% with no windows open; details in PR #45).
-  - Crash when turning Live off from the menu: a stack overflow from a closure chain that grew every frame; fixed
-    in a40424f. The user's re-test passed (Live on 5+ minutes, then off from the menu bar).
-- **User decisions for M4 + M5 (2026-10-25):** track 3 displays (D22); restore Tracking at launch, Open at login
-  off by default (D23); build M4 + M5 together in one PR (D24); the proposed defaults for Focus Lock, Pause,
-  icons, calibration, and sensitivity (D27, D30–D32). The user asked to be reached by phone when a decision is
-  needed while away (push notifications; there is no SMS tool).
-- **CI hang fixed:** real-Vision tests hang on GitHub's virtual Macs, so they skip when `CI` is set.
-- **Repo moved** to `~/Developer/Sway` (out of iCloud).
-- **User hardware check of M4 + M5 (2026-10-25):** passed; the user reported it "working great".
+**Current state (2026-10-26, overnight):** M6 merged (#48, 6d85cfc); the user has gone to bed and asked to wait for
+them before merging. Branch `feat/33-m7-hardening`: the privacy audit and soak tooling are committed. An Opus audit
+of sleep/lock, hot-plug, camera conflicts, Spaces, and CPU found one blocker (the camera could turn on at the lock
+screen, because suspend reasons were forgotten when capture stopped) and the fixes below. The user's decisions: no
+auto-update, version 0.1.0, throttle with no face and in Low Power Mode, wait for them before merging, and sign in
+the morning (they have a paid Apple Developer account but no certificate yet).
 
 ## Orchestrator tasks
 
 | Task | Status | Notes |
 |---|---|---|
-| Decisions | Done | SPEC D34–D41 (2026-10-25): native look with a user-chosen accent; icon A "Swing"; menu bar mark with state badges; edge glow and Focus Lock notice, each on by default with a Settings switch; welcome step; restrained motion |
-| SPEC / CONTRACT | Done | SPEC F24–F29, §8–§9; CONTRACT §6.5.4 |
-| App icon + AccentColor asset | Done | `scripts/make-appicon.swift` renders option A "Swing" at every size (thicker strokes at 16 and 32 px) into `AppIcon.appiconset`; the asset-catalog AccentColor was later removed (see builder row) |
-| Builder | Done | builder-ui-m6. Full `xcodebuild test`: 1073 tests, zero warnings |
-| Review pass (Opus) | Done | No blockers; behavior unchanged, overlays can't take focus. To fix: (1) hard-coded forest tints in `SetupCalibratingStep:34`, `GateRunningView:38`, `SwitchPreviewView:75,91`, `GateOverlayView:64` override the accent; (2) no test pins the `OverlayPanel` invariants (non-activating, never key/main, `.screenSaver`, collection behavior); (3) `NoticePillView:58` mask closure is main-actor isolated but AppKit may draw it off-main: make it a `nonisolated static func`; (4) a cancelled fade can still `orderOut` a newly shown panel: check `Task.isCancelled` after the sleep in `pause`; (5) the glow is a full-screen Canvas (about 59 MB at 5K): draw edge strips instead; (6) `MenuBarIconTests:156-160` cut-out region has no ink in `.tracking` either: use `CGRect(x: 14.4, y: 4.6, width: 0.4, height: 0.4)`; (7) nits: this table's asset note, `CONTRACT.md:453`, `SettingsView.swift:6` is 126 columns |
-| Fixes | Done | All seven review items (06551e9): the accent now reaches every progress bar; the glow is eight thin edge layers (no full-screen bitmap); the fade race and the off-main mask are fixed; new tests pin the overlay panel rules, SwiftUI's Sway green, and the badge cut-out |
-| User report (2026-10-25) | Fixed, needs the user's check | Every Terminal window came forward when Sway focused one. A probe on the user's Mac showed `NSRunningApplication.activate(options: [])` from a background process brings only the app's front window, so the cause was the `AXFrontmost` call. Now: raise + main, then activation (`.appActivation`); `AXFrontmost` only as the fallback (`.accessibilityFrontmost`). SPEC D42, CONTRACT §6.7 steps 4–5 |
-| Verification, PR, CI | Done | Full `xcodebuild test`: 1077 tests, zero warnings; lint and guard clean. PR #48, CI green. Waiting for the user's check on their Mac (SPEC §9) before merging |
+| M7 audit (Opus) | Done | Report: blocker (sticky suspend), holds for display/Space changes, adaptive frame rate design, camera fallback and backoff |
+| SPEC D43–D48, CONTRACT §6.1.1, §6.2.1, §6.5.5 | Done | |
+| `SwayModels`: `SuspendReason.sessionInactive`, `PoseDemand`, `PoseSource.setDemand` | Done | Default no-op, so fakes compile |
+| Privacy audit and soak tooling (#38, #39) | Done | `scripts/audit-privacy.sh`, `docs/PRIVACY-AUDIT.md`, `scripts/soak.sh` (57d28ef) |
+| M7 builders | Done | All three finished and combined (29228a5). Full `xcodebuild test`: 1246 tests, zero warnings; lint and guard clean |
+| M7 review (Opus) | Done | No blockers; privacy guarantee holds (every camera start goes through the sticky tracker). Should-fix: (1) the adaptive rate rounds to the camera's frame grid (Low Power Mode gave 7.5 fps, a 20 or 24 fps camera got 10 or 12): now a nominal schedule; (2) a failed restart during the USB fallback turned Tracking off; (3) lock/unlock distributed notifications may be delayed for an inactive app: register with `.deliverImmediately`. Minor: display hold had no cap or log; seed `.sessionInactive` at launch; test gaps. Accepted for the hardware check: a Space change during Sway's own switch resets the decider cooldown (pinned by a test); Center Stage mode is documented as per app but unconfirmed |
+| M7 fixes | Done | All review items fixed by the same three builders (the limit reset at 5:20 am and they finished by 5:55): nominal frame schedule (Low Power Mode now a true 10 fps, 20/24 fps cameras get 15), lock/unlock delivered immediately, `.sessionInactive` seeded at launch, fallback restart failure keeps Tracking on, display hold capped at 3 s and logged, test gaps filled with mutation checks |
+| M7 full verification, PR | Done | PR #50 open, CI green. Full `xcodebuild test`: 1282 tests, zero warnings; lint, guard, and a Release build (zero warnings, privacy audit passes). Waiting for the user's hardware check (SPEC §9) and merge. PR #49 (M8) is stacked on this branch |
+| M8 release pipeline | Pending | Separate worktree `.build-m8`, branch `feat/40-m8-release`: DMG script, release workflow on `v*` tags, version 0.1.0, notarization steps with secrets the user adds |
 
 ## Builder agents
 
 | Agent | Module | Task | Model | Status | Report |
 |---|---|---|---|---|---|
-| builder-ui-m6 | `SwayUI` | Theme and accent, menu bar icon, welcome step, edge glow, Focus Lock notice, motion, Appearance settings (CONTRACT §6.5.4; issues #28–#32) | Sonnet | **Done** | 583 SwayUI tests (89 new, none regressed); lint and guard clean. Accepted interpretations: the menu bar mark is fitted to a 15 pt area by its visual bounds (mapping the whole 100-unit square would make it 9 pt wide); `Harness.openSetup()` presses Get Started on the welcome; the notice shows on the main display when tracking is off. **Orchestrator change:** the asset-catalog accent color is removed, because under macOS's Multicolor setting it showed through and "Match macOS" still looked green (the builder flagged it) |
+| builder-camera-m7 | `CameraService` | CONTRACT §6.1.1: sticky suspend, sessionInactive, self-heal, retry backoff, Center Stage off | Sonnet | **Done** | 101 tests. Both old bugs fail the new tests when restored (mutation check). Known limit: a launch while already locked is not detected (no public API); Center Stage is switched off process-wide once the first session starts |
+| builder-pose-m7 | `PoseEstimator`, `SwitchEngineTests` | CONTRACT §6.2.1: adaptive frame rate, 15 fps cap, power state | Sonnet | **Done** | 109 + 106 tests. Face-present switching is unchanged; away-then-back switches within 1 s + dwell. Low Power Mode quantizes 10 fps to 7.5 fps on a 15 fps camera, so one missed frame can restart the dwell there (accepted, reviewer to assess) |
+| builder-ui-m7 | `SwayUI` | CONTRACT §6.5.5: display/Space holds, demand wiring, coalesced refresh, camera grace, USB fallback | Sonnet | **Done** | 669 tests (587 before); three existing tests changed as the contract requires. New `DelayScheduling` injection and `TrackingStatus.cameraDisconnected` |
 
 ### Earlier phases (done)
 
-M4 + M5: builder-system (`SystemIntegration`), builder-ui-m4, builder-ui-m5, and an Opus review (six findings, all
-fixed) — PR #47. M2 + M3: builder-engine, builder-focus, builder-pose, builder-ui — PR #45.
+M6: builder-ui-m6 plus an Opus review (seven items, all fixed), PR #48. M4 + M5: PR #47. M2 + M3: PR #45.
 
 ## Open issues
 

@@ -1,4 +1,4 @@
-# Sway: Engineering Contract (phase M6)
+# Sway: Engineering Contract (phase M7)
 
 Builders follow this document exactly. SPEC.md says *what* to build; this file says *where and how*. PLAN.md
 is background only. If anything here is wrong or missing, **stop and report**. Do not invent your own version.
@@ -187,6 +187,42 @@ public final class CameraCaptureService: FrameSource {   // may be @unchecked Se
 - suspend/resume reason-set transitions;
 - the authorization status mapping.
 
+#### 6.1.1 M7 additions to `CameraService` (builder-camera-m7)
+
+No public API change. Everything here is internal to `CameraService` (SPEC D43, D47).
+
+1. **Suspension is sticky (replaces the "Suspend and resume" rules above where they differ).**
+   - `SuspendTracker` records `begin` and `end` for every reason whether or not capture is requested.
+     `captureStopped()` sets `isCaptureRequested = false` but **keeps** the active reasons.
+     `captureRequested()` returns `.suspend(first)` when any reason is active, else `.resume`.
+     `begin`/`end` while capture is not requested update the set and return `.none`. After `captureStopped()`
+     nothing resumes capture, because `end` returns `.none` when capture is not requested.
+   - The system observers are installed once, when the controller is created, and removed only on `deinit`.
+     `stop()` and `shutdown()` no longer remove them.
+   - When the observers are installed, seed `.displaysAsleep` if the main display is asleep. The check is an injected
+     `@Sendable () -> Bool` (live: `CGDisplayIsAsleep(CGMainDisplayID()) != 0`), so tests never touch displays.
+   - New reason `.sessionInactive`: `NSWorkspace.sessionDidResignActiveNotification` begins it and
+     `sessionDidBecomeActiveNotification` ends it. When the observers are installed, also seed it if this session is not
+     the console session (an injected `@Sendable () -> Bool`; live:
+     `CGSessionCopyCurrentDictionary()` has `kCGSessionOnConsoleKey` false).
+   - **Lock and unlock are delivered immediately (review fix).** `DistributedNotificationCenter` suspends delivery to an
+     inactive app and coalesces what it queues, and Sway is almost never the active app. Register the
+     `com.apple.screenIsLocked` and `com.apple.screenIsUnlocked` observers with `addObserver(_:selector:name:object:
+     suspensionBehavior: .deliverImmediately)` (a small `NSObject` that hops to the controller's queue). Make the
+     registration an injected closure in `CaptureEnvironment`, so tests keep using a plain notification center.
+   - **Self-heal.** On `didWake`, `screensDidWake`, `screenIsUnlocked`, and `sessionDidBecomeActive`, after clearing
+     the event's own reason, also clear `.displaysAsleep` if the injected check says the main display is awake (a
+     missed `screensDidWake` must not leave capture suspended).
+   - Tests: a reason begun before stop and still active at the next `start` gives `.suspend`; an `end` arriving while
+     stopped clears the reason and still resumes nothing; the display seed; `.sessionInactive`; the self-heal.
+2. **Retry backoff (D47).** A pure `RetryBackoff` type, tested:
+   - After a failure to find or open the device: delays 1 s, 2 s, 5 s, then 10 s for every later try.
+   - After a stall rebuild that did not bring frames back: 10 s, 30 s, then 60 s for every later try.
+   - Any run of frames resets both sequences. The one-time retry after a runtime error is unchanged.
+3. **Center Stage off (D47).** Before the first session starts, set `AVCaptureDevice.centerStageControlMode = .app`
+   and `AVCaptureDevice.isCenterStageEnabled = false`, once per process, from a small injectable function so tests
+   never touch it.
+
 ### 6.2 `PoseEstimator` (builder-pose)
 
 **Public API (exact):**
@@ -248,6 +284,58 @@ public final class LivePoseSource: PoseSource {
     restart with a different value uses the new one;
   - (M2) with `includeLandmarks: false` the estimator never creates a landmark request (factor the request plan
     into a small pure helper that returns which requests to run, and test that).
+
+#### 6.2.1 M7 additions to `PoseEstimator` (builder-pose-m7): adaptive frame rate (SPEC D45)
+
+`LivePoseSource` gains `setDemand(_:)` (the `PoseSource` requirement in `SwayModels`) and one defaulted init
+parameter. Source-compatible with every existing call:
+```swift
+public init(
+    frameSource: any FrameSource, estimator: any PoseEstimating,
+    isPowerConstrained: @escaping @Sendable () -> Bool = LivePoseSource.systemPowerConstrained)
+```
+`systemPowerConstrained` is true when `ProcessInfo.processInfo.isLowPowerModeEnabled` or the thermal state is
+`.serious` or `.critical`. `LivePoseSource` reads it at most once per second of frame time, never per frame.
+
+**`AdaptiveFrameRate`** (internal, pure, `Sendable`, `Equatable`, no clock of its own: it works on frame timestamps in
+seconds):
+- State: `demand` (default `.full`), `isPowerConstrained`, the time of the last processed frame, and the time a face
+  was last seen (a start counts as a face just seen).
+- `mutating func shouldProcess(frameAt t: TimeInterval) -> Bool`, `mutating func record(face: Bool, at t:
+  TimeInterval)`, `mutating func setDemand(_:)`, `mutating func setPowerConstrained(_:)`, `mutating func reset()`.
+- The minimum interval between processed frames:
+
+| Demand | No power constraint | Power constrained |
+|---|---|---|
+| `.full` | 1/15 s, always | 1/15 s |
+| `.adaptive`, face seen within 2 s | 1/15 s | 1/10 s |
+| `.adaptive`, no face for 2 s or more | 1/5 s | 1/2 s |
+| `.reduced` | 1/5 s | 1/2 s |
+
+- **The intervals are averages kept on a nominal schedule** (review fix: measuring each interval from the last
+  processed frame's real time rounds the rate down to the camera's frame grid, so 1/10 s on a 15 fps camera gave 7.5
+  fps and a 20 fps camera gave 10). The struct keeps a `slot`: the time the last processed frame was due. A frame is
+  processed when `t >= slot + interval - 0.004` (jitter tolerance). After processing, `slot = max(slot + interval,
+  t - interval / 2)`: it stays on the grid, and re-anchors when the frame came far behind. Results: a 15 fps camera
+  gives exactly 10 fps for 1/10 s (gaps alternate one and two frames, so one missed sample leaves 0.2 s, under the
+  decider's 0.25 s `maxGap`); 20, 24, and 30 fps cameras give 15 fps for 1/15 s; ±5 ms timestamp jitter does not drop
+  frames. A timestamp earlier than `slot`, and the first frame after a `reset()`, are processed and set `slot = t`.
+- A processed frame with a face makes the very next frame eligible at the active interval (the face-seen time
+  updates, so the rate is back to active at once). `setDemand` to a higher rate takes effect on the next frame.
+- Frames that are not processed are dropped before the estimator runs and yield nothing. Never retain their buffers.
+
+**`LivePoseSource`** asks the struct before every `estimate`, records the result after, resets it on `start`, and
+applies `setDemand` under its lock. The default demand after `start` is `.full`.
+Result: a hard 15 fps cap whatever the device delivers; the switching speed with a face present is unchanged.
+
+**Tests:** every table row, boundary and tolerance, timestamps going backwards, the 2 s absent boundary, the instant
+return on a face, `reset()`, `setDemand` mid-stream; `LivePoseSource` with `FakeFrameSource` and `FakePoseEstimator`:
+estimator calls drop to one per 5 fps interval after 2 s without a face and return to every frame at 15 fps on the
+first face, a 30 fps input is processed at 15 fps, `setDemand(.reduced)` lowers the rate, power-constrained changes
+intervals, `start` resets. Plus a new test file in `SwitchEngineTests` (SwayModels and SwitchEngine only) that feeds
+the decider a face-then-absent-then-face scenario at the throttled sample times and checks the switch still fires
+at the dwell plus at most one frame interval after the first qualifying sample, and that a switch after an absent
+period fires within 1 s plus the dwell of the face returning.
 
 ### 6.3 `PoseTraces` (builder-traces)
 
@@ -898,6 +986,58 @@ Each change saves at once and applies at once.
 - the Appearance settings save and apply;
 - view smoke tests for the welcome step, the Appearance section, and the popover header;
 - no frame-rate observation changes (the existing observation-count tests still pass).
+
+#### 6.5.5 M7 additions to `SwayUI` (builder-ui-m7): hardening
+
+No public API change. Behavior with a face present and nothing changing does not change. `SwayModels` already has
+`SuspendReason.sessionInactive`, `PoseDemand`, and `PoseSource.setDemand(_:)` (a default no-op).
+
+1. **Display and Space holds (SPEC D44).** Two new `TrackingHold` cases, ordered after `focusTest` and before
+   `switching`: `displaysChanging` and `spaceChanging`.
+   - `displaysChanging` starts on `NSApplication.didChangeScreenParametersNotification` (observed on
+     `environment.notificationCenter`) and ends when `layoutDidChange` has applied the new layout, or after 0.75 s,
+     whichever is first. Starting it resets the loop (as a layout change does) and cancels an in-flight switch.
+   - `spaceChanging` starts on `NSWorkspace.activeSpaceDidChangeNotification` (observed on
+     `environment.workspaceNotificationCenter`), lasts 0.6 s, and ends with one poll of the focused display.
+   - Both are invisible in the menu. Timers follow how the existing delayed work is injected, so no test sleeps.
+   - **Cap and log (review fix).** Notifications that do not change the layout still restart the 0.75 s timer, so a
+     display that posts every 0.5 s would stop switching for good. A display hold never lasts more than 3 s from its
+     first notification: later notifications still reset the loop but do not extend the timer past that. Log each hold
+     at info level when it starts and when it ends: which hold, how long it lasted, and whether a layout, the timeout,
+     or the cap ended it (never window titles).
+     After a cap end, notifications that keep arriving less than 0.75 s apart are ignored (no hold, no reset); a pause
+     of 0.75 s or more lets the next notification hold again. (Otherwise a display posting every 0.5 s would start a
+     new hold right after each cap and switching would still stop.)
+2. **Pose demand (SPEC D45).** `AppModel` calls `poseSource.setDemand(_:)` whenever the wanted demand changes
+   (deduplicated) and once after each start. `.full` whenever the camera runs for anything but plain tracking
+   (Setup's camera check or calibration, the gate test, a calibration running, Pose Debug open, a Focus Test).
+   `.reduced` while `trackingHold == .focusLock` or the status is `needsAccessibility`. `.adaptive` otherwise while
+   tracking. The fake pose source records demands.
+3. **Suspend reason text.** `.sessionInactive` reads "another user's session" (done in `SwayModels`/`SwayUI`
+   `CaptureStatusPresentation`; add a test).
+4. **Only a running camera switches.** `processTracking` also requires the capture status to be running.
+5. **Fewer environment refreshes.** Coalesce camera connect/disconnect notifications into one `refreshEnvironment`
+   0.5 s after the last one, and skip it while the capture status is `.suspended`; run it once when the status leaves
+   `.suspended`.
+6. **Camera grace after display changes (SPEC §6).** When the camera should stop only because the displays changed (no
+   calibration fits, fewer than 2 displays), stop it 2 s later instead of at once, and cancel the stop if the layout
+   recovers meanwhile. Stopping for any other reason (Tracking off, Pause, quit, lock) stays immediate.
+7. **USB camera fallback (SPEC D46).** When the camera the user chose is not connected and capture is interrupted
+   for 5 s, restart the pose source with a connected camera that has a calibration for the current displays (prefer
+   the built-in). When the chosen camera is connected again, restart with it. Never switch cameras while a
+   calibration, the gate test, or Setup runs. With no usable fallback, keep waiting; the status says
+   "<camera name> disconnected". The saved camera choice is never changed by a fallback.
+   - **A failed restart during a fallback never turns Tracking off (review fix).** When the restart that a fallback
+     started (to the stand-in, or back to the chosen camera) fails with `.deviceUnavailable` or `.noDevice`, keep
+     Tracking on: a camera that was just plugged in may not be ready to open. If switching back failed, put the
+     stand-in back and reconcile; if the stand-in itself failed, try again at the next device change. Other errors keep
+     today's behavior.
+8. **Steadier "No face".** The `noFace` status shows after 0.5 s without a face; a face shows at once.
+9. **Tests**, all against fakes: each hold (start, end by layout, end by timeout, in-flight switch dropped, no switch
+   while held, polls after); the demand for every mode; the status text; the running-only rule; the coalesced
+   refresh and the suspended skip; the camera grace and its cancel; the fallback (5 s, calibrated fallback only, switch
+   back, never during calibration, saved choice unchanged); the `noFace` debounce; the observation-count tests still
+   pass.
 
 ### 6.6 `SwitchEngine` (builder-engine, M2)
 

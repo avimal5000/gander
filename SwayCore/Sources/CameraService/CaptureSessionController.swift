@@ -10,17 +10,20 @@ import os
 ///
 /// Status sequence: `.starting` then `.running(device)`. While capture is wanted but not possible it reports
 /// `.suspended`, `.interrupted`, or finally `.failed`, and `.stopped` after `stop()`.
+///
+/// Suspension is sticky (SPEC D43): the sleep, lock, and user-session observers are installed when the controller
+/// is created and removed only when it is deallocated, so reasons are tracked whether or not capture is running.
+/// `start` never builds a session while any reason is active.
 final class CaptureSessionController: @unchecked Sendable {
     // @unchecked Sendable: every mutable property below is confined to `queue` (a private serial queue).
     // Public entry points hop onto `queue`, notification handlers hop onto `queue`, and timers fire on
     // `queue`. The only state shared with another thread is `watchdog`, an unfair lock, and the receiver's
-    // own locks. AVFoundation objects never leave `queue`.
-
-    /// How long to wait before retrying a rebuild that failed because the device was unavailable.
-    static let retryInterval: TimeInterval = 10
+    // own locks. AVFoundation objects never leave `queue`. `init` and `deinit` touch the queue-confined state
+    // directly, which is safe because no other thread can hold a reference to the controller then.
 
     private static let log = SwayLog.logger(category: "camera")
 
+    private let environment: CaptureEnvironment
     private let queue = DispatchQueue(label: "\(SwayPolicy.bundleIdentifier).camera.session")
     private let frameQueue = DispatchQueue(label: "\(SwayPolicy.bundleIdentifier).camera.frames")
     private let watchdog = OSAllocatedUnfairLock(initialState: FrameWatchdog())
@@ -45,13 +48,7 @@ final class CaptureSessionController: @unchecked Sendable {
     }
 
     private struct ObserverToken {
-        let center: NotificationCenter
-        let token: any NSObjectProtocol
-    }
-
-    private enum SystemEvent: Sendable {
-        case begin(SuspendReason)
-        case end(SuspendReason)
+        let remove: () -> Void
     }
 
     /// Present from `start` until `stop` (or a fatal failure). Holds the caller's handlers.
@@ -62,6 +59,7 @@ final class CaptureSessionController: @unchecked Sendable {
     private var live: LiveSession?
     private var suspend = SuspendTracker()
     private var retryPolicy = RuntimeRetryPolicy()
+    private var backoff = RetryBackoff()
     /// Set while the active device is missing; cleared when it reconnects and the session is rebuilt.
     private var awaitingReconnectID: String?
     private var systemObservers: [ObserverToken] = []
@@ -69,6 +67,24 @@ final class CaptureSessionController: @unchecked Sendable {
     private var retryToken = 0
     private var generationCounter = 0
     private var lastStatus: CaptureStatus?
+
+    /// Starts watching the system for suspend conditions right away (they are tracked from now on, even before
+    /// `start`), and seeds `.displaysAsleep` if the main display is already asleep and `.sessionInactive` if this
+    /// is not the console session.
+    init(environment: CaptureEnvironment = .live) {
+        self.environment = environment
+        if environment.isMainDisplayAsleep() {
+            _ = suspend.begin(.displaysAsleep)
+        }
+        if environment.isSessionInactive() {
+            _ = suspend.begin(.sessionInactive)
+        }
+        installSystemObservers()
+    }
+
+    deinit {
+        removeSystemObservers()
+    }
 
     // MARK: Entry points (any thread)
 
@@ -107,19 +123,20 @@ final class CaptureSessionController: @unchecked Sendable {
     // MARK: Start
 
     private func startOnQueue(_ newConfiguration: Configuration) throws {
-        guard CameraDeviceCatalog.authorizationStatus() == .authorized else {
+        guard environment.authorizationStatus() == .authorized else {
             throw CameraError.notAuthorized
         }
         let choice = try CameraDeviceSelector.select(
             preferredID: newConfiguration.preferredID,
-            devices: CameraDeviceCatalog.connectedDevices(),
-            systemDefault: CameraDeviceCatalog.systemDefault()
+            devices: environment.connectedDevices(),
+            systemDefault: environment.systemDefaultDevice()
         )
         if choice.preferredWasUnavailable {
             Self.log.info("Preferred camera is not connected; using the \(String(describing: choice.reason)) camera")
         }
 
-        // Restart: the previous session ends and its owner is told. Reasons already active stay active.
+        // Restart: the previous session ends and its owner is told. Reasons already active stay active, and a
+        // reason that began while capture was stopped counts too (D43).
         cancelRetry()
         teardownSession()
         watchdog.withLock { $0.disarm() }
@@ -130,7 +147,7 @@ final class CaptureSessionController: @unchecked Sendable {
         awaitingReconnectID = nil
         lastStatus = nil
         retryPolicy.reset()
-        installSystemObservers()
+        backoff = RetryBackoff()
 
         switch suspend.captureRequested() {
         case .suspend(let reason):
@@ -153,6 +170,7 @@ final class CaptureSessionController: @unchecked Sendable {
     /// Builds the session, starts it, applies the frame rate, and reports `.running`. On failure nothing is
     /// left running.
     private func buildSession(for device: CameraDevice, configuration: Configuration) throws(CameraError) {
+        environment.turnCenterStageOff()
         guard let avDevice = AVCaptureDevice(uniqueID: device.id) else {
             throw .deviceUnavailable("\(device.name) is not available")
         }
@@ -326,7 +344,10 @@ final class CaptureSessionController: @unchecked Sendable {
         frameQueue.sync {}
     }
 
-    /// Ends the run: tears down, reports `finalStatus` (if any), removes observers, and drops the handlers.
+    /// Ends the run: tears down, reports `finalStatus` (if any), and drops the handlers.
+    ///
+    /// Suspend reasons and the system observers stay (D43): the Mac may still be asleep or locked when the next
+    /// `start` arrives, and that start must not turn the camera on.
     private func shutdown(finalStatus: CaptureStatus?) {
         cancelRetry()
         teardownSession()
@@ -334,7 +355,7 @@ final class CaptureSessionController: @unchecked Sendable {
         if let finalStatus { emit(finalStatus) }
         suspend.captureStopped()
         retryPolicy.reset()
-        removeSystemObservers()
+        backoff = RetryBackoff()
         configuration = nil
         activeDevice = nil
         awaitingReconnectID = nil
@@ -357,7 +378,7 @@ final class CaptureSessionController: @unchecked Sendable {
         cancelRetry()
         guard let configuration, let target = activeDevice, !suspend.isSuspended else { return }
         teardownSession()
-        guard CameraDeviceCatalog.authorizationStatus() == .authorized else {
+        guard environment.authorizationStatus() == .authorized else {
             fail(.notAuthorized)
             return
         }
@@ -366,7 +387,7 @@ final class CaptureSessionController: @unchecked Sendable {
             try buildSession(for: target, configuration: configuration)
         } catch .deviceUnavailable(let message) {
             Self.log.info("Camera unavailable while rebuilding: \(message)")
-            let connected = CameraDeviceCatalog.isConnected(id: target.id)
+            let connected = environment.isDeviceConnected(target.id)
             awaitingReconnectID = connected ? nil : target.id
             emit(.interrupted(connected ? message : Self.disconnectedMessage))
             scheduleRetry()
@@ -377,10 +398,14 @@ final class CaptureSessionController: @unchecked Sendable {
 
     private static let disconnectedMessage = "Camera disconnected"
 
+    /// Schedules another rebuild after a failure to find or open the device, waiting longer after each failure
+    /// (1 s, 2 s, 5 s, then 10 s) until frames flow again.
     private func scheduleRetry() {
         retryToken &+= 1
         let token = retryToken
-        queue.asyncAfter(deadline: .now() + Self.retryInterval) { [weak self] in
+        let delay = backoff.nextOpenFailureDelay()
+        Self.log.info("Trying the camera again in \(delay) s")
+        queue.asyncAfter(deadline: .now() + delay) { [weak self] in
             guard let self, self.retryToken == token else { return }
             self.rebuild(announceStarting: false)
         }
@@ -422,13 +447,22 @@ final class CaptureSessionController: @unchecked Sendable {
         case .stalled:
             let reason = stallReason(default: "No frames received from the camera")
             Self.log.info("Camera stalled: \(reason)")
+            beginStallWait()
             emit(.interrupted(reason))
         case .retryDue:
             Self.log.info("Camera still stalled; restarting the capture session")
+            beginStallWait()
             rebuild(announceStarting: false)
         case .resumed, .none:
             break
         }
+    }
+
+    /// A stall began or a rebuild did not help: the watchdog waits longer (10 s, 30 s, then 60 s) before the next
+    /// rebuild, so a camera held by another app is not hammered.
+    private func beginStallWait() {
+        let delay = backoff.nextStallRebuildDelay()
+        watchdog.withLock { $0.setRetryInterval(delay) }
     }
 
     private func stallReason(default fallback: String) -> String {
@@ -439,6 +473,7 @@ final class CaptureSessionController: @unchecked Sendable {
     private func framesResumed(generation: Int) {
         guard let live, live.generation == generation, let device = activeDevice else { return }
         retryPolicy.recovered()
+        backoff.framesFlowed()
         emit(.running(device))
     }
 }
@@ -489,28 +524,37 @@ extension CaptureSessionController {
         guard let live, live.generation == generation else { return }
         let now = ProcessInfo.processInfo.systemUptime
         guard watchdog.withLock({ $0.markInterrupted(at: now) }) == .stalled else { return }
+        beginStallWait()
         emit(.interrupted(stallReason(default: "Camera session was interrupted")))
     }
 
     // MARK: System notifications
 
+    /// Installed once, from `init`. Every handler ignores its event unless it matters, so the observers stay for the
+    /// controller's whole life, including while capture is stopped.
     private func installSystemObservers() {
         guard systemObservers.isEmpty else { return }
-        let workspace = NSWorkspace.shared.notificationCenter
-        let distributed = DistributedNotificationCenter.default()
+        let workspace = environment.workspaceCenter
 
         observeSystemEvent(NSWorkspace.willSleepNotification, on: workspace, event: .begin(.systemSleep))
         observeSystemEvent(NSWorkspace.didWakeNotification, on: workspace, event: .end(.systemSleep))
         observeSystemEvent(NSWorkspace.screensDidSleepNotification, on: workspace, event: .begin(.displaysAsleep))
         observeSystemEvent(NSWorkspace.screensDidWakeNotification, on: workspace, event: .end(.displaysAsleep))
-        observeSystemEvent(Notification.Name("com.apple.screenIsLocked"), on: distributed, event: .begin(.screenLocked))
-        observeSystemEvent(Notification.Name("com.apple.screenIsUnlocked"), on: distributed, event: .end(.screenLocked))
+        // Lock and unlock come from the distributed center, which would delay them for an inactive app unless the
+        // registration asks for immediate delivery (see `ImmediateDistributedObserver`).
+        observeDistributedEvent(Notification.Name("com.apple.screenIsLocked"), event: .begin(.screenLocked))
+        observeDistributedEvent(Notification.Name("com.apple.screenIsUnlocked"), event: .end(.screenLocked))
+        // Fast user switching: while another user's session is in front, this one must not use the camera.
+        observeSystemEvent(
+            NSWorkspace.sessionDidResignActiveNotification, on: workspace, event: .begin(.sessionInactive))
+        observeSystemEvent(
+            NSWorkspace.sessionDidBecomeActiveNotification, on: workspace, event: .end(.sessionInactive))
 
-        observe(AVCaptureDevice.wasDisconnectedNotification, on: .default) { [weak self] notification in
+        observe(AVCaptureDevice.wasDisconnectedNotification, on: environment.deviceCenter) { [weak self] notification in
             guard let id = (notification.object as? AVCaptureDevice)?.uniqueID, let self else { return }
             self.queue.async { self.handleDeviceDisconnected(id: id) }
         }
-        observe(AVCaptureDevice.wasConnectedNotification, on: .default) { [weak self] notification in
+        observe(AVCaptureDevice.wasConnectedNotification, on: environment.deviceCenter) { [weak self] notification in
             guard let id = (notification.object as? AVCaptureDevice)?.uniqueID, let self else { return }
             self.queue.async { self.handleDeviceConnected(id: id) }
         }
@@ -518,7 +562,7 @@ extension CaptureSessionController {
 
     private func removeSystemObservers() {
         for observer in systemObservers {
-            observer.center.removeObserver(observer.token)
+            observer.remove()
         }
         systemObservers.removeAll()
     }
@@ -529,23 +573,32 @@ extension CaptureSessionController {
         handler: @escaping @Sendable (Notification) -> Void
     ) {
         let token = center.addObserver(forName: name, object: nil, queue: nil, using: handler)
-        systemObservers.append(ObserverToken(center: center, token: token))
+        systemObservers.append(ObserverToken { center.removeObserver(token) })
     }
 
-    private func observeSystemEvent(_ name: Notification.Name, on center: NotificationCenter, event: SystemEvent) {
-        observe(name, on: center) { [weak self] _ in
+    private func observeSystemEvent(
+        _ name: Notification.Name, on center: NotificationCenter, event: SuspendTracker.Event
+    ) {
+        observe(name, on: center, handler: suspendEventHandler(event))
+    }
+
+    private func observeDistributedEvent(_ name: Notification.Name, event: SuspendTracker.Event) {
+        let remove = environment.observeDistributedNotification(name, suspendEventHandler(event))
+        systemObservers.append(ObserverToken(remove: remove))
+    }
+
+    /// Hops onto `queue` and applies `event`. Holds the controller weakly, so an observer never keeps it alive.
+    private func suspendEventHandler(_ event: SuspendTracker.Event) -> @Sendable (Notification) -> Void {
+        { [weak self] _ in
             guard let self else { return }
             self.queue.async { self.handle(event) }
         }
     }
 
-    private func handle(_ event: SystemEvent) {
-        guard configuration != nil else { return }
-        let directive: SuspendTracker.Directive
-        switch event {
-        case .begin(let reason): directive = suspend.begin(reason)
-        case .end(let reason): directive = suspend.end(reason)
-        }
+    /// Records the event whether or not capture is running (D43). The tracker answers `.none` while capture is
+    /// stopped, so only a running or waiting capture reacts.
+    private func handle(_ event: SuspendTracker.Event) {
+        let directive = suspend.apply(event, isMainDisplayAsleep: environment.isMainDisplayAsleep)
         switch directive {
         case .none:
             break
@@ -554,6 +607,8 @@ extension CaptureSessionController {
             cancelRetry()
             teardownSession()
             watchdog.withLock { $0.disarm() }
+            // The conditions that caused earlier trouble are gone with the session; a resume starts fresh.
+            backoff = RetryBackoff()
             emit(.suspended(reason))
         case .reasonChanged(let reason):
             emit(.suspended(reason))
