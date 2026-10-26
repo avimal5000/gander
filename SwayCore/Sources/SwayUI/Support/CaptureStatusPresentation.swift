@@ -35,6 +35,7 @@ extension SuspendReason {
         case .systemSleep: "system asleep"
         case .displaysAsleep: "displays asleep"
         case .screenLocked: "screen locked"
+        case .sessionInactive: "another user's session"
         }
     }
 }

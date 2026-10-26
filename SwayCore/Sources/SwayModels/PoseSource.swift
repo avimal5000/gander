@@ -27,6 +27,16 @@ public enum PoseSourceEvent: Sendable, Equatable {
     case status(CaptureStatus)
 }
 
+/// How much frame rate the app needs from a live pose source right now (SPEC D45).
+public enum PoseDemand: Sendable, Equatable {
+    /// Every frame up to the 15 fps cap: calibration, the gate test, Setup's camera check, Pose Debug.
+    case full
+    /// Tracking: full rate while a face is present; a lower rate once no face has been seen for 2 s.
+    case adaptive
+    /// The camera must stay on, but nothing switches on the poses (Focus Lock, Accessibility needed): a low rate.
+    case reduced
+}
+
 /// A stream of head poses: live camera, replayed trace, or synthetic data (tests).
 public protocol PoseSource: AnyObject, Sendable {
     /// Starts the source and returns a fresh event stream.
@@ -37,6 +47,13 @@ public protocol PoseSource: AnyObject, Sendable {
     func start(_ configuration: PoseSourceConfiguration) async throws -> AsyncStream<PoseSourceEvent>
     /// Stops the source. The current stream emits `.status(.stopped)` and finishes. Idempotent.
     func stop() async
+    /// Tells a live source how much frame rate is needed. Thread-safe and cheap; takes effect on the next frame and
+    /// lasts until the next call. A source that does not throttle ignores it (the default).
+    func setDemand(_ demand: PoseDemand)
+}
+
+extension PoseSource {
+    public func setDemand(_ demand: PoseDemand) {}
 }
 
 /// Turns a camera frame into a head pose.
