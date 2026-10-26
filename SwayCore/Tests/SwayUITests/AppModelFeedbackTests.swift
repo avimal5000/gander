@@ -30,7 +30,7 @@ struct AppModelFeedbackTests {
     }
 
     private func focused(on display: DisplayInfo) -> FocusResult {
-        .focused(Fixtures.window(7, on: display), method: .accessibilityRaise, milliseconds: 100)
+        .focused(Fixtures.window(7, on: display), method: .appActivation, milliseconds: 100)
     }
 
     /// Runs one tracking switch to `target` that ends with `result`.

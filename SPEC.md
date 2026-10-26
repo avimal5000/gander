@@ -74,6 +74,7 @@ New decisions for this phase (M6):
 | D39 | **Focus Lock notice**: when the shortcut toggles Focus Lock, a small "Focus Lock on" / "Focus Lock off" notice near the top of the focused display for about 1 s. On by default, with a Settings switch. The menu switch shows no notice (the change is in front of the user) | User, 2026-10-25 |
 | D40 | **Welcome step**: Setup opens with a welcome on first setup (no saved calibration): the mark, one line on what Sway does, and the privacy promise | User, 2026-10-25 |
 | D41 | **Restrained motion**: short fades for the glow, the notice, Setup step changes, and the menu banner. The menu bar icon does not animate (`MenuBarExtra` labels cannot animate reliably). With Reduce Motion on, nothing fades: the glow and notice just appear and disappear | User, 2026-10-25 + orchestrator |
+| D42 | **Focus brings forward only the target window.** Sway raises the window, then activates its app with no options, which brings only the app's main and key windows forward. The Accessibility "frontmost" call, which can bring every window of the app forward, is now only the fallback. Measured on the user's Mac: activation from a background process brought only Terminal's front window | User report, 2026-10-25 (every Terminal window came forward over Discord) |
 
 ## 4. Features
 

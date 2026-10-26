@@ -2,8 +2,11 @@ import Foundation
 import SwayModels
 
 /// The focus fallback list, independent of how windows are found and raised:
-/// 1. `accessibilityRaise`: raise the window, make it main, make its app frontmost, then verify.
-/// 2. `appActivation`: ask the system to activate the app, raise again, then verify.
+/// 1. `appActivation`: raise the window and make it main, then ask the system to activate its app, then verify.
+///    Activation brings only the app's main and key windows forward, so its other windows stay behind whatever
+///    covers them (SPEC D42).
+/// 2. `accessibilityFrontmost`: make the app frontmost through Accessibility, raise again, then verify. That can
+///    bring all of the app's windows forward, so it is only the fallback for an app that ignores activation.
 /// Each method is verified by polling. If both fail the sequence reports `focusDidNotMove`.
 struct FocusSequence<Platform: FocusPlatform>: Sendable {
     let platform: Platform
@@ -20,12 +23,13 @@ struct FocusSequence<Platform: FocusPlatform>: Sendable {
         let summary = target.settingTitle(platform.title(of: handle))
 
         await platform.raise(handle)
-        if await waitUntilFocused(handle) { return .focused(summary, .accessibilityRaise) }
+        await platform.activateApplication(processID: target.processID)
+        if await waitUntilFocused(handle) { return .focused(summary, .appActivation) }
         if Task.isCancelled { return .cancelled }
 
-        await platform.activateApplication(processID: target.processID)
+        await platform.makeFrontmost(handle)
         await platform.raise(handle)
-        if await waitUntilFocused(handle) { return .focused(summary, .appActivation) }
+        if await waitUntilFocused(handle) { return .focused(summary, .accessibilityFrontmost) }
         return Task.isCancelled ? .cancelled : .focusDidNotMove(summary)
     }
 

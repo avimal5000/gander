@@ -1109,23 +1109,24 @@ Everything else is `internal`.
      2 pt. This frame matching is a pure function over plain frames.
    - If none matches and the app has exactly one window, use that one.
    - Otherwise return `.failed(target, reason: "Window not found through Accessibility")`.
-4. `accessibilityRaise`:
+4. `appActivation` (SPEC D42):
    - `AXUIElementPerformAction(window, kAXRaiseAction)`;
    - set `kAXMainAttribute = true` on the window;
-   - set `kAXFrontmostAttribute = true` on the app.
+   - `NSRunningApplication(processIdentifier:)?.activate(options: [])`: no options, so only the app's main and key
+     windows (the raised one) come forward, not every window of the app.
 
    Then verify by polling every 25 ms, for up to 300 ms, until both hold:
    - the frontmost pid equals the target's pid;
    - the app's `kAXFocusedWindowAttribute` is `CFEqual` to the window. If it cannot be read, accept the pid match
      alone.
 
-   On success → `.focused(target, method: .accessibilityRaise, milliseconds:)`.
-5. `appActivation`:
-   - `NSRunningApplication(processIdentifier:)?.activate(from: .current, options: [])` (macOS 14 API);
+   On success → `.focused(target, method: .appActivation, milliseconds:)`.
+5. `accessibilityFrontmost`, the fallback for an app that ignores activation:
+   - set `kAXFrontmostAttribute = true` on the app (this can bring all of its windows forward);
    - the raise again;
    - the same verification.
 
-   On success → `.focused(..., .appActivation, ...)`.
+   On success → `.focused(..., .accessibilityFrontmost, ...)`.
 6. Otherwise → `.failed(target, reason: "Focus did not move to <app>")`.
 7. If the calling task is cancelled between methods → `.failed(target, reason: "Cancelled")`. No further method
    is tried, which lets a Focus Test countdown be cancelled.

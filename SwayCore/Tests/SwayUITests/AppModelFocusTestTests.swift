@@ -43,11 +43,11 @@ struct AppModelFocusTestTests {
         func text(_ result: FocusResult) -> String { FocusTestPresentation.logText(for: result, displayName: name) }
 
         #expect(
-            text(.focused(window, method: .accessibilityRaise, milliseconds: 42))
-                == "Focused Safari via Accessibility raise in 42 ms")
+            text(.focused(window, method: .appActivation, milliseconds: 42))
+                == "Focused Safari via app activation in 42 ms")
         #expect(
-            text(.focused(window, method: .appActivation, milliseconds: 310))
-                == "Focused Safari via app activation in 310 ms")
+            text(.focused(window, method: .accessibilityFrontmost, milliseconds: 310))
+                == "Focused Safari via Accessibility frontmost in 310 ms")
         #expect(text(.noWindow(Fixtures.left.id)) == "No window on Left")
         #expect(text(.notTrusted) == "Accessibility permission needed")
         #expect(text(.failed(window, reason: "Focus did not move to Safari")) == "Failed: Focus did not move to Safari")
@@ -219,14 +219,14 @@ struct AppModelFocusTestTests {
         let h = await openWindow()
         defer { h.tearDown() }
         let window = Fixtures.window(1, app: "Safari", title: "Secret page")
-        h.focus.setResult(.focused(window, method: .accessibilityRaise, milliseconds: 42))
+        h.focus.setResult(.focused(window, method: .appActivation, milliseconds: 42))
 
         h.model.focusNow(left)
         #expect(h.model.focusActivity == .focusing(display: left))
         await settle(h)
 
         #expect(h.focus.focusCalls == [left])
-        #expect(h.model.focusLog.map(\.text) == ["Focused Safari via Accessibility raise in 42 ms"])
+        #expect(h.model.focusLog.map(\.text) == ["Focused Safari via app activation in 42 ms"])
         #expect(h.model.focusActivity == .idle)
         #expect(h.model.canRequestFocus)
     }
@@ -259,7 +259,7 @@ struct AppModelFocusTestTests {
         defer { h.tearDown() }
         let window = Fixtures.window(1, app: "Safari", title: "Secret page")
         for result: FocusResult in [
-            .focused(window, method: .accessibilityRaise, milliseconds: 5),
+            .focused(window, method: .appActivation, milliseconds: 5),
             .failed(window, reason: "Focus did not move to Safari"),
         ] {
             h.focus.setResult(result)

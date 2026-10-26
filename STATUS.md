@@ -5,7 +5,7 @@ orchestrator.
 
 **Current state:** branch `feat/28-m6-design`. M4 + M5 merged as PR #47 (974c9f7); the user's hardware check passed.
 The user made the M6 design decisions (SPEC D34–D41) and picked icon option A, "Swing", from drawn options
-(https://claude.ai/artifact/PgqPsH9GcpEbK3onhqPSPm). SPEC and CONTRACT §6.5.4 are written; the builder is running.
+(https://claude.ai/artifact/PgqPsH9GcpEbK3onhqPSPm). Built, reviewed, and fixed; the Terminal focus fix is in too. Next: the PR and the user's check on their Mac.
 
 ## History
 
@@ -42,9 +42,9 @@ The user made the M6 design decisions (SPEC D34–D41) and picked icon option A,
 | App icon + AccentColor asset | Done | `scripts/make-appicon.swift` renders option A "Swing" at every size (thicker strokes at 16 and 32 px) into `AppIcon.appiconset`; the asset-catalog AccentColor was later removed (see builder row) |
 | Builder | Done | builder-ui-m6. Full `xcodebuild test`: 1073 tests, zero warnings |
 | Review pass (Opus) | Done | No blockers; behavior unchanged, overlays can't take focus. To fix: (1) hard-coded forest tints in `SetupCalibratingStep:34`, `GateRunningView:38`, `SwitchPreviewView:75,91`, `GateOverlayView:64` override the accent; (2) no test pins the `OverlayPanel` invariants (non-activating, never key/main, `.screenSaver`, collection behavior); (3) `NoticePillView:58` mask closure is main-actor isolated but AppKit may draw it off-main: make it a `nonisolated static func`; (4) a cancelled fade can still `orderOut` a newly shown panel: check `Task.isCancelled` after the sleep in `pause`; (5) the glow is a full-screen Canvas (about 59 MB at 5K): draw edge strips instead; (6) `MenuBarIconTests:156-160` cut-out region has no ink in `.tracking` either: use `CGRect(x: 14.4, y: 4.6, width: 0.4, height: 0.4)`; (7) nits: this table's asset note, `CONTRACT.md:453`, `SettingsView.swift:6` is 126 columns |
-| Fixes | Pending | Review items 1–7 |
-| User report (2026-10-25) | Pending | Focusing a Terminal window on the LG display brings **every** Terminal window forward (over Discord on the other displays) instead of only the target. Suspect: step 1 of `FocusSequence` sets `kAXFrontmostAttribute` on the whole app (`LiveFocusPlatform.raise`), which brings all its windows; fix in FocusControl after confirming on hardware |
-| Verification, PR, CI | Pending | |
+| Fixes | Done | All seven review items (06551e9): the accent now reaches every progress bar; the glow is eight thin edge layers (no full-screen bitmap); the fade race and the off-main mask are fixed; new tests pin the overlay panel rules, SwiftUI's Sway green, and the badge cut-out |
+| User report (2026-10-25) | Fixed, needs the user's check | Every Terminal window came forward when Sway focused one. A probe on the user's Mac showed `NSRunningApplication.activate(options: [])` from a background process brings only the app's front window, so the cause was the `AXFrontmost` call. Now: raise + main, then activation (`.appActivation`); `AXFrontmost` only as the fallback (`.accessibilityFrontmost`). SPEC D42, CONTRACT §6.7 steps 4–5 |
+| Verification, PR, CI | Running | Full `xcodebuild test`: 1077 tests, zero warnings; lint and guard clean |
 
 ## Builder agents
 
