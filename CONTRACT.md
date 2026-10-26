@@ -202,7 +202,14 @@ No public API change. Everything here is internal to `CameraService` (SPEC D43, 
    - When the observers are installed, seed `.displaysAsleep` if the main display is asleep. The check is an injected
      `@Sendable () -> Bool` (live: `CGDisplayIsAsleep(CGMainDisplayID()) != 0`), so tests never touch displays.
    - New reason `.sessionInactive`: `NSWorkspace.sessionDidResignActiveNotification` begins it and
-     `sessionDidBecomeActiveNotification` ends it.
+     `sessionDidBecomeActiveNotification` ends it. When the observers are installed, also seed it if this session is not
+     the console session (an injected `@Sendable () -> Bool`; live:
+     `CGSessionCopyCurrentDictionary()` has `kCGSessionOnConsoleKey` false).
+   - **Lock and unlock are delivered immediately (review fix).** `DistributedNotificationCenter` suspends delivery to an
+     inactive app and coalesces what it queues, and Sway is almost never the active app. Register the
+     `com.apple.screenIsLocked` and `com.apple.screenIsUnlocked` observers with `addObserver(_:selector:name:object:
+     suspensionBehavior: .deliverImmediately)` (a small `NSObject` that hops to the controller's queue). Make the
+     registration an injected closure in `CaptureEnvironment`, so tests keep using a plain notification center.
    - **Self-heal.** On `didWake`, `screensDidWake`, `screenIsUnlocked`, and `sessionDidBecomeActive`, after clearing
      the event's own reason, also clear `.displaysAsleep` if the injected check says the main display is awake (a
      missed `screensDidWake` must not leave capture suspended).
@@ -305,9 +312,14 @@ seconds):
 | `.adaptive`, no face for 2 s or more | 1/5 s | 1/2 s |
 | `.reduced` | 1/5 s | 1/2 s |
 
-- A frame is processed when `t - lastProcessed >= interval - 0.004` (jitter tolerance, so a 15 fps device is not
-  dropped by timing noise). A timestamp earlier than the last processed one is processed and restarts the interval.
-  The first frame after a `reset()` is always processed.
+- **The intervals are averages kept on a nominal schedule** (review fix: measuring each interval from the last
+  processed frame's real time rounds the rate down to the camera's frame grid, so 1/10 s on a 15 fps camera gave 7.5
+  fps and a 20 fps camera gave 10). The struct keeps a `slot`: the time the last processed frame was due. A frame is
+  processed when `t >= slot + interval - 0.004` (jitter tolerance). After processing, `slot = max(slot + interval,
+  t - interval / 2)`: it stays on the grid, and re-anchors when the frame came far behind. Results: a 15 fps camera
+  gives exactly 10 fps for 1/10 s (gaps alternate one and two frames, so one missed sample leaves 0.2 s, under the
+  decider's 0.25 s `maxGap`); 20, 24, and 30 fps cameras give 15 fps for 1/15 s; ±5 ms timestamp jitter does not drop
+  frames. A timestamp earlier than `slot`, and the first frame after a `reset()`, are processed and set `slot = t`.
 - A processed frame with a face makes the very next frame eligible at the active interval (the face-seen time
   updates, so the rate is back to active at once). `setDemand` to a higher rate takes effect on the next frame.
 - Frames that are not processed are dropped before the estimator runs and yield nothing. Never retain their buffers.
@@ -988,6 +1000,11 @@ No public API change. Behavior with a face present and nothing changing does not
    - `spaceChanging` starts on `NSWorkspace.activeSpaceDidChangeNotification` (observed on
      `environment.workspaceNotificationCenter`), lasts 0.6 s, and ends with one poll of the focused display.
    - Both are invisible in the menu. Timers follow how the existing delayed work is injected, so no test sleeps.
+   - **Cap and log (review fix).** Notifications that do not change the layout still restart the 0.75 s timer, so a
+     display that posts every 0.5 s would stop switching for good. A display hold never lasts more than 3 s from its
+     first notification: later notifications still reset the loop but do not extend the timer past that. Log each hold
+     at info level when it starts and when it ends: which hold, how long it lasted, and whether a layout, the timeout,
+     or the cap ended it (never window titles).
 2. **Pose demand (SPEC D45).** `AppModel` calls `poseSource.setDemand(_:)` whenever the wanted demand changes
    (deduplicated) and once after each start. `.full` whenever the camera runs for anything but plain tracking
    (Setup's camera check or calibration, the gate test, a calibration running, Pose Debug open, a Focus Test).
@@ -1007,6 +1024,11 @@ No public API change. Behavior with a face present and nothing changing does not
    the built-in). When the chosen camera is connected again, restart with it. Never switch cameras while a
    calibration, the gate test, or Setup runs. With no usable fallback, keep waiting; the status says
    "<camera name> disconnected". The saved camera choice is never changed by a fallback.
+   - **A failed restart during a fallback never turns Tracking off (review fix).** When the restart that a fallback
+     started (to the stand-in, or back to the chosen camera) fails with `.deviceUnavailable` or `.noDevice`, keep
+     Tracking on: a camera that was just plugged in may not be ready to open. If switching back failed, put the
+     stand-in back and reconcile; if the stand-in itself failed, try again at the next device change. Other errors keep
+     today's behavior.
 8. **Steadier "No face".** The `noFace` status shows after 0.5 s without a face; a face shows at once.
 9. **Tests**, all against fakes: each hold (start, end by layout, end by timeout, in-flight switch dropped, no switch
    while held, polls after); the demand for every mode; the status text; the running-only rule; the coalesced
