@@ -62,8 +62,10 @@ has a network entitlement.
 ## What users see
 
 - **Signed and notarized:** open the DMG, drag Sway to Applications, open it. No warning.
-- **Ad hoc only:** macOS says the app cannot be checked for malware. Right-click Sway → **Open** → **Open**, or in
-  System Settings → Privacy & Security → **Open Anyway**; or `xattr -dr com.apple.quarantine /Applications/Sway.app`.
+- **Ad hoc only:** macOS says Apple could not verify the app. Click **Done** (not Move to Trash), then System
+  Settings → Privacy & Security → scroll to Security → **Open Anyway** next to "Sway was blocked", and confirm with
+  the password or Touch ID. macOS 15 and later removed the right-click → Open shortcut, so that no longer works.
+  Or: `xattr -dr com.apple.quarantine /Applications/Sway.app`, then open Sway.
 - **Permissions:** Camera and Accessibility are granted per app signature. A different signature (the Xcode build,
   the ad hoc build, and the Developer ID build are three different ones) asks again, and the old Accessibility
   entry stays in the list: remove it with the **−** button and add the new one. Do this once after switching from

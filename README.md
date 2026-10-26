@@ -11,8 +11,11 @@ hardening for sleep, display changes, and camera conflicts. The first release is
 ## Install
 
 Download the DMG from the repository's **Releases** page, open it, drag Sway to Applications, and open it from
-there. If macOS says the app cannot be checked for malware (an early build that is not notarized), right-click Sway →
-**Open** → **Open** once. Sway lives in the menu bar; choose **Set Up…** in its menu. There is no auto-update, because
+there. The early builds are not notarized, so macOS says Apple could not verify the app. Click **Done**, then open
+System Settings → Privacy & Security, scroll to the Security section, and click **Open Anyway** next to "Sway was
+blocked" (once; macOS 15 and later removed the right-click → Open shortcut). Or, in Terminal after copying Sway to
+Applications: `xattr -dr com.apple.quarantine /Applications/Sway.app`. Sway lives in the menu bar; choose **Set Up…** in
+its menu. There is no auto-update, because
 Sway never uses the network: to update, download the new DMG and replace the app.
 
 ## Permissions
