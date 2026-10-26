@@ -17,17 +17,17 @@ the morning (they have a paid Apple Developer account but no certificate yet).
 | SPEC D43–D48, CONTRACT §6.1.1, §6.2.1, §6.5.5 | Done | |
 | `SwayModels`: `SuspendReason.sessionInactive`, `PoseDemand`, `PoseSource.setDemand` | Done | Default no-op, so fakes compile |
 | Privacy audit and soak tooling (#38, #39) | Done | `scripts/audit-privacy.sh`, `docs/PRIVACY-AUDIT.md`, `scripts/soak.sh` (57d28ef) |
-| M7 builders | Running | builder-camera-m7, builder-pose-m7, builder-ui-m7 |
-| M7 review (Opus), fixes, full verification, PR | Pending | |
+| M7 builders | Done | All three finished and combined (29228a5). Full `xcodebuild test`: 1246 tests, zero warnings; lint and guard clean |
+| M7 review (Opus), fixes, full verification, PR | Review running | |
 | M8 release pipeline | Pending | Separate worktree `.build-m8`, branch `feat/40-m8-release`: DMG script, release workflow on `v*` tags, version 0.1.0, notarization steps with secrets the user adds |
 
 ## Builder agents
 
 | Agent | Module | Task | Model | Status | Report |
 |---|---|---|---|---|---|
-| builder-camera-m7 | `CameraService` | CONTRACT §6.1.1: sticky suspend, sessionInactive, self-heal, retry backoff, Center Stage off | Sonnet | Running | |
-| builder-pose-m7 | `PoseEstimator`, `SwitchEngineTests` | CONTRACT §6.2.1: adaptive frame rate, 15 fps cap, power state | Sonnet | Running | |
-| builder-ui-m7 | `SwayUI` | CONTRACT §6.5.5: display/Space holds, demand wiring, coalesced refresh, camera grace, USB fallback | Sonnet | Running | |
+| builder-camera-m7 | `CameraService` | CONTRACT §6.1.1: sticky suspend, sessionInactive, self-heal, retry backoff, Center Stage off | Sonnet | **Done** | 101 tests. Both old bugs fail the new tests when restored (mutation check). Known limit: a launch while already locked is not detected (no public API); Center Stage is switched off process-wide once the first session starts |
+| builder-pose-m7 | `PoseEstimator`, `SwitchEngineTests` | CONTRACT §6.2.1: adaptive frame rate, 15 fps cap, power state | Sonnet | **Done** | 109 + 106 tests. Face-present switching is unchanged; away-then-back switches within 1 s + dwell. Low Power Mode quantizes 10 fps to 7.5 fps on a 15 fps camera, so one missed frame can restart the dwell there (accepted, reviewer to assess) |
+| builder-ui-m7 | `SwayUI` | CONTRACT §6.5.5: display/Space holds, demand wiring, coalesced refresh, camera grace, USB fallback | Sonnet | **Done** | 669 tests (587 before); three existing tests changed as the contract requires. New `DelayScheduling` injection and `TrackingStatus.cameraDisconnected` |
 
 ### Earlier phases (done)
 
