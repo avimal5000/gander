@@ -39,9 +39,11 @@ The user made the M6 design decisions (SPEC D34–D41) and picked icon option A,
 |---|---|---|
 | Decisions | Done | SPEC D34–D41 (2026-10-25): native look with a user-chosen accent; icon A "Swing"; menu bar mark with state badges; edge glow and Focus Lock notice, each on by default with a Settings switch; welcome step; restrained motion |
 | SPEC / CONTRACT | Done | SPEC F24–F29, §8–§9; CONTRACT §6.5.4 |
-| App icon + AccentColor asset | Done | `scripts/make-appicon.swift` renders option A "Swing" at every size (thicker strokes at 16 and 32 px) into `AppIcon.appiconset`; the AccentColor's dark variant is now Sway green's dark value `0x6FAF84` |
+| App icon + AccentColor asset | Done | `scripts/make-appicon.swift` renders option A "Swing" at every size (thicker strokes at 16 and 32 px) into `AppIcon.appiconset`; the asset-catalog AccentColor was later removed (see builder row) |
 | Builder | Done | builder-ui-m6. Full `xcodebuild test`: 1073 tests, zero warnings |
-| Review pass (Opus) | Running | |
+| Review pass (Opus) | Done | No blockers; behavior unchanged, overlays can't take focus. To fix: (1) hard-coded forest tints in `SetupCalibratingStep:34`, `GateRunningView:38`, `SwitchPreviewView:75,91`, `GateOverlayView:64` override the accent; (2) no test pins the `OverlayPanel` invariants (non-activating, never key/main, `.screenSaver`, collection behavior); (3) `NoticePillView:58` mask closure is main-actor isolated but AppKit may draw it off-main: make it a `nonisolated static func`; (4) a cancelled fade can still `orderOut` a newly shown panel: check `Task.isCancelled` after the sleep in `pause`; (5) the glow is a full-screen Canvas (about 59 MB at 5K): draw edge strips instead; (6) `MenuBarIconTests:156-160` cut-out region has no ink in `.tracking` either: use `CGRect(x: 14.4, y: 4.6, width: 0.4, height: 0.4)`; (7) nits: this table's asset note, `CONTRACT.md:453`, `SettingsView.swift:6` is 126 columns |
+| Fixes | Pending | Review items 1–7 |
+| User report (2026-10-25) | Pending | Focusing a Terminal window on the LG display brings **every** Terminal window forward (over Discord on the other displays) instead of only the target. Suspect: step 1 of `FocusSequence` sets `kAXFrontmostAttribute` on the whole app (`LiveFocusPlatform.raise`), which brings all its windows; fix in FocusControl after confirming on hardware |
 | Verification, PR, CI | Pending | |
 
 ## Builder agents
