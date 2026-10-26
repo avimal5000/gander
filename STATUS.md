@@ -1,13 +1,12 @@
 # Status
 
-Phase: **M7, hardening** (issues #33–#39) and, in parallel, **M8, release** (#40–#43). Updated by the orchestrator.
+Phase: **M7 hardening is merged; M8 release pipeline is in PR #49.** Updated by the orchestrator.
 
-**Current state (2026-10-26, overnight):** M6 merged (#48, 6d85cfc); the user has gone to bed and asked to wait for
-them before merging. Branch `feat/33-m7-hardening`: the privacy audit and soak tooling are committed. An Opus audit
-of sleep/lock, hot-plug, camera conflicts, Spaces, and CPU found one blocker (the camera could turn on at the lock
-screen, because suspend reasons were forgotten when capture stopped) and the fixes below. The user's decisions: no
-auto-update, version 0.1.0, throttle with no face and in Low Power Mode, wait for them before merging, and sign in
-the morning (they have a paid Apple Developer account but no certificate yet).
+**Current state (2026-10-26):** M6 (#48) and M7 (#50, 8aaf86c) are merged on `main`; the user approved the merges.
+M8 (the release script, DMG, and release workflow) is in PR #49. Still open: **#40**, signing and notarization, until
+the user adds a Developer ID certificate and the five repository secrets (docs/RELEASING.md), and **#39**, the
+all-day soak test, which the user runs with `scripts/soak.sh`. The user's hardware checks for M6 and M7 (SPEC §9) are
+still to do. Decisions: no auto-update, first version 0.1.0.
 
 ## Orchestrator tasks
 
@@ -21,7 +20,7 @@ the morning (they have a paid Apple Developer account but no certificate yet).
 | M7 review (Opus) | Done | No blockers; privacy guarantee holds (every camera start goes through the sticky tracker). Should-fix: (1) the adaptive rate rounds to the camera's frame grid (Low Power Mode gave 7.5 fps, a 20 or 24 fps camera got 10 or 12): now a nominal schedule; (2) a failed restart during the USB fallback turned Tracking off; (3) lock/unlock distributed notifications may be delayed for an inactive app: register with `.deliverImmediately`. Minor: display hold had no cap or log; seed `.sessionInactive` at launch; test gaps. Accepted for the hardware check: a Space change during Sway's own switch resets the decider cooldown (pinned by a test); Center Stage mode is documented as per app but unconfirmed |
 | M7 fixes | Done | All review items fixed by the same three builders (the limit reset at 5:20 am and they finished by 5:55): nominal frame schedule (Low Power Mode now a true 10 fps, 20/24 fps cameras get 15), lock/unlock delivered immediately, `.sessionInactive` seeded at launch, fallback restart failure keeps Tracking on, display hold capped at 3 s and logged, test gaps filled with mutation checks |
 | M7 full verification, PR | Done | PR #50 open, CI green. Full `xcodebuild test`: 1282 tests, zero warnings; lint, guard, and a Release build (zero warnings, privacy audit passes). Waiting for the user's hardware check (SPEC §9) and merge. PR #49 (M8) is stacked on this branch |
-| M8 release pipeline | Pending | Separate worktree `.build-m8`, branch `feat/40-m8-release`: DMG script, release workflow on `v*` tags, version 0.1.0, notarization steps with secrets the user adds |
+| M8 release pipeline | Done, PR #49 | Worktree `.build-m8`, branch `feat/40-m8-release` (rebased onto main after M7 merged). `scripts/release.sh` builds a universal, hardened-runtime, ad-hoc-signed 0.1.0 DMG in 36 s (tested: mounts, version 0.1.0, camera entitlement only, privacy audit passes); signs with a Developer ID certificate and notarizes when given them. `.github/workflows/release.yml` on `v*` tags. `docs/RELEASING.md` has the user's morning steps. #43 (Sparkle) closed as not planned. #40 stays open until the user adds the certificate |
 
 ## Builder agents
 
