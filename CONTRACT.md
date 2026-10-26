@@ -1025,8 +1025,14 @@ No public API change. Behavior with a face present and nothing changing does not
 7. **USB camera fallback (SPEC D46).** When the camera the user chose is not connected and capture is interrupted
    for 5 s, restart the pose source with a connected camera that has a calibration for the current displays (prefer
    the built-in). When the chosen camera is connected again, restart with it. Never switch cameras while a
-   calibration, the gate test, or Setup runs. With no usable fallback, keep waiting; the status says
-   "<camera name> disconnected". The saved camera choice is never changed by a fallback.
+   calibration, the gate test, or Setup runs. The saved camera choice is never changed by a fallback.
+   - **No usable fallback (SPEC D46, revised 2026-10-26): turn Tracking off.** When the 5 s pass and no connected
+     camera has a calibration for the current displays, set `trackingEnabled = false` in memory only (the saved choice
+     is untouched, as for a camera failure, D23) and stop the camera. While that camera is still not connected, the
+     status reads "<camera name> disconnected" instead of "Paused". Tracking does not come back by itself when the
+     camera returns: the status returns to "Paused" and the user turns Tracking on. The same applies if a stand-in
+     camera is later disconnected too and nothing else is usable. A fallback that does start (a calibrated camera
+     exists) is unchanged.
    - **A failed restart during a fallback never turns Tracking off (review fix).** When the restart that a fallback
      started (to the stand-in, or back to the chosen camera) fails with `.deviceUnavailable` or `.noDevice`, keep
      Tracking on: a camera that was just plugged in may not be ready to open. If switching back failed, put the

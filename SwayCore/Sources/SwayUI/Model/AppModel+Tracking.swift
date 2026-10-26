@@ -42,6 +42,8 @@ extension AppModel {
         guard enabled != trackingEnabled else { return }
         defaults.set(enabled, forKey: DefaultsKey.trackingEnabled)
         trackingEnabled = enabled
+        // The user's own switch ends a stop for a lost camera: the normal rules apply from here.
+        if lostCameraID != nil { lostCameraID = nil }
         if !enabled, pendingIntent == .tracking { pendingIntent = nil }
         resetTracking()
         syncTrackingActivity()

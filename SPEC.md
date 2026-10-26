@@ -84,7 +84,7 @@ New decisions for this phase (M7):
 | D43 | **Suspension is sticky.** Sleep, display sleep, screen lock, and a fast user switch to another user are tracked for as long as Sway runs, including while the camera is off. The camera can therefore never start while the Mac is asleep or locked, even if Tracking, the displays, or the camera change in the meantime | Audit finding (the camera could turn on at the lock screen), 2026-10-26 |
 | D44 | **Switching waits while displays or Spaces change.** From a display-change notification until the new layout is known (at most 0.75 s), and for 0.6 s after a Space change, Sway does not switch, then it polls the focused display again | Audit finding |
 | D45 | **Adaptive frame rate.** At most 15 frames per second always. While Tracking, 5 per second after 2 s with no face, back to full within one frame when a face returns. Focus Lock and Needs Accessibility use 5 per second. In Low Power Mode or at a serious heat level: 10 per second with a face, 2 per second without. Calibration, the gate test, Setup's camera check, and Pose Debug always use the full rate. Nothing changes the switching speed while a face is present | User chose "no face + Low Power Mode", 2026-10-26 |
-| D46 | **A missing USB camera falls back.** If the chosen camera is unplugged for 5 s, Sway uses a connected camera that has a calibration for these displays, and switches back when the chosen camera returns. With no calibration for any other camera, it waits and says so | Orchestrator, from the audit's recommendation (user to confirm), 2026-10-26 |
+| D46 | **A missing USB camera falls back.** If the chosen camera is unplugged for 5 s, Sway uses a connected camera that has a calibration for these displays, and switches back when the chosen camera returns. With no calibrated camera to use, Sway turns Tracking off (in memory only, as for a camera failure, D23) and the menu says "<camera> disconnected". It does not turn Tracking back on by itself when the camera returns: the user does | User, 2026-10-26: after testing, "if not, it should just turn tracking off" | Orchestrator, from the audit's recommendation (user to confirm), 2026-10-26 |
 | D47 | **Gentler retries and no Center Stage.** After a camera problem, retries start after 1 s and back off to 10 s (a stalled camera: up to 60 s). Sway turns Center Stage off for its own session so the framing cannot shift against the calibration | Audit finding |
 | D48 | **No auto-update; first version 0.1.0.** Sway never uses the network, so there is no Sparkle. New versions are downloaded from GitHub Releases | User, 2026-10-26 |
 
@@ -101,7 +101,8 @@ says "Suspended: …" and tracking resumes by itself, with no switch until you h
 sends focus to the wrong window; switching resumes within a second.
 
 **F32. Camera conflicts (#35, D46, D47).** Another app using the camera, or the camera unplugged, shows a clear
-status and recovers on its own, with bounded retries. A missing USB camera falls back as D46 says.
+status and recovers on its own, with bounded retries. A missing USB camera falls back as D46 says, or turns
+Tracking off when there is nothing to fall back to.
 
 **F33. Lower CPU when you are away (#37, D45).** About 5% of one core or less with no face; the same switching speed
 as before when you are there.
@@ -294,8 +295,8 @@ Run `scripts/sleep-diag.sh 1800` in Terminal before the sleep checks.
    wrong-display switch. Plug it back in: all three work within about 2 s. A resolution change or rearranging keeps
    the calibration.
 5. **Cameras:** open Photo Booth, FaceTime, or Zoom while Tracking: the status stays sensible and their video is
-   smooth. Select the USB camera, unplug it, wait 30 s: Sway falls back to a calibrated camera or says it is
-   waiting, and recovers when you plug it back in.
+   smooth. Select the USB camera, unplug it, wait 10 s: Sway falls back to a calibrated camera, or turns Tracking off
+   with "<camera> disconnected" when there is none.
 6. **Full-screen apps and Spaces:** make an app full screen on one display and look at it: typing goes there and the
    glow shows over it. Switch Spaces on another display while looking around; focus never lands in the wrong window.
 7. **CPU:** Build Release (Product → Profile, or Archive), run it outside Xcode, and read Sway's CPU in Activity

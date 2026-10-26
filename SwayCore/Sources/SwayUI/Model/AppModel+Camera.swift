@@ -16,6 +16,7 @@ extension AppModel {
         guard id != selectedCameraID else { return }
         // The user's own pick ends any stand-in; the saved choice is the only thing a fallback never writes.
         clearCameraFallback()
+        if lostCameraID != nil { lostCameraID = nil }
         selectedCameraID = id
         if let id {
             defaults.set(id, forKey: DefaultsKey.cameraDeviceID)

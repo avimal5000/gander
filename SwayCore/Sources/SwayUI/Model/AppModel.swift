@@ -66,6 +66,10 @@ public final class AppModel {
     /// The connected camera Sway uses while the chosen one is unplugged (SPEC D46); `nil` when it uses the chosen
     /// camera. Never saved: the user's choice (`selectedCameraID`) stays as it was.
     var fallbackCamera: CameraDevice?
+    /// The ID of the chosen camera that went missing and left no calibrated camera to use, so Sway turned Tracking off
+    /// in memory (SPEC D46). The status names it while it is still not connected. Cleared when it is connected again,
+    /// when the user turns Tracking on, or when the user picks a camera.
+    var lostCameraID: String?
     /// The explanation or instructions currently shown for camera permission, if any.
     var permissionPrompt: CameraPermissionPrompt?
     /// Most recent pose sample; `nil` when the camera is off.
@@ -287,6 +291,8 @@ public final class AppModel {
     @ObservationIgnored var appliedPoseDemand: PoseDemand?
     /// The Pose Debug window is open and showing its live content: it needs the full frame rate.
     @ObservationIgnored var poseDebugVisible = false
+    /// The name of every camera listed so far, by ID: a camera that has gone is still called by its name.
+    @ObservationIgnored var knownCameraNames: [String: String] = [:]
     /// Steadies the "No face" status (CONTRACT 6.5.5 item 8).
     @ObservationIgnored var faceDebounce = FaceDebounce()
     #if DEBUG
@@ -379,6 +385,7 @@ public final class AppModel {
         self.enterMargin = storedSensitivity.switchSettings().enterMargin
 
         if storedLibrary.migrated { persistLibrary() }
+        rememberCameraNames()
         refreshActiveCalibration(reconcile: false)
         environment.overlay.onCancelRequested = { [weak self] in
             self?.cancelRunningGate()
@@ -412,7 +419,7 @@ public final class AppModel {
                 accessibilityTrusted: isAccessibilityTrusted,
                 focusLocked: focusLocked,
                 hasFace: hasFace,
-                disconnectedCamera: fallbackCamera == nil ? unpluggedChosenCamera?.name : nil
+                disconnectedCamera: disconnectedCameraName
             ))
     }
 
@@ -446,6 +453,7 @@ public final class AppModel {
         let previousAuthorization = authorization
         let previousDevices = devices
         devices = camera.availableDevices()
+        rememberCameraNames()
         if devices != previousDevices { deviceListDidChange() }
         refreshPredictedCamera()
         authorization = camera.authorizationStatus()
