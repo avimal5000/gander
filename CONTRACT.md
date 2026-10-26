@@ -1403,6 +1403,13 @@ AppModel(camera: camera, poseSource: poseSource, displays: ScreenDisplayTracker(
 - **Signing:** manual, "Apple Development", team `WNW4M84Z3U`, hardened runtime on.
   - Verification builds use `CODE_SIGNING_ALLOWED=NO`.
   - A stable signature keeps the TCC grants across rebuilds.
+- **Release signing (M8, `scripts/release.sh`, `.github/workflows/release.yml`):** the release build uses
+  `CODE_SIGNING_ALLOWED=NO`, then signs the app once with `codesign --options runtime --entitlements
+  Config/Sway.entitlements`: with a "Developer ID Application" identity and a timestamp, or ad hoc (`-`) when there is
+  none. The DMG is signed with the same identity, notarized with `notarytool`, and stapled. The version comes from
+  the `vX.Y.Z` tag. Certificate and credentials live only in repository secrets (`MACOS_CERTIFICATE_P12_BASE64`,
+  `MACOS_CERTIFICATE_PASSWORD`, `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`). The script runs
+  `scripts/audit-privacy.sh` on the built app. There is no auto-update (SPEC D48). See docs/RELEASING.md.
 - **Runtime permissions:**
   - Camera (M1).
   - Accessibility (M3). It needs no entitlement or Info.plist key. The grant is tied to the code signature, so
