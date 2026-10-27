@@ -1076,8 +1076,8 @@ one new test file in `SwitchEngineTests`.
    - `SwayModelsTests`: clamping of every field; the default equals `SwitchSettings.default`; decoding old saved JSON
      without `cooldown`; round trip; `switchSettings()` carries the cooldown; the instant preset keeps the confidence.
    - `SwitchEngineTests` (new file): with default settings a switch to B followed at once by a held look back at A
-     fires the second switch about 1.0 s after the first (cooldown 0.75 + dwell 0.4 rounded to frames); with the
-     instant preset about 0.4 s after; and a head sweep through a middle display faster than the hold time still
+     fires the second switch about 1.2 s after the first (cooldown 0.75 + dwell 0.4, in 15 fps frames); with the
+     instant preset about 0.47 s after; and a head sweep through a middle display faster than the hold time still
      does not switch there with the instant preset at 15 fps. Use the existing scenario helpers.
    - `SwayUITests`: the setters (snapping, clamping, saving, applying to the decider, resetting the loop), the preset
      button, Restore Defaults, the presentation text, the Settings view renders with the new controls, the log line

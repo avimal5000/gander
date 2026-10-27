@@ -101,23 +101,26 @@ extension AppModel {
         if busy != isSwitching { isSwitching = busy }
     }
 
-    /// Saves and applies new switching settings (SPEC D31).
+    /// Saves and applies new switching settings (SPEC D31, D49).
     func setSensitivity(_ newValue: SwitchSensitivity) {
-        let clamped = SwitchSensitivity(dwell: newValue.dwell, confidenceLevel: newValue.confidenceLevel)
+        let clamped = SwitchSensitivity(
+            dwell: newValue.dwell, cooldown: newValue.cooldown, confidenceLevel: newValue.confidenceLevel)
         guard clamped != sensitivity else { return }
         sensitivity = clamped
         if let data = try? Self.encoder().encode(clamped) {
             defaults.set(data, forKey: DefaultsKey.switchSensitivity)
         }
+        SwayLogger.tracking.info("\(SensitivityPresentation.logLine(clamped), privacy: .public)")
         rebuildDecider()
     }
 
-    /// The stored settings, or the defaults when absent or unreadable. Values are clamped into range.
+    /// The stored settings, or the defaults when absent or unreadable. Values are clamped into range, and settings
+    /// saved before the pause was adjustable get the default pause.
     static func storedSensitivity(in defaults: UserDefaults) -> SwitchSensitivity {
         guard let data = defaults.data(forKey: DefaultsKey.switchSensitivity),
             let stored = try? decoder().decode(SwitchSensitivity.self, from: data)
         else { return .default }
-        return SwitchSensitivity(dwell: stored.dwell, confidenceLevel: stored.confidenceLevel)
+        return stored
     }
 
     // MARK: Per sample

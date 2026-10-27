@@ -11,7 +11,7 @@ enum DefaultsKey {
     static let calibrationLibrary = "sway.calibrationLibrary"
     /// Whether the user last left Tracking on (`Bool`, SPEC D23). Written only by the user's own choices.
     static let trackingEnabled = "sway.trackingEnabled"
-    /// The `SwitchSensitivity`, as JSON (SPEC D31).
+    /// The `SwitchSensitivity`, as JSON (SPEC D31). Values saved before D49 have no `cooldown`.
     static let switchSensitivity = "sway.switchSensitivity"
     /// The Focus Lock `HotKeyShortcut` as JSON; empty `Data` means no shortcut, an absent key means the default.
     static let focusLockShortcut = "sway.focusLockShortcut"

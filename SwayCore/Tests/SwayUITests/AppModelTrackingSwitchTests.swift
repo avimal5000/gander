@@ -250,26 +250,89 @@ struct AppModelTrackingSwitchTests {
         #expect(h.defaults.data(forKey: "sway.switchSensitivity") == nil)
     }
 
+    @Test func changingTheSensitivityAppliesTheCooldownToTheDecider() throws {
+        let h = Harness.make(calibrated: true)
+        defer { h.tearDown() }
+
+        h.model.setSensitivity(SwitchSensitivity(dwell: 0.1, cooldown: 0.3, confidenceLevel: 1))
+
+        let settings = try #require(h.engine.lastRecorder?.settings)
+        #expect(settings.dwell == 0.1)
+        #expect(settings.cooldown == 0.3)
+        #expect(settings.enterMargin == 0.225)
+        #expect(settings.maxGap == SwitchSettings.default.maxGap)
+        #expect(h.relaunchedModel().sensitivity == SwitchSensitivity(dwell: 0.1, cooldown: 0.3, confidenceLevel: 1))
+        #expect(h.engine.lastRecorder?.settings.cooldown == 0.3, "The relaunched model builds its decider from it")
+    }
+
     @Test func outOfRangeSensitivityIsClamped() {
         let h = Harness.make(calibrated: true)
         defer { h.tearDown() }
 
-        h.model.setSensitivity(SwitchSensitivity(dwell: 99, confidenceLevel: -3))
+        h.model.setSensitivity(SwitchSensitivity(dwell: 99, cooldown: 99, confidenceLevel: -3))
 
         #expect(h.model.sensitivity.dwell == SwitchSensitivity.dwellRange.upperBound)
+        #expect(h.model.sensitivity.cooldown == SwitchSensitivity.cooldownRange.upperBound)
         #expect(h.model.sensitivity.confidenceLevel == 0)
+    }
+
+    @Test func aSensitivityMadeWithTheFieldsSetDirectlyIsClampedToo() {
+        let h = Harness.make(calibrated: true)
+        defer { h.tearDown() }
+        var wild = SwitchSensitivity.default
+        wild.dwell = -4
+        wild.cooldown = 0
+        wild.confidenceLevel = 99
+
+        h.model.setSensitivity(wild)
+
+        #expect(h.model.sensitivity.dwell == SwitchSensitivity.dwellRange.lowerBound)
+        #expect(h.model.sensitivity.cooldown == SwitchSensitivity.cooldownRange.lowerBound)
+        #expect(h.model.sensitivity.confidenceLevel == SwitchSensitivity.confidenceMargins.count - 1)
     }
 
     @Test func storedSensitivityOutsideTheRangesIsClampedAndGarbageIsIgnored() {
         let h = Harness.make()
         defer { h.tearDown() }
-        h.defaults.set(Data(#"{"dwell": 50, "confidenceLevel": 9}"#.utf8), forKey: "sway.switchSensitivity")
+        h.defaults.set(
+            Data(#"{"dwell": 50, "cooldown": 50, "confidenceLevel": 9}"#.utf8), forKey: "sway.switchSensitivity")
         let clamped = h.relaunchedModel().sensitivity
         #expect(clamped.dwell == SwitchSensitivity.dwellRange.upperBound)
+        #expect(clamped.cooldown == SwitchSensitivity.cooldownRange.upperBound)
         #expect(clamped.confidenceLevel == SwitchSensitivity.confidenceMargins.count - 1)
 
         h.defaults.set(Data("nope".utf8), forKey: "sway.switchSensitivity")
         #expect(h.relaunchedModel().sensitivity == .default)
+    }
+
+    @Test func settingsSavedBeforeThePauseExistedLoadWithTheDefaultPause() throws {
+        let h = Harness.make(calibrated: true)
+        defer { h.tearDown() }
+        h.defaults.set(Data(#"{"dwell":0.2,"confidenceLevel":2}"#.utf8), forKey: "sway.switchSensitivity")
+
+        let model = h.relaunchedModel()
+
+        #expect(model.sensitivity == SwitchSensitivity(dwell: 0.2, cooldown: 0.75, confidenceLevel: 2))
+        #expect(model.sensitivity.cooldown == SwitchSettings.default.cooldown)
+        let settings = try #require(h.engine.lastRecorder?.settings)
+        #expect(settings.dwell == 0.2)
+        #expect(settings.cooldown == 0.75)
+        #expect(settings.enterMargin == SwitchSettings.default.enterMargin)
+    }
+
+    @Test func savedSettingsWithoutAPauseAreRewrittenWithOneOnTheNextChange() throws {
+        let h = Harness.make(calibrated: true)
+        defer { h.tearDown() }
+        h.defaults.set(Data(#"{"dwell":0.2,"confidenceLevel":2}"#.utf8), forKey: "sway.switchSensitivity")
+        let model = h.relaunchedModel()
+
+        model.setSwitchConfidence(3)
+
+        let stored = try #require(h.defaults.data(forKey: "sway.switchSensitivity"))
+        let saved = try #require(try? JSONSerialization.jsonObject(with: stored) as? [String: Any])
+        #expect(saved["dwell"] as? Double == 0.2)
+        #expect(saved["cooldown"] as? Double == 0.75)
+        #expect(saved["confidenceLevel"] as? Int == 3)
     }
 
     @Test func theEnterMarginReachesTheLoopsLookCheck() async {
@@ -277,5 +340,8 @@ struct AppModelTrackingSwitchTests {
         defer { h.tearDown() }
         h.model.setSensitivity(SwitchSensitivity(dwell: 0.4, confidenceLevel: 4))
         #expect(h.model.enterMargin == 0.45)
+
+        h.model.useInstantTiming()
+        #expect(h.model.enterMargin == 0.45, "The preset leaves the confidence alone")
     }
 }
