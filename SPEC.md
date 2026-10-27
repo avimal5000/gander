@@ -1,4 +1,4 @@
-# Sway: Spec (current phase: M7)
+# Sway: Spec (current phase: 0.1.x tuning, after M8)
 
 Derived from PLAN.md, which stays the source of truth. Where this spec and PLAN.md differ, the difference is
 listed in section 3 with its reason. CONTRACT.md defines the code-level interfaces.
@@ -10,6 +10,12 @@ head pose from a camera, entirely on-device. It works per display: look at anoth
 and typing goes to the last-used window there. The cursor never moves.
 
 ## 2. Scope of this phase
+
+**Now (0.1.x tuning).** M0–M8 are done and v0.1.0 is released (unsigned). After a day of use the user found switching
+a little slow, mostly on a quick look back: a built-in 0.75 s pause after every switch plus the hold time. This phase
+makes the timing adjustable (D49, F35). The earlier phase notes below are kept for the record.
+
+### Earlier: M7
 
 M0–M6 are done (PRs #44, #45, #47, #48): Sway tracks, switches focus, calibrates in Setup, has Settings, and has its
 design. This phase is **M7, hardening** (issues #33–#39): make sleep, lock, display changes, camera conflicts,
@@ -88,11 +94,23 @@ New decisions for this phase (M7):
 | D47 | **Gentler retries and no Center Stage.** After a camera problem, retries start after 1 s and back off to 10 s (a stalled camera: up to 60 s). Sway turns Center Stage off for its own session so the framing cannot shift against the calibration | Audit finding |
 | D48 | **No auto-update; first version 0.1.0.** Sway never uses the network, so there is no Sparkle. New versions are downloaded from GitHub Releases | User, 2026-10-26 |
 
+Decision for tuning (0.1.x):
+
+| # | Decision | Source |
+|---|---|---|
+| D49 | **Faster switching is adjustable.** A new setting, "Pause after a switch" (the decider's `cooldown`), range 0.2–1.5 s, default 0.75 s. The hold time's lower limit drops from 0.2 s to 0.05 s. A button applies "Instant" timing: hold time 0.10 s and pause 0.30 s, leaving the user's confidence setting alone. Defaults do not change, and saved settings without the new value keep working. Whether faster timing means more unwanted switches is measured with the all-day tool's count of quick back-and-forths | User asked "make the transition instant", 2026-10-26 |
+
 An extra, uncalibrated display (a fourth monitor, Sidecar, AirPlay) still stops tracking until it is calibrated (D25).
 
 ## 4. Features
 
-**M7 features (this phase):**
+**F35. Switching timing (tuning, D49).** Settings → Switching gains **Pause after a switch** (a slider with its value,
+for example "0.75 s": "How long Sway waits after switching before it will switch again. Shorter is faster for a quick
+look back, but can bounce.") and a **Use Instant timing** button (hold 0.10 s, pause 0.30 s). The hold time slider
+now goes down to 0.05 s. **Restore Defaults** restores all three values (0.40 s, 0.75 s, Balanced). Changes apply at
+once.
+
+**M7 features:**
 
 **F30. The camera stays off when the Mac is asleep, locked, or in another user's session (#33, D43).** The menu
 says "Suspended: …" and tracking resumes by itself, with no switch until you hold a look.
@@ -280,6 +298,13 @@ Record → press a new combination.
   a reviewer has verified conformance to CONTRACT.md;
 - `scripts/audit-privacy.sh` passes and `docs/PRIVACY-AUDIT.md` is current;
 - the user has run the hardware checks below, and the soak test has been started.
+
+## 9a. Tuning check (D49)
+
+Settings → Switching → **Use Instant timing**, then use Sway as usual and look back and forth between two displays:
+a quick return should now take about half a second instead of about a second. Run `scripts/soak.sh sample` for a day
+with it on and compare the report's "quick reversals" with an earlier day: more of them means more unwanted switches,
+and the pause or hold time should go back up. **Restore Defaults** undoes it.
 
 ## 9. Manual checks the user must do (cannot be automated here)
 

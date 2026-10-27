@@ -113,7 +113,7 @@ The source files in `SwayCore/Sources/SwayModels/` are the definitive API. Read 
 | `Switching.swift` (M2) | `DisplayProfile`, `CalibrationProfile`, `CalibrationError`, `PoseClassification`, `SwitchSettings`, `SwitchContext`, `SwitchPhase`, `SwitchHoldReason`, `SwitchDecision`, protocols `SwitchDeciding`, `SwitchEngineMaking` |
 | `Focus.swift` (M3) | `WindowSummary`, `FocusMethod`, `FocusResult`, protocol `FocusControlling` |
 | `CalibrationLibrary.swift` (M5) | `CalibrationKey`, `CalibrationMatch`, `CalibrationLibrary`; `CalibrationProfile.key`, `.displayIDs`, `.restricted(to:)` |
-| `SwitchSensitivity.swift` (M5) | `SwitchSensitivity` (hold time and confidence level → `SwitchSettings`) |
+| `SwitchSensitivity.swift` (M5, 0.1.x) | `SwitchSensitivity` (hold time, confidence level, and pause after a switch → `SwitchSettings`) |
 | `SystemIntegration.swift` (M4, M5) | `HotKeyShortcut`, `HotKeyAction`, `HotKeyError`, protocol `HotKeyRegistering`; `LoginItemStatus`, `LoginItemError`, protocol `LoginItemControlling` |
 
 `SwayPolicy.maxTrackedDisplays` is now 3 (SPEC D22).
@@ -1044,6 +1044,44 @@ No public API change. Behavior with a face present and nothing changing does not
    refresh and the suspended skip; the camera grace and its cancel; the fallback (5 s, calibrated fallback only, switch
    back, never during calibration, saved choice unchanged); the `noFace` debounce; the observation-count tests still
    pass.
+
+#### 6.5.6 0.1.x tuning: switching timing (builder-timing)
+
+SPEC D49, F35. Owners for this task: `SwayModels/SwitchSensitivity.swift` and its tests, `SwayUI` and its tests, and
+one new test file in `SwitchEngineTests`.
+
+1. **`SwitchSensitivity` gains `cooldown`** (seconds, the decider's "no new dwell starts after a switch"):
+   - `static let cooldownRange: ClosedRange<Double> = 0.2...1.5`; `dwellRange` becomes `0.05...1.5`.
+   - `default` is `SwitchSensitivity(dwell: 0.40, cooldown: 0.75, confidenceLevel: 2)` and still equals
+     `SwitchSettings.default` when turned into settings.
+   - `public init(dwell:cooldown:confidenceLevel:)` clamps all three. Keep the old `init(dwell:confidenceLevel:)`
+     (cooldown 0.75) so existing callers compile.
+   - **Saved values keep working:** `Codable` is hand-written; a saved `{"dwell":0.2,"confidenceLevel":2}` with no
+     `cooldown` decodes with 0.75. Encoding always writes all three. Unknown or out-of-range values clamp.
+   - `switchSettings(base:)` also sets `settings.cooldown`.
+   - `static let instant`: hold time 0.10 s and cooldown 0.30 s. A method `applyingInstantTiming()` returns the
+     sensitivity with those two values and the same `confidenceLevel`.
+2. **`SwayUI`:**
+   - `AppModel.setCooldown(_:)` (snapped to 0.05 s and clamped, saved to `sway.switchSensitivity`, rebuilds the decider
+     and resets the loop at once, exactly like `setHoldTime`) and `AppModel.useInstantTiming()`.
+     `restoreSensitivityDefaults()` restores all three values.
+   - `SensitivityPresentation`: the cooldown's step (0.05) and snapping helper, and the text ("0.75 s", the same
+     format as the hold time).
+   - Settings → Switching: after "Hold time", a **"Pause after a switch"** slider over `cooldownRange` with its value
+     and the caption from SPEC F35; a **"Use Instant timing"** button after the confidence slider; Restore Defaults
+     stays, disabled at the defaults. The hold time slider uses the new range.
+   - One info log line in the `tracking` category whenever the sensitivity is set or loaded at launch: "Switching
+     settings: hold 0.10 s, pause 0.30 s, confidence Easy" (never anything else).
+3. **Tests:**
+   - `SwayModelsTests`: clamping of every field; the default equals `SwitchSettings.default`; decoding old saved JSON
+     without `cooldown`; round trip; `switchSettings()` carries the cooldown; the instant preset keeps the confidence.
+   - `SwitchEngineTests` (new file): with default settings a switch to B followed at once by a held look back at A
+     fires the second switch about 1.0 s after the first (cooldown 0.75 + dwell 0.4 rounded to frames); with the
+     instant preset about 0.4 s after; and a head sweep through a middle display faster than the hold time still
+     does not switch there with the instant preset at 15 fps. Use the existing scenario helpers.
+   - `SwayUITests`: the setters (snapping, clamping, saving, applying to the decider, resetting the loop), the preset
+     button, Restore Defaults, the presentation text, the Settings view renders with the new controls, the log line
+     wording, and an old saved value loading with the default cooldown. The observation-count tests still pass.
 
 ### 6.6 `SwitchEngine` (builder-engine, M2)
 
