@@ -5,6 +5,9 @@ name: Release
 on:
   push:
     tags: ['v*']
+  # For a tag whose push did not start the build (GitHub skips push workflows when the tagged commit's message contains
+  # "[skip ci]", which a squash merge copies from the PR's commits): run this workflow on that tag from the Actions tab.
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -18,6 +21,10 @@ jobs:
 
       - name: Version from the tag
         run: |
+          if [[ "$GITHUB_REF_TYPE" != "tag" ]]; then
+            echo "Run this workflow on a vX.Y.Z tag, not on a branch." >&2
+            exit 1
+          fi
           version="${GITHUB_REF_NAME#v}"
           if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "Tag '$GITHUB_REF_NAME' is not vX.Y.Z" >&2
