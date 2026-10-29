@@ -132,7 +132,7 @@ public final class AppModel {
     var calibrationMessage: UserMessage?
     /// The profile the last successful fit saved, for the report view.
     var lastFittedProfile: CalibrationProfile?
-    /// The user's switching settings (SPEC D31).
+    /// The user's switching settings (SPEC D31, D49).
     var sensitivity: SwitchSensitivity
     /// The decider's output for the latest tracked sample; `nil` before the first sample or after a reset.
     var previewDecision: SwitchDecision?
@@ -384,6 +384,7 @@ public final class AppModel {
         self.displayLabels = DisplayLabeler.labels(for: initialLayout)
         self.enterMargin = storedSensitivity.switchSettings().enterMargin
 
+        SwayLogger.tracking.info("\(SensitivityPresentation.logLine(storedSensitivity), privacy: .public)")
         if storedLibrary.migrated { persistLibrary() }
         rememberCameraNames()
         refreshActiveCalibration(reconcile: false)

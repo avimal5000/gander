@@ -1,7 +1,9 @@
 import AppKit
 import Foundation
+import Observation
 import SwayModels
 import Testing
+import os
 
 @testable import SwayUI
 
@@ -21,16 +23,67 @@ struct AppModelSettingsTests {
         #expect(SensitivityPresentation.snappedDwell(0.4) == 0.4)
         #expect(SensitivityPresentation.snappedDwell(0.42) == 0.4)
         #expect(abs(SensitivityPresentation.snappedDwell(0.43) - 0.45) < 1e-9)
-        #expect(SensitivityPresentation.snappedDwell(0) == 0.2)
+        #expect(SensitivityPresentation.snappedDwell(0) == 0.05)
+        #expect(SensitivityPresentation.snappedDwell(0.07) == 0.05)
+        #expect(SensitivityPresentation.snappedDwell(0.08) == 0.1)
         #expect(SensitivityPresentation.snappedDwell(9) == 1.5)
         #expect(SensitivityPresentation.dwellStep == 0.05)
-        #expect(SwitchSensitivity.dwellRange == 0.2...1.5)
+        #expect(SwitchSensitivity.dwellRange == 0.05...1.5)
+    }
+
+    @Test func thePauseSliderValuesSnapToTheGridAndStayInRange() {
+        #expect(SensitivityPresentation.snappedCooldown(0.75) == 0.75)
+        #expect(SensitivityPresentation.snappedCooldown(0.77) == 0.75)
+        #expect(SensitivityPresentation.snappedCooldown(0.78) == 0.8)
+        #expect(SensitivityPresentation.snappedCooldown(0.3) == 0.3, "No 0.30000000000000004")
+        #expect(SensitivityPresentation.snappedCooldown(0.1) == 0.2)
+        #expect(SensitivityPresentation.snappedCooldown(0) == 0.2)
+        #expect(SensitivityPresentation.snappedCooldown(9) == 1.5)
+        #expect(SensitivityPresentation.cooldownStep == 0.05)
+        #expect(SwitchSensitivity.cooldownRange == 0.2...1.5)
+    }
+
+    @Test func everyStepOfEitherSliderIsKeptExactly() {
+        for step in 1...30 {
+            let value = Double(step) / 20
+            #expect(SensitivityPresentation.snappedDwell(value) == value, "Hold time \(value)")
+            if SwitchSensitivity.cooldownRange.contains(value) {
+                #expect(SensitivityPresentation.snappedCooldown(value) == value, "Pause \(value)")
+            }
+        }
     }
 
     @Test func theHoldTimeIsShownWithTwoDecimals() {
         #expect(SensitivityPresentation.dwellText(0.4) == "0.40 s")
         #expect(SensitivityPresentation.dwellText(1.5) == "1.50 s")
         #expect(SensitivityPresentation.dwellText(0.2) == "0.20 s")
+        #expect(SensitivityPresentation.dwellText(0.05) == "0.05 s")
+    }
+
+    @Test func thePauseIsShownInTheSameFormatAsTheHoldTime() {
+        #expect(SensitivityPresentation.cooldownText(0.75) == "0.75 s")
+        #expect(SensitivityPresentation.cooldownText(0.3) == "0.30 s")
+        #expect(SensitivityPresentation.cooldownText(1.5) == "1.50 s")
+        #expect(SensitivityPresentation.cooldownText(0.2) == "0.20 s")
+        #expect(SensitivityPresentation.cooldownText(0.75) == SensitivityPresentation.dwellText(0.75))
+    }
+
+    @Test func theInstantButtonsTooltipNamesTheTimingAndTheConfidence() {
+        #expect(
+            SensitivityPresentation.instantHelp
+                == "Hold time 0.10 s and pause 0.30 s. Switch confidence stays as it is.")
+    }
+
+    @Test func theLogLineNamesTheHoldTimeThePauseAndTheConfidenceStepAndNothingElse() {
+        #expect(
+            SensitivityPresentation.logLine(SwitchSensitivity(dwell: 0.1, cooldown: 0.3, confidenceLevel: 1))
+                == "Switching settings: hold 0.10 s, pause 0.30 s, confidence Easy")
+        #expect(
+            SensitivityPresentation.logLine(.default)
+                == "Switching settings: hold 0.40 s, pause 0.75 s, confidence Balanced")
+        #expect(
+            SensitivityPresentation.logLine(SwitchSensitivity(dwell: 1.5, cooldown: 1.5, confidenceLevel: 4))
+                == "Switching settings: hold 1.50 s, pause 1.50 s, confidence Strict")
     }
 
     @Test func theConfidenceSliderHasFiveNamedSteps() {
@@ -90,6 +143,148 @@ struct AppModelSettingsTests {
         h.model.setHoldTime(30)
 
         #expect(h.model.sensitivity == SwitchSensitivity(dwell: 1.5, confidenceLevel: 4))
+
+        h.model.setHoldTime(-1)
+        h.model.setCooldown(30)
+        #expect(h.model.sensitivity == SwitchSensitivity(dwell: 0.05, cooldown: 1.5, confidenceLevel: 4))
+        h.model.setCooldown(-30)
+        #expect(h.model.sensitivity.cooldown == 0.2)
+    }
+
+    @Test func changingThePauseSavesItAndRebuildsTheDeciderAtOnce() throws {
+        let h = Harness.make(calibrated: true)
+        defer { h.tearDown() }
+        let recorders = h.engine.recorders.count
+
+        h.model.setCooldown(0.5)
+
+        #expect(h.model.sensitivity == SwitchSensitivity(dwell: 0.4, cooldown: 0.5, confidenceLevel: 2))
+        let settings = try #require(h.engine.lastRecorder?.settings)
+        #expect(h.engine.recorders.count == recorders + 1)
+        #expect(settings.cooldown == 0.5)
+        #expect(settings.dwell == 0.4, "The hold time is untouched")
+        #expect(settings.enterMargin == SwitchSensitivity.default.switchSettings().enterMargin)
+        let stored = try #require(h.defaults.data(forKey: "sway.switchSensitivity"))
+        let saved = try #require(try? JSONSerialization.jsonObject(with: stored) as? [String: Any])
+        #expect(saved["cooldown"] as? Double == 0.5)
+        #expect(h.relaunchedModel().sensitivity == SwitchSensitivity(dwell: 0.4, cooldown: 0.5, confidenceLevel: 2))
+    }
+
+    @Test func thePauseSnapsToTheSlidersSteps() {
+        let h = Harness.make(calibrated: true)
+        defer { h.tearDown() }
+
+        h.model.setCooldown(0.62)
+        #expect(h.model.sensitivity.cooldown == 0.6)
+
+        h.model.setCooldown(0.3)
+        #expect(h.model.sensitivity.cooldown == 0.3)
+    }
+
+    @Test func eachSliderLeavesTheOtherTwoAlone() throws {
+        let h = Harness.make(calibrated: true)
+        defer { h.tearDown() }
+        h.model.setSensitivity(SwitchSensitivity(dwell: 0.6, cooldown: 1.1, confidenceLevel: 3))
+
+        h.model.setHoldTime(0.9)
+        #expect(h.model.sensitivity == SwitchSensitivity(dwell: 0.9, cooldown: 1.1, confidenceLevel: 3))
+        h.model.setCooldown(0.45)
+        #expect(h.model.sensitivity == SwitchSensitivity(dwell: 0.9, cooldown: 0.45, confidenceLevel: 3))
+        h.model.setSwitchConfidence(0)
+        #expect(h.model.sensitivity == SwitchSensitivity(dwell: 0.9, cooldown: 0.45, confidenceLevel: 0))
+        let settings = try #require(h.engine.lastRecorder?.settings)
+        #expect(settings.dwell == 0.9)
+        #expect(settings.cooldown == 0.45)
+        #expect(settings.enterMargin == 0.15)
+    }
+
+    @Test func changingThePauseResetsTheDeciderAndTheLoopAtOnce() async {
+        let h = Harness.make(calibrated: true)
+        defer { h.tearDown() }
+        await h.startTracking()
+        await h.settlePoll()
+        h.engine.script.set { _, _ in
+            Fixtures.decision(phase: .dwelling(display: Fixtures.right.id, progress: 0.5))
+        }
+        h.run(frames: 2, dt: 0.1)
+        #expect(h.model.previewDecision != nil)
+        #expect(h.model.lookSummary != .off)
+        let before = h.engine.recorders.count
+
+        h.model.setCooldown(1.2)
+
+        #expect(h.engine.recorders.count == before + 1, "A new decider, so a cooldown in progress ends")
+        #expect(h.model.previewDecision == nil)
+        #expect(h.model.lookSummary == .off)
+        #expect(h.model.loop.polled == nil)
+    }
+
+    @Test func theInstantButtonSetsTheShortHoldAndPauseAndKeepsTheConfidence() throws {
+        let h = Harness.make(calibrated: true)
+        defer { h.tearDown() }
+        h.model.setSwitchConfidence(4)
+        h.model.setHoldTime(1.0)
+        h.model.setCooldown(1.0)
+        let recorders = h.engine.recorders.count
+
+        h.model.useInstantTiming()
+
+        #expect(h.model.sensitivity == SwitchSensitivity(dwell: 0.10, cooldown: 0.30, confidenceLevel: 4))
+        let settings = try #require(h.engine.lastRecorder?.settings)
+        #expect(h.engine.recorders.count == recorders + 1)
+        #expect(settings.dwell == 0.10)
+        #expect(settings.cooldown == 0.30)
+        #expect(settings.enterMargin == 0.45)
+        #expect(h.relaunchedModel().sensitivity == SwitchSensitivity(dwell: 0.10, cooldown: 0.30, confidenceLevel: 4))
+    }
+
+    @Test func theInstantButtonFromTheDefaultsIsThePreset() {
+        let h = Harness.make(calibrated: true)
+        defer { h.tearDown() }
+
+        h.model.useInstantTiming()
+
+        #expect(h.model.sensitivity == .instant)
+    }
+
+    @Test func theInstantButtonAgainRebuildsNothing() {
+        let h = Harness.make(calibrated: true)
+        defer { h.tearDown() }
+        h.model.useInstantTiming()
+        let recorders = h.engine.recorders.count
+
+        h.model.useInstantTiming()
+
+        #expect(h.engine.recorders.count == recorders)
+    }
+
+    @Test func draggingTheSlidersToTheInstantValuesGivesTheSameSettingsAsTheButton() {
+        let h = Harness.make(calibrated: true)
+        defer { h.tearDown() }
+
+        h.model.setHoldTime(0.1)
+        h.model.setCooldown(0.3)
+
+        #expect(h.model.sensitivity == .instant)
+        #expect(h.model.sensitivity == h.model.sensitivity.applyingInstantTiming())
+    }
+
+    @Test func changingTheTimingDoesNotMakeTheSettingsChangeAtTheFrameRate() async {
+        let h = Harness.make(calibrated: true)
+        defer { h.tearDown() }
+        await h.startTracking()
+        await h.settlePoll()
+        h.model.useInstantTiming()
+        let count = OSAllocatedUnfairLock(initialState: 0)
+
+        withObservationTracking {
+            _ = h.model.sensitivity
+        } onChange: {
+            count.withLock { $0 += 1 }
+        }
+        h.run(frames: 30, dt: 0.07)
+
+        #expect(count.withLock { $0 } == 0, "Only the user's own change touches the settings")
     }
 
     @Test func settingTheSameValueRebuildsNothing() {
@@ -104,10 +299,11 @@ struct AppModelSettingsTests {
         #expect(h.defaults.data(forKey: "sway.switchSensitivity") == nil)
     }
 
-    @Test func restoreDefaultsPutsBothBackAndRebuildsTheDecider() throws {
+    @Test func restoreDefaultsPutsAllThreeBackAndRebuildsTheDecider() throws {
         let h = Harness.make(calibrated: true)
         defer { h.tearDown() }
         h.model.setHoldTime(1.2)
+        h.model.setCooldown(0.5)
         h.model.setSwitchConfidence(4)
         let recorders = h.engine.recorders.count
 
@@ -117,6 +313,17 @@ struct AppModelSettingsTests {
         #expect(h.engine.recorders.count == recorders + 1)
         #expect(h.engine.lastRecorder?.settings == .default)
         #expect(h.relaunchedModel().sensitivity == .default)
+    }
+
+    @Test func restoreDefaultsUndoesTheInstantButton() {
+        let h = Harness.make(calibrated: true)
+        defer { h.tearDown() }
+        h.model.useInstantTiming()
+
+        h.model.restoreSensitivityDefaults()
+
+        #expect(h.model.sensitivity == SwitchSensitivity(dwell: 0.40, cooldown: 0.75, confidenceLevel: 2))
+        #expect(h.engine.lastRecorder?.settings == .default)
     }
 
     // MARK: Login item

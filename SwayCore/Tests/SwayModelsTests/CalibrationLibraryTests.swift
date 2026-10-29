@@ -159,8 +159,13 @@ struct CalibrationLibraryTests {
 
 @Suite("Switch sensitivity")
 struct SwitchSensitivityTests {
+    private func decoded(_ json: String) throws -> SwitchSensitivity {
+        try JSONDecoder().decode(SwitchSensitivity.self, from: Data(json.utf8))
+    }
+
     @Test func defaultsMatchTheEngineDefaults() {
         #expect(SwitchSensitivity.default.switchSettings() == .default)
+        #expect(SwitchSensitivity.default == SwitchSensitivity(dwell: 0.40, cooldown: 0.75, confidenceLevel: 2))
     }
 
     @Test func mapsDwellAndMarginsKeepingTheRest() {
@@ -172,21 +177,105 @@ struct SwitchSensitivityTests {
         #expect(settings.maxGap == SwitchSettings.default.maxGap)
     }
 
-    @Test func clampsOutOfRangeValues() {
-        let low = SwitchSensitivity(dwell: 0, confidenceLevel: -3)
-        #expect(low.dwell == SwitchSensitivity.dwellRange.lowerBound)
-        #expect(low.confidenceLevel == 0)
-        let high = SwitchSensitivity(dwell: 9, confidenceLevel: 40)
-        #expect(high.dwell == SwitchSensitivity.dwellRange.upperBound)
-        #expect(high.confidenceLevel == SwitchSensitivity.confidenceMargins.count - 1)
+    @Test func switchSettingsCarriesTheCooldownAndKeepsTheOtherFields() {
+        let settings = SwitchSensitivity(dwell: 0.6, cooldown: 1.1, confidenceLevel: 1).switchSettings()
+        #expect(settings.dwell == 0.6)
+        #expect(settings.cooldown == 1.1)
+        #expect(settings.enterMargin == 0.225)
+        #expect(settings.stayMargin == 0.1125)
+        #expect(settings.maxGap == SwitchSettings.default.maxGap)
+        #expect(settings.minFaceConfidence == SwitchSettings.default.minFaceConfidence)
+        #expect(settings.elsewhereYawMargin == SwitchSettings.default.elsewhereYawMargin)
+        #expect(settings.elsewherePitchMargin == SwitchSettings.default.elsewherePitchMargin)
     }
 
-    @Test func decodedOutOfRangeValuesAreClampedWhenMapped() throws {
-        let json = #"{"dwell": 7, "confidenceLevel": 12}"#
-        let decoded = try JSONDecoder().decode(SwitchSensitivity.self, from: Data(json.utf8))
-        let settings = decoded.switchSettings()
+    @Test func theRangesAreTheDocumentedOnes() {
+        #expect(SwitchSensitivity.dwellRange == 0.05...1.5)
+        #expect(SwitchSensitivity.cooldownRange == 0.2...1.5)
+    }
+
+    @Test func clampsEveryFieldIntoItsRange() {
+        let low = SwitchSensitivity(dwell: 0, cooldown: 0, confidenceLevel: -3)
+        #expect(low.dwell == SwitchSensitivity.dwellRange.lowerBound)
+        #expect(low.cooldown == SwitchSensitivity.cooldownRange.lowerBound)
+        #expect(low.confidenceLevel == 0)
+        let high = SwitchSensitivity(dwell: 9, cooldown: 9, confidenceLevel: 40)
+        #expect(high.dwell == SwitchSensitivity.dwellRange.upperBound)
+        #expect(high.cooldown == SwitchSensitivity.cooldownRange.upperBound)
+        #expect(high.confidenceLevel == SwitchSensitivity.confidenceMargins.count - 1)
+        let inside = SwitchSensitivity(dwell: 0.05, cooldown: 0.2, confidenceLevel: 3)
+        #expect(inside.dwell == 0.05)
+        #expect(inside.cooldown == 0.2)
+        #expect(inside.confidenceLevel == 3)
+    }
+
+    @Test func theOldInitializerKeepsTheDefaultCooldownAndClamps() {
+        let old = SwitchSensitivity(dwell: 0.8, confidenceLevel: 4)
+        #expect(old == SwitchSensitivity(dwell: 0.8, cooldown: 0.75, confidenceLevel: 4))
+        #expect(SwitchSensitivity(dwell: 0, confidenceLevel: 9).dwell == SwitchSensitivity.dwellRange.lowerBound)
+    }
+
+    @Test func decodedOutOfRangeValuesAreClamped() throws {
+        let value = try decoded(#"{"dwell": 7, "cooldown": 40, "confidenceLevel": 12}"#)
+        #expect(value.dwell == SwitchSensitivity.dwellRange.upperBound)
+        #expect(value.cooldown == SwitchSensitivity.cooldownRange.upperBound)
+        #expect(value.confidenceLevel == SwitchSensitivity.confidenceMargins.count - 1)
+        let settings = value.switchSettings()
         #expect(settings.dwell == SwitchSensitivity.dwellRange.upperBound)
+        #expect(settings.cooldown == SwitchSensitivity.cooldownRange.upperBound)
         #expect(settings.enterMargin == SwitchSensitivity.confidenceMargins.last)
+
+        let low = try decoded(#"{"dwell": -1, "cooldown": 0.01, "confidenceLevel": -5}"#)
+        #expect(low.dwell == SwitchSensitivity.dwellRange.lowerBound)
+        #expect(low.cooldown == SwitchSensitivity.cooldownRange.lowerBound)
+        #expect(low.confidenceLevel == 0)
+    }
+
+    @Test func savedValuesWithoutACooldownDecodeWithTheDefaultOne() throws {
+        let value = try decoded(#"{"dwell":0.2,"confidenceLevel":2}"#)
+        #expect(value == SwitchSensitivity(dwell: 0.2, cooldown: 0.75, confidenceLevel: 2))
+        #expect(value.switchSettings().cooldown == SwitchSettings.default.cooldown)
+        #expect(try decoded(#"{"dwell":0.4,"confidenceLevel":2}"#) == .default)
+    }
+
+    @Test func aSavedValueMissingTheHoldTimeOrConfidenceStaysUnreadable() {
+        #expect(throws: DecodingError.self) { try decoded(#"{"cooldown":0.5,"confidenceLevel":2}"#) }
+        #expect(throws: DecodingError.self) { try decoded(#"{"dwell":0.4,"cooldown":0.5}"#) }
+    }
+
+    @Test func encodingWritesAllThreeValuesAndRoundTrips() throws {
+        let value = SwitchSensitivity(dwell: 0.35, cooldown: 0.5, confidenceLevel: 3)
+        let data = try JSONEncoder().encode(value)
+        let object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        #expect(Set(object.keys) == ["dwell", "cooldown", "confidenceLevel"])
+        #expect(object["dwell"] as? Double == 0.35)
+        #expect(object["cooldown"] as? Double == 0.5)
+        #expect(object["confidenceLevel"] as? Int == 3)
+        #expect(try JSONDecoder().decode(SwitchSensitivity.self, from: data) == value)
+        let defaultData = try JSONEncoder().encode(SwitchSensitivity.default)
+        #expect(try JSONDecoder().decode(SwitchSensitivity.self, from: defaultData) == .default)
+    }
+
+    @Test func theInstantPresetIsAShortHoldAndPause() {
+        #expect(SwitchSensitivity.instant.dwell == 0.10)
+        #expect(SwitchSensitivity.instant.cooldown == 0.30)
+        #expect(SwitchSensitivity.instant.dwell >= SwitchSensitivity.dwellRange.lowerBound)
+        #expect(SwitchSensitivity.instant.cooldown >= SwitchSensitivity.cooldownRange.lowerBound)
+        let settings = SwitchSensitivity.instant.switchSettings()
+        #expect(settings.dwell == 0.10)
+        #expect(settings.cooldown == 0.30)
+    }
+
+    @Test func applyingInstantTimingKeepsTheConfidence() {
+        for level in 0..<SwitchSensitivity.confidenceMargins.count {
+            let before = SwitchSensitivity(dwell: 1.2, cooldown: 1.4, confidenceLevel: level)
+            let after = before.applyingInstantTiming()
+            #expect(after.dwell == SwitchSensitivity.instant.dwell)
+            #expect(after.cooldown == SwitchSensitivity.instant.cooldown)
+            #expect(after.confidenceLevel == level)
+        }
+        #expect(SwitchSensitivity.default.applyingInstantTiming() == .instant)
+        #expect(SwitchSensitivity.instant.applyingInstantTiming() == .instant)
     }
 }
 

@@ -127,7 +127,7 @@ private struct GeneralSettingsSection: View {
     }
 }
 
-/// Hold time and Switch confidence.
+/// Hold time, Pause after a switch, and Switch confidence, with the Instant timing preset (SPEC F21, F35).
 private struct SwitchingSettingsSection: View {
     let model: AppModel
 
@@ -156,6 +156,28 @@ private struct SwitchingSettingsSection: View {
             }
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
+                    Text("Pause after a switch")
+                    Spacer()
+                    Text(SensitivityPresentation.cooldownText(model.sensitivity.cooldown))
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                }
+                Slider(
+                    value: Binding(get: { model.sensitivity.cooldown }, set: { model.setCooldown($0) }),
+                    in: SwitchSensitivity.cooldownRange, step: SensitivityPresentation.cooldownStep
+                ) {
+                    Text("Pause after a switch")
+                }
+                .labelsHidden()
+                Text(
+                    "How long Sway waits after switching before it will switch again. Shorter is faster for a quick "
+                        + "look back, but can bounce."
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
                     Text("Switch confidence")
                     Spacer()
                     Text(SensitivityPresentation.confidenceName(model.sensitivity.confidenceLevel))
@@ -178,8 +200,13 @@ private struct SwitchingSettingsSection: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            Button("Restore Defaults") { model.restoreSensitivityDefaults() }
-                .disabled(model.sensitivity == .default)
+            HStack {
+                Button("Use Instant timing") { model.useInstantTiming() }
+                    .disabled(model.sensitivity == model.sensitivity.applyingInstantTiming())
+                    .help(SensitivityPresentation.instantHelp)
+                Button("Restore Defaults") { model.restoreSensitivityDefaults() }
+                    .disabled(model.sensitivity == .default)
+            }
         }
         .swayCard()
     }

@@ -278,6 +278,28 @@ struct ViewSmokeTests {
         #expect(renders(SettingsView(model: refused.model), width: 520, height: 640), "Shortcut refused")
     }
 
+    @Test func settingsRendersTheSwitchingControlsAtEveryTiming() {
+        let h = Harness.make(calibrated: true)
+        defer { h.tearDown() }
+        #expect(renders(SettingsView(model: h.model), width: 520, height: 640), "Defaults")
+
+        h.model.useInstantTiming()
+        #expect(renders(SettingsView(model: h.model), width: 520, height: 640), "Instant")
+
+        h.model.setHoldTime(0.05)
+        h.model.setCooldown(0.2)
+        #expect(renders(SettingsView(model: h.model), width: 520, height: 640), "Shortest")
+
+        h.model.setHoldTime(1.5)
+        h.model.setCooldown(1.5)
+        h.model.setSwitchConfidence(4)
+        #expect(
+            renders(SettingsView(model: h.model).environment(\.colorScheme, .dark), width: 520, height: 640), "Longest")
+
+        h.model.restoreSensitivityDefaults()
+        #expect(renders(SettingsView(model: h.model), width: 520, height: 640), "Restored")
+    }
+
     @Test func menuRendersTheCameraSpecificBanner() async {
         let h = Harness.make(calibrated: true)
         defer { h.tearDown() }

@@ -59,17 +59,31 @@ extension AppModel {
 
     /// The Hold time slider: seconds on the 0.05 s grid, inside the allowed range.
     func setHoldTime(_ seconds: Double) {
-        setSensitivity(
-            SwitchSensitivity(
-                dwell: SensitivityPresentation.snappedDwell(seconds), confidenceLevel: sensitivity.confidenceLevel))
+        var next = sensitivity
+        next.dwell = SensitivityPresentation.snappedDwell(seconds)
+        setSensitivity(next)
+    }
+
+    /// The Pause after a switch slider: seconds on the 0.05 s grid, inside the allowed range (SPEC F35).
+    func setCooldown(_ seconds: Double) {
+        var next = sensitivity
+        next.cooldown = SensitivityPresentation.snappedCooldown(seconds)
+        setSensitivity(next)
     }
 
     /// The Switch confidence slider: 0 (Relaxed) to 4 (Strict).
     func setSwitchConfidence(_ level: Int) {
-        setSensitivity(SwitchSensitivity(dwell: sensitivity.dwell, confidenceLevel: level))
+        var next = sensitivity
+        next.confidenceLevel = level
+        setSensitivity(next)
     }
 
-    /// "Restore Defaults".
+    /// "Use Instant timing": the shortest hold time and pause the preset sets, keeping the confidence (SPEC D49).
+    func useInstantTiming() {
+        setSensitivity(sensitivity.applyingInstantTiming())
+    }
+
+    /// "Restore Defaults": hold time, pause, and confidence.
     func restoreSensitivityDefaults() {
         setSensitivity(.default)
     }

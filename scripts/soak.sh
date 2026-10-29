@@ -13,6 +13,7 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 
 subsystem="com.avimal5000.sway"
+bundle_id="com.avimal5000.sway"
 # Only the app itself: the tests log under the same subsystem from their own processes.
 predicate="subsystem == \"$subsystem\" AND process == \"Sway\""
 
@@ -23,6 +24,15 @@ sample() {
   echo "time,pid,cpu_percent,rss_mb,threads,power" > "$out"
   local logfile="${out%.csv}.log"
   : > "$logfile"
+  # The switching timing in force at the start, so a report can be compared with another run's.
+  defaults export "$bundle_id" - 2>/dev/null | python3 -I -c '
+import sys, plistlib, json
+try:
+    value = plistlib.loads(sys.stdin.buffer.read()).get("sway.switchSensitivity")
+    print(json.dumps(json.loads(value)) if value else "defaults (hold 0.40 s, pause 0.75 s, confidence 2)")
+except Exception:
+    print("unknown")
+' > "${out%.csv}.settings" 2>/dev/null || echo "unknown" > "${out%.csv}.settings"
   /usr/bin/log stream --style compact --level info --predicate "$predicate" >> "$logfile" 2>/dev/null &
   local stream_pid=$!
   trap 'kill "$stream_pid" 2>/dev/null; exit 0' INT TERM
@@ -55,6 +65,7 @@ report() {
   last=$(tail -1 "$csv" | cut -d, -f1)
   echo "Soak report: $csv"
   echo "From $first to $last"
+  [[ -f "${csv%.csv}.settings" ]] && echo "Switching settings at the start: $(cat "${csv%.csv}.settings")"
   echo
   awk -F, '
     NR == 1 { next }
@@ -114,6 +125,13 @@ report() {
   echo "  resumed:                 $(count 'Resuming capture')"
   echo "  camera unplugged/back:   $(count 'Camera disconnected') / $(count 'Camera reconnected')"
   echo "  pose source failures:    $(count 'Pose source failed')"
+
+  local settings_seen
+  settings_seen=$(grep -oE "Switching settings: .*" <<<"$events" | sort -u || true)
+  if [[ -n "$settings_seen" ]]; then
+    echo "  settings changed during the run:"
+    sed 's/^/    /' <<<"$settings_seen"
+  fi
 
   # Likely false switches: a switch to display B followed within 3 s by a switch back to display A.
   local reversals
