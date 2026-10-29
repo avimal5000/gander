@@ -43,6 +43,10 @@ Any missing secret just means a less-signed release: the workflow says which kin
    publishes a **pre-release** with the DMG and its `.sha256`. Edit the notes if you want, and untick "pre-release"
    when you are ready for 1.0.
 4. A bad release: `gh release delete v0.1.0 --cleanup-tag`, fix, and tag again.
+5. **No build started after the tag push?** GitHub skips push-triggered workflows when the tagged commit's message
+   contains `[skip ci]`, and a squash merge copies that text from the PR's commits into the commit on `main`. Check
+   with `git log -1 --format=%B vX.Y.Z`. Either tag a newer commit, or run the **Release** workflow by hand on the tag
+   (Actions → Release → Run workflow → choose the tag). When squash-merging, pass `--body` to keep such markers out.
 
 The version comes from the tag. `MARKETING_VERSION` in the Xcode project only matters for local builds: keep it equal
 to the latest release.
