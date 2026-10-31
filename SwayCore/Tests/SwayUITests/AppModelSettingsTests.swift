@@ -399,11 +399,11 @@ struct AppModelSettingsTests {
         let h = Harness.make()
         defer { h.tearDown() }
         h.openSettings()
-        h.loginItem.error = LoginItemError(message: "Sway could not be set to open at login: nope.")
+        h.loginItem.error = LoginItemError(message: "Gander could not be set to open at login: nope.")
 
         h.model.setOpensAtLogin(true)
 
-        #expect(h.model.loginItemMessage == "Sway could not be set to open at login: nope.")
+        #expect(h.model.loginItemMessage == "Gander could not be set to open at login: nope.")
         #expect(h.model.loginItemStatus == .disabled)
         #expect(!h.model.opensAtLogin)
 

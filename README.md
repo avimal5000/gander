@@ -1,4 +1,4 @@
-# Sway
+# Gander
 
 **Look. Focus. Flow.** A quiet macOS menu bar utility that moves keyboard focus to the display you are
 looking at, using head pose from the camera, entirely on-device. See PLAN.md (plan), SPEC.md (current phase),
@@ -10,13 +10,13 @@ hardening for sleep, display changes, and camera conflicts. The first release is
 
 ## Install
 
-Download the DMG from the repository's **Releases** page, open it, drag Sway to Applications, and open it from
+Download the DMG from the repository's **Releases** page, open it, drag Gander to Applications, and open it from
 there. The early builds are not notarized, so macOS says Apple could not verify the app. Click **Done**, then open
-System Settings → Privacy & Security, scroll to the Security section, and click **Open Anyway** next to "Sway was
-blocked" (once; macOS 15 and later removed the right-click → Open shortcut). Or, in Terminal after copying Sway to
-Applications: `xattr -dr com.apple.quarantine /Applications/Sway.app`. Sway lives in the menu bar; choose **Set Up…** in
+System Settings → Privacy & Security, scroll to the Security section, and click **Open Anyway** next to "Gander was
+blocked" (once; macOS 15 and later removed the right-click → Open shortcut). Or, in Terminal after copying Gander to
+Applications: `xattr -dr com.apple.quarantine /Applications/Gander.app`. Gander lives in the menu bar; choose **Set Up…** in
 its menu. There is no auto-update, because
-Sway never uses the network: to update, download the new DMG and replace the app.
+Gander never uses the network: to update, download the new DMG and replace the app.
 
 ## Permissions
 
@@ -33,7 +33,7 @@ macOS 14+, Xcode 26+. No third-party dependencies. Keep the repo out of iCloud-s
 ## Build and run
 
 ```bash
-open Sway.xcodeproj          # scheme "Sway", Run (signs with your Apple Development certificate)
+open Sway.xcodeproj          # scheme "Gander", Run (signs with your Apple Development certificate)
 ```
 
 Command line (unsigned):
@@ -49,12 +49,12 @@ scripts/lint.sh && scripts/privacy-guard.sh
 ## Privacy
 
 Frames are processed in memory and dropped. Nothing is written or sent anywhere; there is no networking code.
-Numeric pose traces are saved only in DEBUG builds, to `~/Library/Application Support/Sway/Traces`. The cursor
-is never moved, and Sway neither synthesizes nor globally monitors input events. Window titles are shown in the
+Numeric pose traces are saved only in DEBUG builds, to `~/Library/Application Support/Gander/Traces`. The cursor
+is never moved, and Gander neither synthesizes nor globally monitors input events. Window titles are shown in the
 Focus Test window only, never logged or stored. All of this is enforced in CI by `scripts/privacy-guard.sh`.
 
 ## Diagnostics and audits
 
-`scripts/sleep-diag.sh` captures Sway's live log and thread samples across a sleep/wake, for hangs.
+`scripts/sleep-diag.sh` captures Gander's live log and thread samples across a sleep/wake, for hangs.
 `scripts/audit-privacy.sh` checks the entitlements and the built app for any network access or image saving
-(docs/PRIVACY-AUDIT.md). `scripts/soak.sh` records Sway's CPU, memory, and switches over a long run.
+(docs/PRIVACY-AUDIT.md). `scripts/soak.sh` records Gander's CPU, memory, and switches over a long run.

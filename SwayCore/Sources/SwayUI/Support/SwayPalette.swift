@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-/// Sway's brand colors plus a few semantic helpers. System fonts and controls are used everywhere else.
+/// Gander's brand colors plus a few semantic helpers. System fonts and controls are used everywhere else.
 enum SwayPalette {
     /// Brand colors as 24-bit RGB values (`0xRRGGBB`).
     static let forestHex: UInt32 = 0x2F5D3A
@@ -9,7 +9,7 @@ enum SwayPalette {
     static let ivoryHex: UInt32 = 0xF6F3EA
     static let charcoalHex: UInt32 = 0x2B2B2B
 
-    /// The lighter green that keeps Sway green readable on dark appearances.
+    /// The lighter green that keeps Gander green readable on dark appearances.
     static let greenDarkHex: UInt32 = 0x6FAF84
 
     static let forest = Color(hex: forestHex)
@@ -17,11 +17,11 @@ enum SwayPalette {
     static let ivory = Color(hex: ivoryHex)
     static let charcoal = Color(hex: charcoalHex)
 
-    /// Sway green (SPEC F24): forest in light appearances and a lighter green in dark ones, so it keeps its contrast.
-    /// The accent when the user keeps "Sway green", the edge glow, and the mark in the popover.
+    /// Gander green (SPEC F24): forest in light appearances and a lighter green in dark ones, so it keeps its contrast.
+    /// The accent when the user keeps "Gander green", the edge glow, and the mark in the popover.
     static let green = Color(nsColor: makeGreen())
 
-    /// The hex value of Sway green in a light or dark appearance.
+    /// The hex value of Gander green in a light or dark appearance.
     static func greenHex(isDark: Bool) -> UInt32 {
         isDark ? greenDarkHex : forestHex
     }

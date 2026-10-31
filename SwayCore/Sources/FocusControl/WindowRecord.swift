@@ -1,7 +1,7 @@
 import CoreGraphics
 import Foundation
 
-/// One entry of the window server's on-screen window list, reduced to the fields Sway needs.
+/// One entry of the window server's on-screen window list, reduced to the fields Gander needs.
 struct WindowRecord: Equatable, Sendable {
     /// `kCGWindowNumber`.
     let number: UInt32

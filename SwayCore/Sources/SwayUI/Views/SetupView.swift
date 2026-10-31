@@ -1,7 +1,7 @@
 import SwayModels
 import SwiftUI
 
-/// The Set Up Sway window (SPEC F20, F26): a welcome on first setup, then camera access, Accessibility, a camera check,
+/// The Set Up Gander window (SPEC F20, F26): a welcome on first setup, then camera access, Accessibility, a camera check,
 /// the guided calibration, and its result, one step at a time. `SetupFlow` decides the step; this view only draws it.
 struct SetupView: View {
     let model: AppModel

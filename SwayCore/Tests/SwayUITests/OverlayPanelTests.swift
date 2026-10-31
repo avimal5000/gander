@@ -4,8 +4,8 @@ import Testing
 
 @testable import SwayUI
 
-/// What every overlay must stay (CONTRACT 6.5, 6.5.4): if one could become key or activate Sway, each glow would put
-/// "Sway in front" on hold and switching would stop without a word. The panels are made here and never shown.
+/// What every overlay must stay (CONTRACT 6.5, 6.5.4): if one could become key or activate Gander, each glow would put
+/// "Gander in front" on hold and switching would stop without a word. The panels are made here and never shown.
 @MainActor
 @Suite("Overlay panels never take focus")
 struct OverlayPanelTests {

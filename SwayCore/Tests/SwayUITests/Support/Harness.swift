@@ -36,7 +36,7 @@ struct Harness {
     ///   - calibrated: seeds the calibration library with a profile for `layout` for each of `calibrationCameras`.
     ///   - capturePicks: the camera capture opens when none is selected (the system default with no built-in in
     ///     use); the fake pose source then runs it.
-    ///   - appActive: whether Sway counts as the active app at launch.
+    ///   - appActive: whether Gander counts as the active app at launch.
     ///   - trackingSaved: seeds `sway.trackingEnabled` as if the user had left Tracking on.
     ///   - seed: writes anything else into the defaults before the model launches.
     static func make(

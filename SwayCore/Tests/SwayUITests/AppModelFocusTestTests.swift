@@ -444,7 +444,7 @@ struct AppModelFocusTestTests {
         #expect(FocusTestPresentation.accessibilityNotGranted == "Accessibility: Not granted")
         #expect(
             FocusTestPresentation.accessibilityExplanation
-                == "Sway needs Accessibility access to move keyboard focus to a window on the display you look at. "
+                == "Gander needs Accessibility access to move keyboard focus to a window on the display you look at. "
                 + "It never moves the cursor and never reads window contents.")
     }
 }

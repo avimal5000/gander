@@ -325,8 +325,8 @@ struct MenuBannerTests {
     }
 
     @Test func theTextsMatchTheSpec() {
-        #expect(MenuBanner.firstSetupText == "Sway needs a quick setup, about a minute.")
-        #expect(MenuBanner.needsCalibrationText == "New display setup. Calibrate so Sway can switch between them.")
-        #expect(MenuBanner.needsAccessibilityText.hasPrefix("Sway needs Accessibility access"))
+        #expect(MenuBanner.firstSetupText == "Gander needs a quick setup, about a minute.")
+        #expect(MenuBanner.needsCalibrationText == "New display setup. Calibrate so Gander can switch between them.")
+        #expect(MenuBanner.needsAccessibilityText.hasPrefix("Gander needs Accessibility access"))
     }
 }

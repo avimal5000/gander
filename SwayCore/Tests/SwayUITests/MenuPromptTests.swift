@@ -11,11 +11,11 @@ struct MenuPromptTests {
     // MARK: Banner wording and buttons
 
     @Test func theCalibrationBannerTextsAndButtonMatchTheSpec() {
-        #expect(MenuBanner.needsCalibrationText == "New display setup. Calibrate so Sway can switch between them.")
+        #expect(MenuBanner.needsCalibrationText == "New display setup. Calibrate so Gander can switch between them.")
         #expect(MenuBanner.calibrateButtonTitle == "Calibrate (about 20 s)\u{2026}")
         #expect(
             MenuBanner.needsCameraCalibrationText(camera: "Logitech C922") == "No calibration for Logitech C922 yet.")
-        #expect(MenuBanner.firstSetupText == "Sway needs a quick setup, about a minute.")
+        #expect(MenuBanner.firstSetupText == "Gander needs a quick setup, about a minute.")
     }
 
     @Test func theSetupAndCalibrationBannersOpenTheSetupWindow() {

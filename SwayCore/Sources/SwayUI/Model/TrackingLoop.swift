@@ -7,7 +7,7 @@ import SwayModels
 ///
 /// The focused display is the first of three sources that is known:
 /// 1. `inFlight`: the display a focus request is moving focus to right now;
-/// 2. `override`: a display Sway treats as focused after a failed or "no window" attempt, so a look at a display
+/// 2. `override`: a display Gander treats as focused after a failed or "no window" attempt, so a look at a display
 ///    without a usable window does not retry every 0.75 s. It ends when the real focus is seen elsewhere (a poll that
 ///    differs from what it was before the attempt) or when the look moves to another display;
 /// 3. `polled`: the last accepted answer of the poll.
@@ -22,7 +22,7 @@ struct TrackingLoop: Equatable, Sendable {
         let before: DisplayID?
     }
 
-    /// The last accepted poll result; `nil` when focus is unknown (or Sway itself is in front).
+    /// The last accepted poll result; `nil` when focus is unknown (or Gander itself is in front).
     private(set) var polled: DisplayID?
     private(set) var override: Override?
     /// The display of the focus request now running.

@@ -3,10 +3,10 @@
 @preconcurrency import Carbon
 import SwayModels
 
-/// The pure translations between Sway's shortcut types and Carbon's hot key values. No Carbon call happens here, so
+/// The pure translations between Gander's shortcut types and Carbon's hot key values. No Carbon call happens here, so
 /// every function is safe to run in tests.
 enum CarbonHotKeyMapping {
-    /// The four-character signature every Sway hot key carries, so a stray Carbon event for another app's hot key is
+    /// The four-character signature every Gander hot key carries, so a stray Carbon event for another app's hot key is
     /// never mistaken for ours.
     static let signatureText = "SWAY"
 
@@ -41,7 +41,7 @@ enum CarbonHotKeyMapping {
         EventHotKeyID(signature: signature, id: actionID(for: action))
     }
 
-    /// The action behind a Carbon hot key ID, or nil when the signature isn't Sway's or the ID is unknown.
+    /// The action behind a Carbon hot key ID, or nil when the signature isn't Gander's or the ID is unknown.
     static func action(for hotKeyID: EventHotKeyID) -> HotKeyAction? {
         guard hotKeyID.signature == signature else { return nil }
         return HotKeyAction.allCases.first { actionID(for: $0) == hotKeyID.id }

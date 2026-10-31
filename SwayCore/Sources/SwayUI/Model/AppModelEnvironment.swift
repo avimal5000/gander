@@ -19,7 +19,7 @@ struct AppModelEnvironment {
     var notificationCenter: NotificationCenter
     /// Where `NSWorkspace` posts app activations (a separate center from `notificationCenter`).
     var workspaceNotificationCenter: NotificationCenter
-    /// Whether Sway is in front right now: the active app with a key window (its menu or one of its windows). Read at
+    /// Whether Gander is in front right now: the active app with a key window (its menu or one of its windows). Read at
     /// launch and again on every activation and key-window change.
     var isAppActive: @MainActor () -> Bool
     /// How often the gate timer fires; `nil` disables the timer (tests call `AppModel.gateTick()` instead).
@@ -52,7 +52,7 @@ struct AppModelEnvironment {
             reduceMotion: { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion },
             notificationCenter: .default,
             workspaceNotificationCenter: NSWorkspace.shared.notificationCenter,
-            // Active with no key window (its last window just closed) doesn't count: nothing of Sway's is in front,
+            // Active with no key window (its last window just closed) doesn't count: nothing of Gander's is in front,
             // and the user would be stuck until they clicked another app.
             isAppActive: { NSApplication.shared.isActive && NSApplication.shared.keyWindow != nil },
             gateTickInterval: .milliseconds(100),

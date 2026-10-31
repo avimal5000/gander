@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The Swing mark (SPEC D36): an arc swinging from a small point to a larger one. Drawn from ``SwayMarkGeometry``, so
+/// The Gander mark: a goose, with its wing in the `start` colour and its eye cut out. Drawn from ``SwayMarkGeometry``, so
 /// it matches the menu bar icon and the app icon at any size. Decorative: hidden from accessibility.
 struct SwayMark: View {
     /// How the mark sits in its frame.
@@ -37,31 +37,17 @@ struct SwayMark: View {
                 case .unitSquare: SwayMarkGeometry.placement(unitSquareIn: area)
                 }
 
-            var path = Path()
-            path.move(to: placement.point(SwayMarkGeometry.start))
-            path.addQuadCurve(
-                to: placement.point(SwayMarkGeometry.end), control: placement.point(SwayMarkGeometry.control))
-            context.stroke(
-                path, with: .color(arc),
-                style: StrokeStyle(lineWidth: placement.length(SwayMarkGeometry.arcWidth), lineCap: .round))
-            context.fill(
-                disc(
-                    at: placement.point(SwayMarkGeometry.start), radius: placement.length(SwayMarkGeometry.startRadius)),
-                with: .color(start))
-            context.fill(
-                disc(at: placement.point(SwayMarkGeometry.end), radius: placement.length(SwayMarkGeometry.endRadius)),
-                with: .color(end))
+            var body = Path(SwayMarkGeometry.silhouette(in: placement))
+            body.addPath(Path(SwayMarkGeometry.eye(in: placement)))
+            context.fill(body, with: .color(arc), style: FillStyle(eoFill: true))
+            context.fill(Path(SwayMarkGeometry.wing(in: placement)), with: .color(start))
         }
         .accessibilityHidden(true)
-    }
-
-    private func disc(at center: CGPoint, radius: CGFloat) -> Path {
-        Path(ellipseIn: CGRect(x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2))
     }
 }
 
 #if DEBUG
-#Preview("Swing mark") {
+#Preview("Gander mark") {
     HStack(spacing: 20) {
         SwayMark(color: SwayPalette.green).frame(width: 16, height: 16)
         SwayMark(color: SwayPalette.green).frame(width: 64, height: 64)

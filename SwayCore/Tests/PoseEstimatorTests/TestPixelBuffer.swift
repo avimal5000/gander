@@ -4,7 +4,7 @@ import SwayModels
 
 /// Builds in-memory pixel buffers for tests. Nothing here touches a camera or the disk.
 enum TestPixelBuffer {
-    /// A black 32-bit BGRA buffer, 640x480 by default (the capture size Sway uses).
+    /// A black 32-bit BGRA buffer, 640x480 by default (the capture size Gander uses).
     static func blank(width: Int = 640, height: Int = 480) -> CVPixelBuffer {
         var buffer: CVPixelBuffer?
         let status = CVPixelBufferCreate(nil, width, height, kCVPixelFormatType_32BGRA, nil, &buffer)

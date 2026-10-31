@@ -36,7 +36,7 @@ enum FramingAdvice: Equatable, Sendable {
 
     var text: String {
         switch self {
-        case .noFace: "Sway can't see your face yet."
+        case .noFace: "Gander can't see your face yet."
         case .closer: "Move a little closer to the camera."
         case .back: "Move back a little."
         case .center: "Center your face in the camera's view."

@@ -1,6 +1,6 @@
 import SwayModels
 
-/// Opens Sway at login through `SMAppService.mainApp` (CONTRACT 6.8). macOS may ask the user to approve it in
+/// Opens Gander at login through `SMAppService.mainApp` (CONTRACT 6.8). macOS may ask the user to approve it in
 /// System Settings, and it works reliably only for a copy of the app in `/Applications`.
 @MainActor
 public final class MainAppLoginItem: LoginItemControlling {

@@ -18,7 +18,7 @@ struct CaptureEnvironment: Sendable {
     var isMainDisplayAsleep: @Sendable () -> Bool
     /// True when this login session is not the console session. Seeds `.sessionInactive` (D43).
     var isSessionInactive: @Sendable () -> Bool
-    /// Turns Center Stage off for Sway's own capture (D47). Called before every session build; the live function
+    /// Turns Center Stage off for Gander's own capture (D47). Called before every session build; the live function
     /// does its work once per process.
     var turnCenterStageOff: @Sendable () -> Void
     /// Posts sleep, display sleep, and user-session notifications (`NSWorkspace`'s center).

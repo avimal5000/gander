@@ -1,7 +1,7 @@
 import AVFoundation
 import SwayModels
 
-/// Maps AVFoundation's authorization status onto Sway's `CameraAuthorization`.
+/// Maps AVFoundation's authorization status onto Gander's `CameraAuthorization`.
 enum CameraAuthorizationMapper {
     /// One-to-one mapping. A status added by a future SDK is treated as `.denied`, the safe choice because
     /// capture never starts unless the result is `.authorized`.

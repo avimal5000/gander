@@ -1,6 +1,6 @@
 import AppKit
 
-/// The menu bar icon images (SPEC F25, D37): the Swing mark as an 18 x 18 pt template image, one per ``MenuBarGlyph``.
+/// The menu bar icon images (SPEC F25, D37): the goose mark as an 18 x 18 pt template image, one per ``MenuBarGlyph``.
 ///
 /// Each image is drawn once, into bitmaps at 1x and 2x, the first time its glyph is asked for, and kept for the life
 /// of the app. The images are templates, so the menu bar tints them for light and dark; only the alpha channel
@@ -11,14 +11,11 @@ enum MenuBarIcon {
     static let side: CGFloat = 18
     /// Pixel scales of the bitmaps in each image.
     private static let scales = [1, 2]
-    /// Sizes of the mark's parts at this size, in points (CONTRACT 6.5.4). The positions come from
-    /// ``SwayMarkGeometry``; the weights are set by hand, because a menu bar icon needs strokes a little heavier than
-    /// the mark scaled down.
-    static let arcWidth: CGFloat = 1.8
-    static let startRadius: CGFloat = 1.4
-    static let endRadius: CGFloat = 2
-    /// Width of the ring that is the hollow end point.
-    static let ringWidth: CGFloat = 1
+    /// Sizes of the mark's parts at this size, in points (CONTRACT 6.5.4). The shape comes from ``SwayMarkGeometry``;
+    /// the eye is set by hand, because a hole that small must be larger than the mark scaled down.
+    static let eyeRadius: CGFloat = 0.55
+    /// Width of the outline that is the hollow (paused) goose.
+    static let outlineWidth: CGFloat = 1.2
 
     /// The area the mark is fitted into, in points, y down. It is a little left of and above the center of the image,
     /// which leaves a corner free on the right for the badges.
@@ -88,31 +85,21 @@ enum MenuBarIcon {
     }
 
     private static func drawMark(_ style: MenuBarGlyph.Style, placement: SwayMarkGeometry.Placement) {
-        let arc = NSBezierPath()
-        let controls = SwayMarkGeometry.cubicControls
-        arc.move(to: placement.point(SwayMarkGeometry.start))
-        arc.curve(
-            to: placement.point(SwayMarkGeometry.end),
-            controlPoint1: placement.point(controls.first),
-            controlPoint2: placement.point(controls.second))
-        arc.lineWidth = arcWidth
-        arc.lineCapStyle = .round
-        arc.stroke()
-
-        disc(at: placement.point(SwayMarkGeometry.start), radius: startRadius).fill()
-        let endCenter = placement.point(SwayMarkGeometry.end)
+        guard let cg = NSGraphicsContext.current?.cgContext else { return }
+        let silhouette = SwayMarkGeometry.silhouette(in: placement)
+        let eye = SwayMarkGeometry.eye(in: placement, radius: eyeRadius)
         if style.hollowEnd {
-            // A ring whose outer edge is where the disc's edge would be.
-            // The arc stops at the ring: the point is hollow, not a ring around the end of the line.
-            if let context = NSGraphicsContext.current {
-                cutOut(disc(at: endCenter, radius: endRadius - ringWidth), in: context)
-            }
-            NSColor.black.set()
-            let ring = disc(at: endCenter, radius: endRadius - ringWidth / 2)
-            ring.lineWidth = ringWidth
-            ring.stroke()
+            // The paused goose is an outline with its eye kept as a dot.
+            cg.addPath(silhouette)
+            cg.setLineWidth(outlineWidth)
+            cg.setLineJoin(.round)
+            cg.strokePath()
+            cg.addPath(eye)
+            cg.fillPath()
         } else {
-            disc(at: endCenter, radius: endRadius).fill()
+            cg.addPath(silhouette)
+            cg.addPath(eye)
+            cg.fillPath(using: .evenOdd)
         }
     }
 

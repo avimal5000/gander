@@ -19,7 +19,7 @@ import Testing
 
     @Test func notFoundExplainsHowToFixIt() {
         let expected =
-            "macOS can't find this copy of Sway. Move Sway to the Applications folder, open it from there, and try again."
+            "macOS can't find this copy of Gander. Move Gander to the Applications folder, open it from there, and try again."
         #expect(LoginItemMapping.status(for: .notFound) == .unavailable(expected))
     }
 
@@ -36,14 +36,14 @@ import Testing
 
     @Test func failureMessageNamesTheActionAndIncludesTheSystemDescription() {
         let turnOn = LoginItemMapping.failureMessage(enabling: true, systemDescription: "Operation not permitted")
-        #expect(turnOn == "Sway couldn't turn on opening at login. macOS said: Operation not permitted.")
+        #expect(turnOn == "Gander couldn't turn on opening at login. macOS said: Operation not permitted.")
         let turnOff = LoginItemMapping.failureMessage(enabling: false, systemDescription: "Job not found.")
-        #expect(turnOff == "Sway couldn't turn off opening at login. macOS said: Job not found.")
+        #expect(turnOff == "Gander couldn't turn off opening at login. macOS said: Job not found.")
     }
 
     @Test func failureMessageHandlesBlankDescriptions() {
         #expect(
             LoginItemMapping.failureMessage(enabling: true, systemDescription: "  \n")
-                == "Sway couldn't turn on opening at login.")
+                == "Gander couldn't turn on opening at login.")
     }
 }

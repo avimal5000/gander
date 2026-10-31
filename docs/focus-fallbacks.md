@@ -1,6 +1,6 @@
 # Focus fallbacks (M3, updated for D42 and M7)
 
-How Sway gives keyboard focus to the last-used window on a display, what it does when that fails, and the
+How Gander gives keyboard focus to the last-used window on a display, what it does when that fails, and the
 known limits. PLAN.md risk 2: macOS 14+ restricts cross-app activation. Implemented in `FocusControl`
 (CONTRACT §6.7). Tracks issue #18.
 
@@ -13,29 +13,29 @@ history are needed. A normal window means all of the following:
 - layer 0 (excludes menus, the Dock, panels, and overlays);
 - visible (alpha > 0.01);
 - at least 120×80 pt;
-- not Sway's own;
+- not Gander's own;
 - not owned by Window Server, Dock, or WindowManager.
 
 A window belongs to the display holding most of its area.
 
 ## The fallback list
 
-Each step is verified before Sway reports success: the target app must be frontmost, and the target window must
+Each step is verified before Gander reports success: the target app must be frontmost, and the target window must
 be its focused window. Verification polls every 25 ms, for up to 300 ms per step.
 
-| Step | What Sway does | Notes |
+| Step | What Gander does | Notes |
 |---|---|---|
 | 0 | Not trusted → stop with "Accessibility permission needed" | Nothing is attempted without permission |
-| 1 | No normal window on the display → "No window on <display>" | Sway never launches or un-minimizes anything |
+| 1 | No normal window on the display → "No window on <display>" | Gander never launches or un-minimizes anything |
 | 2 | Find the window through Accessibility by matching its frame (within 2 pt). If the app has exactly one window, use that one | Fails for apps without standard AX windows |
 | 3 | **App activation (primary, D42):** `AXRaise` and `AXMain` on the window, then `NSRunningApplication.activate(options: [])` | With no options, only the app's main and key windows come forward, so an app's other windows (for example other Terminal windows) stay behind whatever covers them. Measured on the user's Mac |
 | 4 | **Accessibility frontmost (fallback):** `AXFrontmost` on the app, then raise again | For apps that ignore activation. `AXFrontmost` can bring every window of the app forward, which is why it is no longer first |
 | 5 | Report "Failed: Focus did not move to <app>" | Logged with the app name and timing, never the window title |
 
 Every Accessibility call has a 0.5 s timeout per app and runs off the main thread, so an unresponsive app
-cannot freeze Sway.
+cannot freeze Gander.
 
-## What Sway never does
+## What Gander never does
 
 - Move the cursor, click, or synthesize keystrokes.
 - Use private window-server APIs.
@@ -56,15 +56,15 @@ every case working. Rows marked "Not tested" were not part of that run and stay 
 | **Several windows of one app** (for example Terminal), others covered by another app | Only the target window comes forward (D42; before it, every window came forward) | Reported by the user on 2026-10-25; the probe confirmed it. The fix needs the user's check |
 | **Display or Space changes** | Switching waits while displays or Spaces change (M7, D44), then polls again | Not tested |
 | Two windows of the same app on different displays | The right window is raised (closest frame match) | Not tested |
-| **Spaces:** last-used window is on another Space of that display | Only the visible Space's windows are listed, so that display gets its topmost window on the current Space, or "No window". Sway never switches Spaces | Yes |
+| **Spaces:** last-used window is on another Space of that display | Only the visible Space's windows are listed, so that display gets its topmost window on the current Space, or "No window". Gander never switches Spaces | Yes |
 | **Full-screen app** on a display | Listed while its Space is visible and usually focusable. Apps exposing few AX windows can fail the frame match → "Window not found through Accessibility" | Yes |
 | **Window spanning two displays** | Belongs to the display with most of its area (tie: the one holding its center). The other display gets its next window, or none | Yes |
-| **Minimized or hidden windows** | Never candidates; a display with only those gives "No window". Sway never unminimizes or unhides | Not tested |
+| **Minimized or hidden windows** | Never candidates; a display with only those gives "No window". Gander never unminimizes or unhides | Not tested |
 | **Apps that ignore activation or `AXRaise`** (some Electron, Java, sandboxed apps) | They report success without moving; verification catches it, and the `AXFrontmost` fallback is tried → "Failed: Focus did not move to <app>" after about 650 ms if that fails too | Not tested |
 | **Non-standard AX windows** (custom-drawn, Qt/Java/Electron trees, many same-size windows or tab windows) | Frame match can fail or pick a sibling; the closest match wins | Not tested |
-| **Unresponsive app** | Accessibility reads time out (0.5 s per call) → "Window not found through Accessibility". Sway stays responsive | Not tested |
+| **Unresponsive app** | Accessibility reads time out (0.5 s per call) → "Window not found through Accessibility". Gander stays responsive | Not tested |
 | **Sheet, panel, or palette** is the app's focused window | The raise works but verification sees a different focused window → reported as failed | Not tested |
-| Sway's own windows (Focus Test window) | Excluded from targets and from the focused-display readout | Not tested |
+| Gander's own windows (Focus Test window) | Excluded from targets and from the focused-display readout | Not tested |
 
 ## If verification fails often
 

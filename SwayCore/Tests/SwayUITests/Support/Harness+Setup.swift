@@ -5,7 +5,7 @@ import SwayModels
 @testable import SwayUI
 
 extension Harness {
-    /// Opens the Set Up Sway window as the menu would: the request first, then the window appearing. With an empty
+    /// Opens the Set Up Gander window as the menu would: the request first, then the window appearing. With an empty
     /// library the window opens on the welcome step; unless `welcome` is set, **Get Started** is pressed, so the
     /// tests of the steps after it see the first step that applies.
     func openSetup(welcome: Bool = false) {
@@ -21,7 +21,7 @@ extension Harness {
         reportRunning()
     }
 
-    /// Opens the Sway Settings window as the menu would.
+    /// Opens the Gander Settings window as the menu would.
     func openSettings() {
         model.noteWindowRequested(SwayWindowID.settings)
         model.settingsWindowDidAppear()

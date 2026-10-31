@@ -1,6 +1,6 @@
 import AppKit
 
-/// Calls `onEscape` when Esc is pressed while one of Sway's own windows (the gate window) is key.
+/// Calls `onEscape` when Esc is pressed while one of Gander's own windows (the gate window) is key.
 ///
 /// This is a local monitor: it only sees events delivered to this app, which needs no extra permission. The
 /// overlay panels never take key status, so the gate window stays key and keeps receiving the keystroke.

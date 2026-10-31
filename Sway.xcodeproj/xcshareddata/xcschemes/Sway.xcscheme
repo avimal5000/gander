@@ -15,7 +15,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "5A0000000000000000000701"
-               BuildableName = "Sway.app"
+               BuildableName = "Gander.app"
                BlueprintName = "Sway"
                ReferencedContainer = "container:Sway.xcodeproj">
             </BuildableReference>
@@ -136,7 +136,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "5A0000000000000000000701"
-            BuildableName = "Sway.app"
+            BuildableName = "Gander.app"
             BlueprintName = "Sway"
             ReferencedContainer = "container:Sway.xcodeproj">
          </BuildableReference>
@@ -153,7 +153,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "5A0000000000000000000701"
-            BuildableName = "Sway.app"
+            BuildableName = "Gander.app"
             BlueprintName = "Sway"
             ReferencedContainer = "container:Sway.xcodeproj">
          </BuildableReference>

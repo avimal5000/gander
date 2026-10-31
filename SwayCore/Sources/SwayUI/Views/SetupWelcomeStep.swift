@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The welcome step (SPEC F26, D40): on first setup, the mark, what Sway does, and the privacy promise, before any
+/// The welcome step (SPEC F26, D40): on first setup, the mark, what Gander does, and the privacy promise, before any
 /// permission is asked for.
 struct SetupWelcomeStep: View {
     /// Side of the mark's tile.

@@ -15,7 +15,7 @@ struct AppearanceTests {
     private let glowKey = "sway.edgeGlowEnabled"
     private let noticeKey = "sway.focusLockNoticeEnabled"
 
-    // MARK: Sway green
+    // MARK: Gander green
 
     @Test func theBrandColorsAreUnchanged() {
         #expect(SwayPalette.forestHex == 0x2F5D3A)
@@ -74,7 +74,7 @@ struct AppearanceTests {
 
     @Test func theChoicesHaveTheirSettingsLabelsAndSavedNames() {
         #expect(AccentChoice.allCases == [.sway, .system])
-        #expect(AccentChoice.sway.title == "Sway green")
+        #expect(AccentChoice.sway.title == "Gander green")
         #expect(AccentChoice.system.title == "Match macOS")
         #expect(AccentChoice.sway.rawValue == "sway")
         #expect(AccentChoice.system.rawValue == "system")

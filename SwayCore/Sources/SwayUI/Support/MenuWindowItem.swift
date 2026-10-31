@@ -1,4 +1,4 @@
-/// The menu rows that open a window, in the order the popover lists them (SPEC F19). Quit Sway follows them.
+/// The menu rows that open a window, in the order the popover lists them (SPEC F19). Quit Gander follows them.
 enum MenuWindowItem: CaseIterable, Equatable {
     case calibrate
     case settings

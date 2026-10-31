@@ -8,7 +8,7 @@ enum SwitchPreviewPresentation {
         "No saved calibration fits these displays and this camera. Choose Calibrate\u{2026} in the menu."
     static let trackingOff = "Turn Tracking on to see the preview."
     static let noSwitches = "No switches yet. Look at another display and hold."
-    static let needsAccessibility = "Accessibility is not granted, so Sway cannot move focus."
+    static let needsAccessibility = "Accessibility is not granted, so Gander cannot move focus."
 
     /// What the pose points at: the nearest display, "No face", or "Looking elsewhere".
     static func classificationText(_ classification: PoseClassification?, name: (DisplayID) -> String) -> String {

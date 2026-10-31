@@ -158,16 +158,16 @@ struct AppModelWelcomeTests {
     // MARK: Words
 
     @Test func theWelcomeSaysExactlyWhatTheSpecSays() {
-        #expect(SetupPresentation.welcomeTitle == "Welcome to Sway")
+        #expect(SetupPresentation.welcomeTitle == "Welcome to Gander")
         #expect(
             SetupPresentation.welcomeLine
-                == "Look at a display, and Sway moves your typing there. The pointer never moves.")
+                == "Look at a display, and Gander moves your typing there. The pointer never moves.")
         #expect(
             SetupPresentation.welcomePrivacy
-                == "Your camera stays private. Sway reads only which way your head is turned, on this Mac. Video is never recorded, saved, or sent anywhere."
+                == "Your camera stays private. Gander reads only which way your head is turned, on this Mac. Video is never recorded, saved, or sent anywhere."
         )
         #expect(SetupPresentation.welcomeButton == "Get Started")
-        #expect(SetupView.title(for: .welcome) == "Welcome to Sway")
+        #expect(SetupView.title(for: .welcome) == "Welcome to Gander")
     }
 
     @Test func everyNumberedStepKeepsItsTitle() {

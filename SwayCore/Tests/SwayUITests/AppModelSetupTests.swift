@@ -446,7 +446,7 @@ struct AppModelSetupTests {
         #expect(h.model.setupFlow?.step == .cameraCheck)
         #expect(
             h.model.setupMessage
-                == .error("Sway could not find the screen for Right. Check the display connections."))
+                == .error("Gander could not find the screen for Right. Check the display connections."))
         #expect(h.model.gateMessage == nil)
     }
 
@@ -616,7 +616,7 @@ struct AppModelSetupTests {
         #expect(result?.quality == .fair)
         #expect(
             result?.text
-                == "Calibration saved, but Sway saw your face only briefly on some displays. "
+                == "Calibration saved, but Gander saw your face only briefly on some displays. "
                 + "If switching feels unreliable, calibrate again.")
     }
 
@@ -633,7 +633,7 @@ struct AppModelSetupTests {
         #expect(h.model.setupResult?.isSaved == false)
         #expect(
             h.model.setupResult?.text
-                == "Sway couldn't see your face well enough while you looked at \(far). "
+                == "Gander couldn't see your face well enough while you looked at \(far). "
                 + "Make sure the camera sees you from every display, then calibrate again.")
         #expect(h.model.library.profiles.isEmpty)
         #expect(h.model.activeCalibration == nil)
@@ -854,7 +854,7 @@ struct AppModelSetupTests {
         #expect(h.model.gateRunState == .idle)
         #expect(
             h.model.setupMessage
-                == .info("The calibration was cancelled because Sway was no longer the active app."))
+                == .info("The calibration was cancelled because Gander was no longer the active app."))
     }
 
     @Test func theGateWindowClosingDoesNotCancelACalibration() async {

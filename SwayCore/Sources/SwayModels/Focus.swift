@@ -54,10 +54,10 @@ public protocol FocusControlling: Sendable {
     func isTrusted() -> Bool
     /// Shows the system Accessibility prompt. The system shows it at most once per launch.
     func requestTrust()
-    /// The last-used window on each display: its topmost normal window in z-order, excluding Sway's own windows.
+    /// The last-used window on each display: its topmost normal window in z-order, excluding Gander's own windows.
     /// Displays without one are absent.
     func lastUsedWindows(in layout: DisplayLayout) async -> [DisplayID: WindowSummary]
-    /// The display of the frontmost app's focused window (Sway's own windows excluded); `nil` if unknown.
+    /// The display of the frontmost app's focused window (Gander's own windows excluded); `nil` if unknown.
     func focusedDisplay(in layout: DisplayLayout) async -> DisplayID?
     /// Raises and activates the last-used window on `display`, then verifies it. Never moves the cursor.
     func focus(display: DisplayID, in layout: DisplayLayout) async -> FocusResult

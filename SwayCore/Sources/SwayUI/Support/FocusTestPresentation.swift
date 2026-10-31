@@ -17,7 +17,7 @@ enum FocusTestPresentation {
     static let accessibilityGranted = "Accessibility: Granted"
     static let accessibilityNotGranted = "Accessibility: Not granted"
     static let accessibilityExplanation =
-        "Sway needs Accessibility access to move keyboard focus to a window on the display you look at. "
+        "Gander needs Accessibility access to move keyboard focus to a window on the display you look at. "
         + "It never moves the cursor and never reads window contents."
 
     /// One row per display in layout order.

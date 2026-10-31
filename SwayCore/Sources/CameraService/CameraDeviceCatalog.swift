@@ -6,7 +6,7 @@ import SwayModels
 /// Everything with a decision in it lives in the pure types; this enum only reads system state. Tests do not
 /// call the query functions, because they would touch real devices.
 enum CameraDeviceCatalog {
-    /// Device types Sway offers (CONTRACT 6.1).
+    /// Device types Gander offers (CONTRACT 6.1).
     static var discoveryDeviceTypes: [AVCaptureDevice.DeviceType] {
         [.builtInWideAngleCamera, .external, .continuityCamera]
     }

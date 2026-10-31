@@ -48,7 +48,7 @@ struct PoseDebugView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     LiveFaceBox(model: model)
                         .frame(maxWidth: 240)
-                    Text("Schematic camera frame. Sway never shows or stores video.")
+                    Text("Schematic camera frame. Gander never shows or stores video.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

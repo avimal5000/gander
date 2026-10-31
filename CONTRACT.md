@@ -1,4 +1,4 @@
-# Sway: Engineering Contract (phase M7)
+# Gander: Engineering Contract (phase M7)
 
 Builders follow this document exactly. SPEC.md says *what* to build; this file says *where and how*. PLAN.md
 is background only. If anything here is wrong or missing, **stop and report**. Do not invent your own version.
@@ -26,7 +26,7 @@ is background only. If anything here is wrong or missing, **stop and report**. D
 ```
 Sway/                          repo root
 ├── PLAN.md  SPEC.md  CONTRACT.md  STATUS.md  README.md
-├── Sway.xcodeproj/            orchestrator only (synchronized folder group, shared scheme "Sway")
+├── Sway.xcodeproj/            orchestrator only (synchronized folder group, shared scheme "Gander")
 ├── Sway/                      app target sources: SwayApp.swift, AppComposition.swift, Assets.xcassets
 ├── Config/Sway.entitlements   orchestrator only
 ├── SwayCore/                  local Swift package "SwayCore" (one library product "SwayCore")
@@ -206,7 +206,7 @@ No public API change. Everything here is internal to `CameraService` (SPEC D43, 
      the console session (an injected `@Sendable () -> Bool`; live:
      `CGSessionCopyCurrentDictionary()` has `kCGSessionOnConsoleKey` false).
    - **Lock and unlock are delivered immediately (review fix).** `DistributedNotificationCenter` suspends delivery to an
-     inactive app and coalesces what it queues, and Sway is almost never the active app. Register the
+     inactive app and coalesces what it queues, and Gander is almost never the active app. Register the
      `com.apple.screenIsLocked` and `com.apple.screenIsUnlocked` observers with `addObserver(_:selector:name:object:
      suspensionBehavior: .deliverImmediately)` (a small `NSObject` that hops to the controller's queue). Make the
      registration an injected closure in `CaptureEnvironment`, so tests keep using a plain notification center.
@@ -538,7 +538,7 @@ Everything else is internal and up to you, within SPEC.md F1–F9.
 - Esc cancels via a local key monitor or the gate window's cancel button.
 
 **Palette** (internal `SwayPalette`): forest `#2F5D3A`, sage `#9CAF88`, ivory `#F6F3EA`, charcoal `#2B2B2B`.
-Otherwise use system fonts and controls. The accent is Sway green or the system's, as the user chooses (§6.5.4).
+Otherwise use system fonts and controls. The accent is Gander green or the system's, as the user chooses (§6.5.4).
 Support light and dark mode.
 
 **Charts:** Swift Charts (system framework) or `Canvas`. Show no video and no camera preview (SPEC D9).
@@ -610,7 +610,7 @@ internal files.
 **4. Accessibility onboarding (SPEC F12),** at the top of the Focus Test window.
 - Status "Accessibility: Granted" / "Not granted". While the window is visible, poll `focus.isTrusted()` every
   1 s using the model's injectable clock or timer, as in the gate flow.
-- When not granted, show: "Sway needs Accessibility access to move keyboard focus to a window on the display you
+- When not granted, show: "Gander needs Accessibility access to move keyboard focus to a window on the display you
   look at. It never moves the cursor and never reads window contents."
 - "Grant Access…" calls `focus.requestTrust()`, then opens
   `x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility` through the existing
@@ -723,11 +723,11 @@ DisplayID?)?`, `inFlight: DisplayID?`, `epoch: Int`.
 *Per live sample* (`AppModel+Tracking`), when tracking is active: Tracking on, no gate test or setup run, an active
 calibration, and a decider.
 1. Process with `SwitchContext(focusedDisplay: loop.focusedDisplay, isFocusLocked: holdReason != nil &&
-   holdReason != .switching, targets: trackedTargets)`. Sway's own request in flight is not a lock (review fix: a
+   holdReason != .switching, targets: trackedTargets)`. Gander's own request in flight is not a lock (review fix: a
    lock cancels the decider's cooldown, which must run from the switch; the loop already reports the target as
    focused and refuses a second request). `holdReason` is the first that applies of:
    - `.focusLock` (Focus Lock on);
-   - `.swayInFront` (Sway is the active app);
+   - `.swayInFront` (Gander is the active app);
    - `.focusTest` (a Focus Test countdown or request is running);
    - `.switching` (`loop.isFocusing`).
 2. Keep `previewDecision`, the dwell start, and the latency as the preview did. Then call
@@ -754,10 +754,10 @@ calibration, and a decider.
 - also poll at once on `NSWorkspace.didActivateApplicationNotification` (observed through an injected notification
   center, `environment.workspaceNotificationCenter`).
 
-*Sway in front:* `isAppActive`, read from an injected `environment.isAppActive()` at launch and again on
+*Gander in front:* `isAppActive`, read from an injected `environment.isAppActive()` at launch and again on
 `NSApplication.didBecomeActiveNotification` / `didResignActiveNotification` and `NSWindow.didBecomeKeyNotification` /
 `didResignKeyNotification` on `environment.notificationCenter`. Live, it is "active **and** has a key window": after
-Sway's last window closes, Sway stays the active app with nothing in front, and switching must not hold then.
+Gander's last window closes, Gander stays the active app with nothing in front, and switching must not hold then.
 
 **4. Focus Lock (SPEC F17, D27).**
 - `focusLocked` (not saved; off at launch) and `toggleFocusLock()`. The Pose Debug "Simulate Focus Lock" toggle
@@ -792,12 +792,12 @@ exactly SPEC F19's table. Each case has `symbol` and `line`. `MenuBarLabel` uses
 - Keep the popover's height constant when tracking starts or stops (one line per row in every state).
 
 **7. Pose Debug.** The Switch preview section shows the real loop: "Focus: <display or Unknown>" from
-`loop.focusedDisplay`, the hold reason ("Focus Lock on", "Sway is in front", "Switching…") when the context is
+`loop.focusedDisplay`, the hold reason ("Focus Lock on", "Gander is in front", "Switching…") when the context is
 locked, and the switch log, now of real switches ("Focused <app> on <display> in <ms> ms, held <s> s", "No window on
 <display>", "Failed: <reason>"). The section's own focus calls are gone; only the loop calls `focus.focus`.
 
 **8. Gate test.** It holds tracking while it runs (as the preview did) and saves its profile into the library.
-`SwayPolicy.maxTrackedDisplays` is now 3: update the gate setup's "Sway v1 will track N displays" note and its
+`SwayPolicy.maxTrackedDisplays` is now 3: update the gate setup's "Gander v1 will track N displays" note and its
 tests so they show only for more than 3 displays.
 
 **9. Tests** (fakes for `HotKeyRegistering` and `LoginItemControlling` in the test target; a fake workspace
@@ -806,7 +806,7 @@ notification center):
   equal to `before`, cleared by another poll and by a look elsewhere, and `.notTrusted`;
 - a held look fires exactly one `focus.focus(display:in:)` for the right display, and the log names app and display
   (never the title);
-- no request while: Focus Lock on, Sway active, a Focus Test request running, a request in flight, not trusted;
+- no request while: Focus Lock on, Gander active, a Focus Test request running, a request in flight, not trusted;
 - a stream restart or layout change resets the loop; a late focus result after a reset is ignored;
 - `trackedTargets` with 2, 3, and 4 displays;
 - the poll runs only while tracking runs, and an app activation triggers one;
@@ -823,7 +823,7 @@ notification center):
 
 No public API change. New window IDs `"setup"` and `"settings"`, launch-guarded like the others.
 
-**1. Setup window (SPEC F20, D30).** `Window("Set Up Sway", id: "setup")`. A pure internal `SetupFlow` state machine
+**1. Setup window (SPEC F20, D30).** `Window("Set Up Gander", id: "setup")`. A pure internal `SetupFlow` state machine
 (its own file, unit tested) decides the step from the facts; `AppModel+Setup.swift` drives it.
 - Steps: `.cameraAccess`, `.accessibility`, `.cameraCheck`, `.calibrating`, `.result`.
   - Opening the window starts at the first step that applies: camera access unless authorized; Accessibility unless
@@ -833,7 +833,7 @@ No public API change. New window IDs `"setup"` and `"settings"`, launch-guarded 
     once a second while this step shows; move on when granted.
   - **Camera check:** the camera runs (`wantsCamera` includes "the Setup window is on the camera check or calibrating
     step"). Show the camera picker, the advice text from SPEC F20, and a live hint from a pure `FramingAdvice`
-    function of the latest pose: no face → "Sway can't see your face yet."; `faceBounds.height < 0.18` → "Move a
+    function of the latest pose: no face → "Gander can't see your face yet."; `faceBounds.height < 0.18` → "Move a
     little closer to the camera."; `> 0.6` → "Move back a little."; face center outside 0.2…0.8 on either axis →
     "Center your face in the camera's view."; otherwise "Looks good." Refresh the hint at most five times a second.
     **Start calibration** is enabled with 2 or more displays ("Connect a second display to calibrate." otherwise).
@@ -843,26 +843,26 @@ No public API change. New window IDs `"setup"` and `"settings"`, launch-guarded 
     cancels it, as for the gate test.
   - **Result:** fit with `engine.fitProfile(from:features: .visionAngles, rounds: nil)`.
     - When the fitted profile lacks any display of the traced layout (the fitter drops a display with too few face
-      samples), save nothing and say "Sway couldn't see your face well enough while you looked at <A>. Make sure the
+      samples), save nothing and say "Gander couldn't see your face well enough while you looked at <A>. Make sure the
       camera sees you from every display, then calibrate again." (review fix: such a calibration can never cover the
       connected displays).
     - On success, save it into the library, analyze the trace with `analyzer.analyze(_, thresholds: .default)`, and
       show the Vision-angles verdict: `go` → "Calibration looks good."; `marginal` → "Calibration saved. <A> and
       <B> are close together, so switching between them may be slower." (the weakest pair); `noGo` →
       "Calibration saved, but <A> and <B> are hard to tell apart. Try moving the camera, then calibrate again.";
-      `insufficientData` → "Calibration saved, but Sway saw your face only briefly on some displays. If switching
+      `insufficientData` → "Calibration saved, but Gander saw your face only briefly on some displays. If switching
       feels unreliable, calibrate again." (Fair).
     - On a fit failure, save nothing and show the F10 message.
     - **Start tracking** sets Tracking on (a user action, so it is saved) and closes the window. **Calibrate again**
       returns to the camera check.
   - In DEBUG, save the calibration trace like a gate trace. It never replaces the gate window's report.
 - Closing the window mid-calibration cancels it. Tracking holds while the window is on the camera check or
-  calibrating step. The result step does not hold (review fix): in front, "Sway in front" holds anyway; left behind
+  calibrating step. The result step does not hold (review fix): in front, "Gander in front" holds anyway; left behind
   other apps, it must not stop switching unseen.
 
-**2. Settings window (SPEC F21, D31, D33).** `Window("Sway Settings", id: "settings")`.
-- **General:** "Open Sway at login" toggle. It reads `loginItem.status` when the window appears and after each
-  change: on for `.enabled` and `.requiresApproval`. `.requiresApproval` adds "Allow Sway in System Settings >
+**2. Settings window (SPEC F21, D31, D33).** `Window("Gander Settings", id: "settings")`.
+- **General:** "Open Gander at login" toggle. It reads `loginItem.status` when the window appears and after each
+  change: on for `.enabled` and `.requiresApproval`. `.requiresApproval` adds "Allow Gander in System Settings >
   General > Login Items." with **Open Login Items** (`loginItem.openSystemSettings()`); `.unavailable(text)` disables
   the toggle and shows the text; a `LoginItemError` shows its message under the toggle.
 - **Switching:** "Hold time" slider over `SwitchSensitivity.dwellRange` in 0.05 s steps with its value ("0.40 s");
@@ -881,7 +881,7 @@ No public API change. New window IDs `"setup"` and `"settings"`, launch-guarded 
   **Delete** removes it at once (calibrating again restores it). **Calibrate…** opens the Setup window.
 
 **3. Prompts (SPEC F22, F23).** The menu's **Set Up…**, **Calibrate…**, and needs-calibration buttons open the Setup
-window. The needs-calibration banner says "New display setup. Calibrate so Sway can switch between them." with
+window. The needs-calibration banner says "New display setup. Calibrate so Gander can switch between them." with
 **Calibrate (about 20 s)…**; when the library has a calibration for these displays with another camera, it says
 "No calibration for <camera> yet." instead. The menu gets **Settings…** (SF Symbol `gearshape`) after Calibrate….
 
@@ -908,7 +908,7 @@ Behavior (switching, holds, camera rules, calibration) does not change.
 **1. Theme and accent (SPEC F24, D34, D35).**
 - `SwayPalette` keeps the brand values (forest `0x2F5D3A`, sage `0x9CAF88`, ivory `0xF6F3EA`, charcoal `0x2B2B2B`) and
   gains `green`: a dynamic color (`NSColor(name:dynamicProvider:)`), forest in light appearances and `0x6FAF84` in dark
-  ones. `green` is Sway green everywhere (tint, glow, the mark in the popover).
+  ones. `green` is Gander green everywhere (tint, glow, the mark in the popover).
 - `AccentChoice` enum (`.sway`, `.system`), stored as above; `AppModel.accentChoice` with `setAccentChoice(_:)`.
   `tint: Color?` is `SwayPalette.green` for `.sway` and `nil` for `.system`.
 - Every window's root view and the menu popover apply `.tint(model.accentChoice.tint)`: menu, Pose Debug, gate test,
@@ -966,12 +966,12 @@ Behavior (switching, holds, camera rules, calibration) does not change.
 true. No other new animations. Nothing animates at the frame rate.
 
 **6. Settings → Appearance (SPEC F24, F27, F28).** A new first section "Appearance":
-- "Accent color" as a segmented picker: **Sway green** / **Match macOS**;
+- "Accent color" as a segmented picker: **Gander green** / **Match macOS**;
 - "Glow on the display that gets focus" toggle;
 - "Show a notice when the shortcut toggles Focus Lock" toggle.
 Each change saves at once and applies at once.
 
-**7. Popover header.** The `SwayMark` (16 pt, Sway green regardless of the accent) before "Sway".
+**7. Popover header.** The `SwayMark` (16 pt, Gander green regardless of the accent) before "Gander".
 
 **8. Tests:**
 - `MenuBarGlyph` mapping for every `TrackingStatus` case, and each glyph's style;
@@ -1278,7 +1278,7 @@ Everything else is `internal`.
 
 **`focusedDisplay(in:)`**
 - The frontmost app's pid comes from `NSWorkspace.shared.frontmostApplication`, read on the main actor.
-- If that app is Sway, return `nil`.
+- If that app is Gander, return `nil`.
 - If trusted: read the app's `kAXFocusedWindowAttribute`, then `kAXPositionAttribute` and `kAXSizeAttribute`.
   These are Quartz coordinates. Return the display assigned to that frame.
 - Otherwise, or when Accessibility cannot read the focused window or its frame: the display of that pid's
@@ -1372,7 +1372,7 @@ Everything else is `internal`. One primary type per file.
 
 **`MainAppLoginItem`** (`SMAppService.mainApp`):
 - `status` maps `SMAppService.mainApp.status`: `.enabled` → `.enabled`; `.requiresApproval` → `.requiresApproval`;
-  `.notRegistered` → `.disabled`; `.notFound` → `.unavailable("macOS can't find this copy of Sway. Move Sway to the
+  `.notRegistered` → `.disabled`; `.notFound` → `.unavailable("macOS can't find this copy of Gander. Move Gander to the
   Applications folder, open it from there, and try again.")`; unknown values → `.unavailable("macOS reported an
   unknown login item state.")`. The mapping is a pure function over an internal mirror enum.
 - `setEnabled(true)` calls `register()`, `setEnabled(false)` calls `unregister()`. A thrown error becomes
@@ -1474,7 +1474,7 @@ The shipped code in `Sway/` and `SwayCore/Sources/` may not mention these, not e
 - cursor movement or input events (M3, PLAN.md "the cursor never moves"): `CGWarpMouseCursorPosition`,
   `CGDisplayMoveCursorToPoint`, `CGAssociateMouseAndMouseCursorPosition`, `CGEventPost`,
   `CGEventCreateMouseEvent`, `CGEventCreateKeyboardEvent`, event taps, `NSEvent` global monitors, and IOKit HID
-  input (`IOHIDManager`). Local monitors inside Sway's own windows are fine (the gate overlay's Esc and, in M5, the
+  input (`IOHIDManager`). Local monitors inside Gander's own windows are fine (the gate overlay's Esc and, in M5, the
   shortcut recorder while it records). The Carbon hot key (`RegisterEventHotKey`) is allowed: macOS delivers only
   the registered combination;
 - private window-server or Accessibility APIs: `_AXUIElementGetWindow`, `CGSSetFrontProcess`,

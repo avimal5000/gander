@@ -1,7 +1,7 @@
 import Foundation
 import SwayModels
 
-// The Set Up Sway window (SPEC F20, D30, CONTRACT 6.5.3). `SetupFlow` is the pure state machine that decides the step;
+// The Set Up Gander window (SPEC F20, D30, CONTRACT 6.5.3). `SetupFlow` is the pure state machine that decides the step;
 // this extension feeds it the facts (permissions, the calibration run), keeps the camera and the tracking hold in step
 // with it, and turns a finished calibration run into a saved calibration and a verdict. The run itself is the gate
 // machinery with `GatePurpose.calibration` (`AppModel+Gate`).

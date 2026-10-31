@@ -1,7 +1,7 @@
 import AVFoundation
 
 /// Center Stage would reframe the picture while the user moves, shifting the head pose against the calibration
-/// (SPEC D47). Sway takes control of the feature for its own process and switches it off.
+/// (SPEC D47). Gander takes control of the feature for its own process and switches it off.
 enum CenterStageControl {
     /// A static initializer runs exactly once per process, on whichever thread gets there first.
     private static let turnedOff: Void = {

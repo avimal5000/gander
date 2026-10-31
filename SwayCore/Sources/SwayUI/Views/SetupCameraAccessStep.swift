@@ -1,7 +1,7 @@
 import SwayModels
 import SwiftUI
 
-/// Step 1: why Sway wants the camera (SPEC F2), then the system prompt; or how to turn access back on.
+/// Step 1: why Gander wants the camera (SPEC F2), then the system prompt; or how to turn access back on.
 struct SetupCameraAccessStep: View {
     let model: AppModel
 
@@ -40,7 +40,7 @@ struct SetupCameraAccessStep: View {
     static func message(for prompt: CameraPermissionPrompt) -> String {
         switch prompt {
         case .denied:
-            "Open System Settings, go to Privacy & Security > Camera, and switch Sway on. "
+            "Open System Settings, go to Privacy & Security > Camera, and switch Gander on. "
                 + "This window carries on by itself."
         case .explanation, .restricted:
             CameraPermissionView.message(for: prompt)

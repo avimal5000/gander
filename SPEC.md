@@ -1,11 +1,11 @@
-# Sway: Spec (current phase: 0.1.x tuning, after M8)
+# Gander: Spec (current phase: 0.1.x tuning, after M8)
 
 Derived from PLAN.md, which stays the source of truth. Where this spec and PLAN.md differ, the difference is
 listed in section 3 with its reason. CONTRACT.md defines the code-level interfaces.
 
 ## 1. Product
 
-Sway is a quiet macOS menu bar utility. It switches keyboard focus to the display you are looking at, using
+Gander is a quiet macOS menu bar utility. It switches keyboard focus to the display you are looking at, using
 head pose from a camera, entirely on-device. It works per display: look at another monitor, dwell briefly,
 and typing goes to the last-used window there. The cursor never moves.
 
@@ -17,7 +17,7 @@ makes the timing adjustable (D49, F35). The earlier phase notes below are kept f
 
 ### Earlier: M7
 
-M0–M6 are done (PRs #44, #45, #47, #48): Sway tracks, switches focus, calibrates in Setup, has Settings, and has its
+M0–M6 are done (PRs #44, #45, #47, #48): Gander tracks, switches focus, calibrates in Setup, has Settings, and has its
 design. This phase is **M7, hardening** (issues #33–#39): make sleep, lock, display changes, camera conflicts,
 Spaces, and CPU use behave, and audit privacy.
 
@@ -46,7 +46,7 @@ Earlier decisions still hold unless marked superseded:
 | D14 | Build M2 and M3 together overnight without waiting for plan approval. The user reviews the plan and tests in the morning. Merge PR #44 once CI is green | User, 2026-10-25 |
 | D15 | Live tracking computes Vision angles only. The landmark pass runs only during the gate test, which keeps both feature sets for comparison. Saves CPU (about 32% of one core with both) | User, 2026-10-25 |
 | D16 | The user's M1 gate trace (numbers only: angles and timestamps) is committed as a test fixture | User, 2026-10-25 |
-| D17 | (Superseded by D25.) Until M5's guided calibration, **the gate test is the calibration**. After each gate run (or opened trace), Sway fits a Vision-angles profile and keeps it in `UserDefaults`. It is stale when the display layout fingerprint changes | Assumption (lowest-friction path to a live preview) |
+| D17 | (Superseded by D25.) Until M5's guided calibration, **the gate test is the calibration**. After each gate run (or opened trace), Gander fits a Vision-angles profile and keeps it in `UserDefaults`. It is stale when the display layout fingerprint changes | Assumption (lowest-friction path to a live preview) |
 | D18 | The classifier finds the nearest calibrated display center in normalized (yaw, pitch) space, with pitch weighted no more than yaw. Uncertainty is a margin ratio, and an "elsewhere" box around all display centers catches looks at the keyboard or away. This is not a Gaussian likelihood: calibration only samples display centers, so per-display spreads are far narrower than real use, while nearest-center regions extend naturally to the screen edges. Pitch drifted 3–8° between the two gate rounds while yaw held within about 2° | Gate data |
 | D19 | The last-used window on a display is its **topmost normal window in the window server's z-order**. This is stateless (no observers), and z-order is the system's own recency order. Focus uses only public APIs: an Accessibility raise plus frontmost, then app activation as the fallback, and the result is always verified | Assumption (PLAN.md risk 2) |
 | D20 | CI fails if code moves the cursor, synthesizes or globally captures input events, or uses private window-server APIs (`scripts/privacy-guard.sh`) | PLAN.md "cursor never moved" |
@@ -57,42 +57,42 @@ M4 + M5 decisions:
 | # | Decision | Source |
 |---|---|---|
 | D22 | Track up to **3 displays** (`SwayPolicy.maxTrackedDisplays = 3`). Applied through the decider's `targets`: the first 3 calibrated displays in layout order | User, 2026-10-25 (the gate showed all three of the user's displays separate cleanly) |
-| D23 | At launch Sway restores Tracking as the user last set it (`sway.trackingEnabled`, default off). Only the user's own choices are saved; Sway turning tracking off by itself (a camera failure, quitting) does not change the saved choice (confirmed by the user). "Open Sway at login" is a setting, off by default | User, 2026-10-25 |
+| D23 | At launch Gander restores Tracking as the user last set it (`sway.trackingEnabled`, default off). Only the user's own choices are saved; Gander turning tracking off by itself (a camera failure, quitting) does not change the saved choice (confirmed by the user). "Open Gander at login" is a setting, off by default | User, 2026-10-25 |
 | D24 | Build M4 and M5 together on one branch with one PR, as D14 did for M2 + M3 | User, 2026-10-25 |
 | D25 | **Calibrations are saved per display set and camera** (`CalibrationLibrary`, at most 24). A calibration covers any two or more of its displays, so unplugging a display (or closing the lid) keeps tracking on the rest. Arrangement and resolution changes keep it. A display set that no saved calibration covers is unknown: tracking waits, camera off, and the menu asks for a calibration. The existing gate-test profile is migrated. Replaces D17's fingerprint staleness | Issue #26 + orchestrator (a resolution change or a nudge in Displays settings does not move the monitors relative to the camera); confirmed by the user, 2026-10-25 |
 | D26 | **Tracking is one switch.** On means tracking; off is Paused, with the camera off. The camera runs only while Tracking is on and a calibration fits, or while a calibration or gate test needs it. Replaces the "Live camera" toggle | PLAN.md definition of done ("camera light is on only while tracking is on") |
 | D27 | **Focus Lock**: ⌃⌥⌘L toggles it from any app (configurable, Carbon `RegisterEventHotKey`, no permission). The camera stays on; no switch fires. Not saved: off at launch. The menu also has a Focus Lock switch | User-approved default |
-| D28 | Automatic switching also holds while Sway itself is the active app (its menu or a window is in front), while a calibration, gate test, or Focus Test request runs, and while a focus request is in flight | Orchestrator (a look at another display while adjusting Sway's own settings must not pull focus away); confirmed by the user, 2026-10-25 |
-| D29 | The decider's focused display comes from `focusedDisplay(in:)`, polled once a second and on every app activation, and is set to the target after a verified switch. After a failed or "no window" attempt on a display, Sway treats that display as focused until the focus really moves elsewhere or the look moves to another display. So a look at a display with no window does not retry every 0.75 s | Orchestrator |
+| D28 | Automatic switching also holds while Gander itself is the active app (its menu or a window is in front), while a calibration, gate test, or Focus Test request runs, and while a focus request is in flight | Orchestrator (a look at another display while adjusting Gander's own settings must not pull focus away); confirmed by the user, 2026-10-25 |
+| D29 | The decider's focused display comes from `focusedDisplay(in:)`, polled once a second and on every app activation, and is set to the target after a verified switch. After a failed or "no window" attempt on a display, Gander treats that display as focused until the focus really moves elsewhere or the look moves to another display. So a look at a display with no window does not retry every 0.75 s | Orchestrator |
 | D30 | **Guided calibration**: 2 rounds over the displays, each look 1.5 s settle + 2.5 s hold (about 24 s for 3 displays), Vision angles only. Quality comes from the separability analyzer's Vision-angles verdict | User-approved default ("look at each display for about 4–5 s, under 30 s") |
 | D31 | **Sensitivity settings**: hold time 0.2–1.5 s (default 0.4) and a 5-step "Switch confidence" from Relaxed to Strict (enter margin 0.15–0.45, stay margin half of it; the middle step equals the engine defaults). Everything else stays at `SwitchSettings.default` | User-approved default |
 | D32 | Menu bar icons are SF Symbol placeholders until M6 | User-approved default |
-| D33 | Settings is a regular window ("Sway Settings"), not SwiftUI's `Settings` scene, which an LSUIElement app cannot reliably open from its menu bar extra on macOS 14 | Orchestrator |
+| D33 | Settings is a regular window ("Gander Settings"), not SwiftUI's `Settings` scene, which an LSUIElement app cannot reliably open from its menu bar extra on macOS 14 | Orchestrator |
 
 New decisions for this phase (M6):
 
 | # | Decision | Source |
 |---|---|---|
-| D34 | **Native look with Sway accents**: system materials, fonts, and controls, following light and dark mode. Forest green is the accent; ivory, sage, and charcoal appear in the icon, the welcome step, and the glow | User, 2026-10-25 |
-| D35 | **The accent is the user's choice** (Settings → Appearance): "Sway green" (default) or "Match macOS" (the system accent). Applied with SwiftUI `.tint`, because an asset-catalog accent color yields to a system accent the user picked; the app has no asset-catalog accent, so Match macOS under Multicolor shows the system default rather than green | User, 2026-10-25 + orchestrator |
+| D34 | **Native look with Gander accents**: system materials, fonts, and controls, following light and dark mode. Forest green is the accent; ivory, sage, and charcoal appear in the icon, the welcome step, and the glow | User, 2026-10-25 |
+| D35 | **The accent is the user's choice** (Settings → Appearance): "Gander green" (default) or "Match macOS" (the system accent). Applied with SwiftUI `.tint`, because an asset-catalog accent color yields to a system accent the user picked; the app has no asset-catalog accent, so Match macOS under Multicolor shows the system default rather than green | User, 2026-10-25 + orchestrator |
 | D36 | **App icon: option A, "Swing"**: an ivory arc swinging from a small sage point to a larger ivory point, on a forest-green rounded square | User picked A from three drawn options, 2026-10-25 |
 | D37 | **Menu bar icon: the Swing mark** as a template image; state shows as small changes: Tracking (solid), Paused (dimmed, hollow end point), Focus Lock (lock badge), Needs you (dot). Replaces D32's SF Symbols | User, 2026-10-25 |
-| D38 | **Edge glow**: after a verified switch, a thin Sway-green border around the newly focused display fades in and out in about 0.35 s. On by default, with a Settings switch. Click-through; never activates Sway or takes focus; shows on every Space and over full-screen apps | User, 2026-10-25 ("make sure there is a feature in settings that lets you disable it") |
+| D38 | **Edge glow**: after a verified switch, a thin Gander-green border around the newly focused display fades in and out in about 0.35 s. On by default, with a Settings switch. Click-through; never activates Gander or takes focus; shows on every Space and over full-screen apps | User, 2026-10-25 ("make sure there is a feature in settings that lets you disable it") |
 | D39 | **Focus Lock notice**: when the shortcut toggles Focus Lock, a small "Focus Lock on" / "Focus Lock off" notice near the top of the focused display for about 1 s. On by default, with a Settings switch. The menu switch shows no notice (the change is in front of the user) | User, 2026-10-25 |
-| D40 | **Welcome step**: Setup opens with a welcome on first setup (no saved calibration): the mark, one line on what Sway does, and the privacy promise | User, 2026-10-25 |
+| D40 | **Welcome step**: Setup opens with a welcome on first setup (no saved calibration): the mark, one line on what Gander does, and the privacy promise | User, 2026-10-25 |
 | D41 | **Restrained motion**: short fades for the glow, the notice, Setup step changes, and the menu banner. The menu bar icon does not animate (`MenuBarExtra` labels cannot animate reliably). With Reduce Motion on, nothing fades: the glow and notice just appear and disappear | User, 2026-10-25 + orchestrator |
-| D42 | **Focus brings forward only the target window.** Sway raises the window, then activates its app with no options, which brings only the app's main and key windows forward. The Accessibility "frontmost" call, which can bring every window of the app forward, is now only the fallback. Measured on the user's Mac: activation from a background process brought only Terminal's front window | User report, 2026-10-25 (every Terminal window came forward over Discord) |
+| D42 | **Focus brings forward only the target window.** Gander raises the window, then activates its app with no options, which brings only the app's main and key windows forward. The Accessibility "frontmost" call, which can bring every window of the app forward, is now only the fallback. Measured on the user's Mac: activation from a background process brought only Terminal's front window | User report, 2026-10-25 (every Terminal window came forward over Discord) |
 
 New decisions for this phase (M7):
 
 | # | Decision | Source |
 |---|---|---|
-| D43 | **Suspension is sticky.** Sleep, display sleep, screen lock, and a fast user switch to another user are tracked for as long as Sway runs, including while the camera is off. The camera can therefore never start while the Mac is asleep or locked, even if Tracking, the displays, or the camera change in the meantime | Audit finding (the camera could turn on at the lock screen), 2026-10-26 |
-| D44 | **Switching waits while displays or Spaces change.** From a display-change notification until the new layout is known (at most 0.75 s), and for 0.6 s after a Space change, Sway does not switch, then it polls the focused display again | Audit finding |
+| D43 | **Suspension is sticky.** Sleep, display sleep, screen lock, and a fast user switch to another user are tracked for as long as Gander runs, including while the camera is off. The camera can therefore never start while the Mac is asleep or locked, even if Tracking, the displays, or the camera change in the meantime | Audit finding (the camera could turn on at the lock screen), 2026-10-26 |
+| D44 | **Switching waits while displays or Spaces change.** From a display-change notification until the new layout is known (at most 0.75 s), and for 0.6 s after a Space change, Gander does not switch, then it polls the focused display again | Audit finding |
 | D45 | **Adaptive frame rate.** At most 15 frames per second always. While Tracking, 5 per second after 2 s with no face, back to full within one frame when a face returns. Focus Lock and Needs Accessibility use 5 per second. In Low Power Mode or at a serious heat level: 10 per second with a face, 2 per second without. Calibration, the gate test, Setup's camera check, and Pose Debug always use the full rate. Nothing changes the switching speed while a face is present | User chose "no face + Low Power Mode", 2026-10-26 |
-| D46 | **A missing USB camera falls back.** If the chosen camera is unplugged for 5 s, Sway uses a connected camera that has a calibration for these displays, and switches back when the chosen camera returns. With no calibrated camera to use, Sway turns Tracking off (in memory only, as for a camera failure, D23) and the menu says "<camera> disconnected". It does not turn Tracking back on by itself when the camera returns: the user does | User, 2026-10-26: after testing, "if not, it should just turn tracking off" | Orchestrator, from the audit's recommendation (user to confirm), 2026-10-26 |
-| D47 | **Gentler retries and no Center Stage.** After a camera problem, retries start after 1 s and back off to 10 s (a stalled camera: up to 60 s). Sway turns Center Stage off for its own session so the framing cannot shift against the calibration | Audit finding |
-| D48 | **No auto-update; first version 0.1.0.** Sway never uses the network, so there is no Sparkle. New versions are downloaded from GitHub Releases | User, 2026-10-26 |
+| D46 | **A missing USB camera falls back.** If the chosen camera is unplugged for 5 s, Gander uses a connected camera that has a calibration for these displays, and switches back when the chosen camera returns. With no calibrated camera to use, Gander turns Tracking off (in memory only, as for a camera failure, D23) and the menu says "<camera> disconnected". It does not turn Tracking back on by itself when the camera returns: the user does | User, 2026-10-26: after testing, "if not, it should just turn tracking off" | Orchestrator, from the audit's recommendation (user to confirm), 2026-10-26 |
+| D47 | **Gentler retries and no Center Stage.** After a camera problem, retries start after 1 s and back off to 10 s (a stalled camera: up to 60 s). Gander turns Center Stage off for its own session so the framing cannot shift against the calibration | Audit finding |
+| D48 | **No auto-update; first version 0.1.0.** Gander never uses the network, so there is no Sparkle. New versions are downloaded from GitHub Releases | User, 2026-10-26 |
 
 Decision for tuning (0.1.x):
 
@@ -105,7 +105,7 @@ An extra, uncalibrated display (a fourth monitor, Sidecar, AirPlay) still stops 
 ## 4. Features
 
 **F35. Switching timing (tuning, D49).** Settings → Switching gains **Pause after a switch** (a slider with its value,
-for example "0.75 s": "How long Sway waits after switching before it will switch again. Shorter is faster for a quick
+for example "0.75 s": "How long Gander waits after switching before it will switch again. Shorter is faster for a quick
 look back, but can bounce.") and a **Use Instant timing** button (hold 0.10 s, pause 0.30 s). The hold time slider
 now goes down to 0.05 s. **Restore Defaults** restores all three values (0.40 s, 0.75 s, Balanced). Changes apply at
 once.
@@ -131,9 +131,9 @@ as before when you are there.
 
 **M6 features (this phase):**
 
-**F24. Theme and accent (#28, D34, D35).** Every Sway window and the menu use the accent the user chose. Sway green is
+**F24. Theme and accent (#28, D34, D35).** Every Gander window and the menu use the accent the user chose. Gander green is
 forest green in light mode and a lighter green in dark mode, so it keeps its contrast. Settings → Appearance →
-Accent color: **Sway green** or **Match macOS**.
+Accent color: **Gander green** or **Match macOS**.
 
 **F25. Icons (#29, D36, D37).** The app icon is the Swing mark. The menu bar icon shows the same mark in four states:
 
@@ -148,15 +148,15 @@ The menu's status line still names the exact status.
 
 **F26. Welcome and Setup restyle (#30, D40).** On first setup, Setup opens with:
 - the Swing mark;
-- "Welcome to Sway";
-- "Look at a display, and Sway moves your typing there. The pointer never moves.";
-- "Your camera stays private. Sway reads only which way your head is turned, on this Mac. Video is never recorded,
+- "Welcome to Gander";
+- "Look at a display, and Gander moves your typing there. The pointer never moves.";
+- "Your camera stays private. Gander reads only which way your head is turned, on this Mac. Video is never recorded,
   saved, or sent anywhere.";
 - **Get Started**.
 
 Every Setup step gets the same header (the mark and the step title) and layout.
 
-**F27. Edge glow (#31, D38).** After a switch that focused a window, a 4 pt Sway-green border, softly glowing, traces
+**F27. Edge glow (#31, D38).** After a switch that focused a window, a 4 pt Gander-green border, softly glowing, traces
 the edge of that display and fades out. Settings → Appearance → "Glow on the display that gets focus".
 
 **F28. Focus Lock notice (#32, D39).** Pressing the Focus Lock shortcut shows a small notice with a lock symbol near
@@ -175,7 +175,7 @@ switch (F18); the gate test (F7) also saves its profile into the calibration lib
 **F16. Tracking loop (M4, #19).** While Tracking is on and a calibration fits:
 - every pose sample goes through the switch decider, with the focused display (D29), Focus Lock and the holds
   (D28), and the tracked displays (D22);
-- when the decider fires, Sway focuses the last-used window on that display (M3's fallback list, verified) and
+- when the decider fires, Gander focuses the last-used window on that display (M3's fallback list, verified) and
   logs the result: app, display, method, time. Window titles are never logged;
 - one focus request at a time; while one is in flight, no other starts.
 
@@ -207,20 +207,20 @@ symbols per D32:
 | No face | Running, no face | `eye.trianglebadge.exclamationmark` | "No face" |
 
 The popover, top to bottom (fixed width, constant height while tracking starts and stops):
-1. "Sway" and the status line with the camera name.
-2. At most one banner: camera permission (F2); first setup ("Sway needs a quick setup, about a minute." with
+1. "Gander" and the status line with the camera name.
+2. At most one banner: camera permission (F2); first setup ("Gander needs a quick setup, about a minute." with
    **Set Up…**) when nothing is calibrated yet; an unknown display setup (F22); Accessibility needed
    (**Grant Access…**); a shortcut that could not be registered.
 3. **Tracking** switch.
 4. **Focus Lock** switch, with the shortcut shown.
 5. One line: "Looking at <display>", "Looking elsewhere", "No face", or a dash when the camera is off.
 6. Camera picker.
-7. Calibrate…, Settings…, Pose Debug Window…, Head-Pose Gate Test…, Focus Test Window…, Quit Sway.
+7. Calibrate…, Settings…, Pose Debug Window…, Head-Pose Gate Test…, Focus Test Window…, Quit Gander.
 
-**F20. Guided calibration (M5, #24, D30).** A "Set Up Sway" window, in steps:
+**F20. Guided calibration (M5, #24, D30).** A "Set Up Gander" window, in steps:
 1. **Camera access**, skipped when granted.
 2. **Accessibility**, skipped when granted; "Skip for now" is allowed (tracking then shows Needs Accessibility).
-3. **Camera check**: the camera runs and Sway says whether it sees a face, whether to move closer or back, and
+3. **Camera check**: the camera runs and Gander says whether it sees a face, whether to move closer or back, and
    whether to center the face, with the advice "Put the camera where it sees your face from every display. On
    top of the middle display works best." The camera picker is here too.
 4. **Look at each display**: the gate test's overlays and timing per D30. Esc or Cancel stops it.
@@ -231,7 +231,7 @@ Setup from scratch takes under 2 minutes including permissions. A recalibration 
 step 3 and takes under 30 s.
 
 **F21. Settings window (M5, #25).**
-- **General:** Open Sway at login (with the system's "needs approval" state and a button to open Login Items).
+- **General:** Open Gander at login (with the system's "needs approval" state and a button to open Login Items).
 - **Switching:** Hold time and Switch confidence (D31), with Restore Defaults. Changes apply at once.
 - **Focus Lock shortcut:** Record, Reset to ⌃⌥⌘L, Clear. A shortcut needs Control, Option, or Command; one
   that another app already uses is refused with a message, and the previous one stays.
@@ -241,7 +241,7 @@ step 3 and takes under 30 s.
 
 **F22. Recalibrate prompt (M5, #26, D25).** When the connected displays (two or more) are not covered by any
 saved calibration for the current camera, tracking waits with the camera off, the icon shows Needs calibration,
-and the menu banner says "New display setup. Calibrate so Sway can switch between them." with **Calibrate
+and the menu banner says "New display setup. Calibrate so Gander can switch between them." with **Calibrate
 (about 20 s)…**, which opens Setup at step 3.
 
 **F23. Per-camera calibration (M5, #27).** Calibrations are saved per camera. Choosing another camera uses that
@@ -256,7 +256,7 @@ look at each display (about 24 s for 3) → "Calibration looks good" → Start t
 goes to that display's last-used window, and the cursor stays where it was. Glances, the keyboard, and looking
 away do nothing. ⌃⌥⌘L locks focus while reading across displays; ⌃⌥⌘L again unlocks.
 
-**C. Display change.** Unplug a display: tracking continues on the rest. Plug in a display Sway has not seen
+**C. Display change.** Unplug a display: tracking continues on the rest. Plug in a display Gander has not seen
 with these others: the icon shows Needs calibration; Calibrate (about 20 s)… → tracking resumes.
 
 **D. Adjust.** Settings → Hold time or Switch confidence; the next look uses it. Settings → Focus Lock shortcut →
@@ -268,7 +268,7 @@ Record → press a new combination.
   cursor never moves, no input-event synthesis, no global input monitoring, no private APIs (D20).
 - The camera runs only while Tracking is on and a calibration fits, or while a calibration or gate test needs it.
   Paused means the camera is off.
-- The global shortcut uses Carbon `RegisterEventHotKey`: macOS delivers only that one key combination to Sway.
+- The global shortcut uses Carbon `RegisterEventHotKey`: macOS delivers only that one key combination to Gander.
   There is no event tap, no global monitor, and no Input Monitoring permission. Recording a new shortcut uses a
   local key monitor inside the Settings window only, while recording.
 - Window titles are never logged or stored; switch logs name the app and display only.
@@ -277,7 +277,7 @@ Record → press a new combination.
   session is active, whatever else changes meanwhile (D43). After the displays change, the camera may stay on for up
   to 2 s before it stops for lack of a calibration that fits (this avoids a blinking light while a dock re-attaches).
 - The glow and the Focus Lock notice (M6) are click-through overlay panels: they never become key or main, never
-  activate Sway, and sit above the normal window layer, so focus switching never picks them.
+  activate Gander, and sit above the normal window layer, so focus switching never picks them.
 
 ## 7. Non-functional
 
@@ -301,7 +301,7 @@ Record → press a new combination.
 
 ## 9a. Tuning check (D49)
 
-Settings → Switching → **Use Instant timing**, then use Sway as usual and look back and forth between two displays:
+Settings → Switching → **Use Instant timing**, then use Gander as usual and look back and forth between two displays:
 a quick return should now take about half a second instead of about a second. Run `scripts/soak.sh sample` for a day
 with it on and compare the report's "quick reversals" with an earlier day: more of them means more unwanted switches,
 and the pause or hold time should go back up. **Restore Defaults** undoes it.
@@ -320,11 +320,11 @@ Run `scripts/sleep-diag.sh 1800` in Terminal before the sleep checks.
    wrong-display switch. Plug it back in: all three work within about 2 s. A resolution change or rearranging keeps
    the calibration.
 5. **Cameras:** open Photo Booth, FaceTime, or Zoom while Tracking: the status stays sensible and their video is
-   smooth. Select the USB camera, unplug it, wait 10 s: Sway falls back to a calibrated camera, or turns Tracking off
+   smooth. Select the USB camera, unplug it, wait 10 s: Gander falls back to a calibrated camera, or turns Tracking off
    with "<camera> disconnected" when there is none.
 6. **Full-screen apps and Spaces:** make an app full screen on one display and look at it: typing goes there and the
    glow shows over it. Switch Spaces on another display while looking around; focus never lands in the wrong window.
-7. **CPU:** Build Release (Product → Profile, or Archive), run it outside Xcode, and read Sway's CPU in Activity
+7. **CPU:** Build Release (Product → Profile, or Archive), run it outside Xcode, and read Gander's CPU in Activity
    Monitor: with you at the desk, then away for 30 s. Away should be about 5% or less; at the desk about 15% or less.
    Sit back down: "Tracking" within a second, and a look switches as quickly as before. Try Low Power Mode.
 8. **Soak:** run `scripts/soak.sh sample` for a working day, then `scripts/soak.sh report <file>`, and note any

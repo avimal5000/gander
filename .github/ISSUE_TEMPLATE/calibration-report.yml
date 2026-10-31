@@ -13,7 +13,7 @@ body:
     id: layout
     attributes:
       label: Layout
-      description: Paste the display list from the gate report or Sway's debug window.
+      description: Paste the display list from the gate report or Gander's debug window.
   - type: textarea
     id: failed
     attributes:

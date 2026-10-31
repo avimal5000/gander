@@ -55,7 +55,7 @@ final class AppKitSystemInteractions: SystemInteracting {
     func chooseTraceFile(startingIn directory: URL) -> URL? {
         let panel = NSOpenPanel()
         panel.title = "Open Trace"
-        panel.message = "Choose a saved Sway pose trace."
+        panel.message = "Choose a saved Gander pose trace."
         panel.allowedContentTypes = [.json]
         panel.canChooseDirectories = false
         panel.canChooseFiles = true

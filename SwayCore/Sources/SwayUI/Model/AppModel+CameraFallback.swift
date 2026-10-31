@@ -2,9 +2,9 @@ import Foundation
 import SwayModels
 
 // The USB camera fallback (SPEC D46, CONTRACT 6.5.5 item 7). When the camera the user chose is unplugged and capture
-// stays interrupted for 5 s, Sway restarts the pose source on a connected camera that has a calibration for the
+// stays interrupted for 5 s, Gander restarts the pose source on a connected camera that has a calibration for the
 // current displays (the built-in first), and restarts it on the chosen camera once that is connected again. With no
-// calibrated camera to use, Sway turns Tracking off in memory (the saved choice stays, as for a camera failure, D23)
+// calibrated camera to use, Gander turns Tracking off in memory (the saved choice stays, as for a camera failure, D23)
 // and the status names the missing camera until it is connected again; the user turns Tracking back on. The saved
 // camera choice (`selectedCameraID`) is never touched: the stand-in lives in `fallbackCamera` and in the pose source
 // configuration alone. Nothing changes while a calibration, the gate test, or the Setup window runs, or while the

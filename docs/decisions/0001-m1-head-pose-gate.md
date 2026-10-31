@@ -11,7 +11,7 @@ setup clearly enough to build M2 (CalibrationModel + SwitchDecider) on it?
 
 ## How it was measured
 
-Sway > Head-Pose Gate Test: for each display and round, look at the highlighted display's center; samples
+Gander > Head-Pose Gate Test: for each display and round, look at the highlighted display's center; samples
 from the hold phase are labeled with that display. The analysis reports per-display stats, pairwise d′, and
 held-out nearest-centroid accuracy for each feature set. Thresholds are in CONTRACT.md section 6.3.
 
