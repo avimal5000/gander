@@ -74,9 +74,11 @@ public struct CalibrationLibrary: Sendable, Equatable, Codable {
     }
 
     /// Saves `profile` as the newest, replacing a saved profile with the same key. Profiles with fewer than two
-    /// displays or another format version are ignored: they can never be used.
+    /// displays another format version, or non-finite or non-positive scales are ignored: they can never be used.
     public mutating func save(_ profile: CalibrationProfile) {
-        guard profile.displays.count >= 2, profile.formatVersion == CalibrationProfile.currentFormatVersion else {
+        guard profile.displays.count >= 2, profile.formatVersion == CalibrationProfile.currentFormatVersion,
+            profile.isUsable
+        else {
             return
         }
         profiles.removeAll { $0.key == profile.key }

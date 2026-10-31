@@ -10,6 +10,9 @@ public struct FileTraceStore: TraceStoring {
     /// Folder holding the trace files.
     public let directory: URL
 
+    /// Largest trace file `load` reads. A real trace is well under 10 MB; anything bigger is refused unread.
+    public static let maxFileBytes = 50 * 1024 * 1024
+
     private static let log = SwayLog.logger(category: "traces")
 
     /// Creates a store.
@@ -27,9 +30,12 @@ public struct FileTraceStore: TraceStoring {
         #if DEBUG
         let url = directory.appending(path: Self.fileName(for: trace), directoryHint: .notDirectory)
         do {
-            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(
+                at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
             let data = try Self.makeEncoder().encode(trace)
             try data.write(to: url, options: .atomic)
+            // Owner-only: traces hold display and camera names and timed head angles.
+            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
         } catch {
             Self.log.error("Saving trace failed: \(error.localizedDescription, privacy: .public)")
             throw TraceStoreError.io(Self.describe(error))
@@ -46,7 +52,13 @@ public struct FileTraceStore: TraceStoring {
     public func load(_ url: URL) throws -> PoseTrace {
         let data: Data
         do {
+            let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
+            guard size <= Self.maxFileBytes else {
+                throw TraceStoreError.io("The file is too large to be a trace (\(size / 1_048_576) MB).")
+            }
             data = try Data(contentsOf: url)
+        } catch let error as TraceStoreError {
+            throw error
         } catch {
             throw TraceStoreError.io(Self.describe(error))
         }

@@ -210,20 +210,22 @@ extension AppModel {
     }
 
     /// One info line per switch: the outcome, the app, the display, the method, and the time. Never a window title.
+    /// App and display names are logged `.private(mask: .hash)`: unreadable in the log, but the same name always
+    /// hashes the same, so `scripts/soak.sh` can still spot a switch to a display and straight back.
     private func logSwitch(_ result: FocusResult, display: String) {
         let log = SwayLogger.tracking
         switch result {
         case .focused(let window, let method, let milliseconds):
             log.info(
-                "Focused \(window.appName, privacy: .public) on \(display, privacy: .public) via \(method.rawValue, privacy: .public) in \(milliseconds) ms"
+                "Focused \(window.appName, privacy: .private(mask: .hash)) on \(display, privacy: .private(mask: .hash)) via \(method.rawValue, privacy: .public) in \(milliseconds) ms"
             )
         case .noWindow:
-            log.info("No window on \(display, privacy: .public)")
+            log.info("No window on \(display, privacy: .private(mask: .hash))")
         case .notTrusted:
             log.info("Switch needs Accessibility permission")
         case .failed(let window, let reason):
             log.info(
-                "Switch to \(display, privacy: .public) failed (\(window?.appName ?? "no app", privacy: .public)): \(reason, privacy: .public)"
+                "Switch to \(display, privacy: .private(mask: .hash)) failed (\(window?.appName ?? "no app", privacy: .private(mask: .hash))): \(reason, privacy: .public)"
             )
         }
     }
