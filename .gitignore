@@ -3,7 +3,7 @@
 # Build output (SwiftPM, xcodebuild, per-agent scratch paths)
 .build/
 .build-*/
-SwayCore/.swiftpm/
+GanderCore/.swiftpm/
 DerivedData/
 *.profraw
 
@@ -14,6 +14,6 @@ xcuserdata/
 # Personal tool config
 .serena/
 
-# Privacy: pose traces live in ~/Library/Application Support/Sway/Traces and are never committed
-*.swaytrace.json
+# Privacy: pose traces live in ~/Library/Application Support/Gander/Traces and are never committed
+*.gandertrace.json
 Traces/

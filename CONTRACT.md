@@ -6,11 +6,11 @@ is background only. If anything here is wrong or missing, **stop and report**. D
 ## 0. Rules for every builder
 
 1. Edit only files inside your own module:
-   - `SwayCore/Sources/<Module>/`
-   - `SwayCore/Tests/<Module>Tests/`
+   - `GanderCore/Sources/<Module>/`
+   - `GanderCore/Tests/<Module>Tests/`
 2. Never touch any of these (the orchestrator owns them):
-   - `SwayModels`, `Package.swift`
-   - the `Sway/` app target, `Sway.xcodeproj`, `Config/`
+   - `GanderModels`, `Package.swift`
+   - the `Gander/` app target, `Gander.xcodeproj`, `Config/`
    - `scripts/`, `.github/`, or any root document
 3. Replace the orchestrator's stub files in your module. Keep every public name and signature listed in your
    section of §6.
@@ -24,12 +24,12 @@ is background only. If anything here is wrong or missing, **stop and report**. D
 ## 1. Repository layout
 
 ```
-Sway/                          repo root
+Gander/                          repo root
 ├── PLAN.md  SPEC.md  CONTRACT.md  STATUS.md  README.md
-├── Sway.xcodeproj/            orchestrator only (synchronized folder group, shared scheme "Sway")
-├── Sway/                      app target sources: SwayApp.swift, AppComposition.swift, Assets.xcassets
-├── Config/Sway.entitlements   orchestrator only
-├── SwayCore/                  local Swift package "SwayCore" (one library product "SwayCore")
+├── Gander.xcodeproj/            orchestrator only (synchronized folder group, shared scheme "Gander")
+├── Gander/                      app target sources: GanderApp.swift, AppComposition.swift, Assets.xcassets
+├── Config/Gander.entitlements   orchestrator only
+├── GanderCore/                  local Swift package "GanderCore" (one library product "GanderCore")
 │   ├── Package.swift          orchestrator only
 │   ├── Sources/<Module>/
 │   └── Tests/<Module>Tests/
@@ -42,12 +42,12 @@ Sway/                          repo root
 
 | Module | Owner | Purpose (M1) | Frameworks allowed |
 |---|---|---|---|
-| `SwayModels` | orchestrator | Shared value types, protocols, policy constants, logging | Foundation, CoreGraphics, CoreVideo, os |
+| `GanderModels` | orchestrator | Shared value types, protocols, policy constants, logging | Foundation, CoreGraphics, CoreVideo, os |
 | `CameraService` | builder-camera | AVFoundation capture, device selection, permission, sleep/lock suspend | + AVFoundation, CoreMedia, AppKit (NSWorkspace notifications only) |
 | `PoseEstimator` | builder-pose | Vision head pose + landmark proxy; `LivePoseSource` | + Vision, CoreVideo, CoreMedia |
 | `PoseTraces` | builder-traces | Trace persistence, replay/synthetic sources, separability analysis, Markdown summary | Foundation only (+ os) |
 | `DisplayTracker` | builder-displays | NSScreen layout, stable IDs, change stream | + AppKit, CoreGraphics |
-| `SwayUI` | builder-ui | `AppModel`, all scenes and views, gate test flow, overlays, switch preview, Focus Test window | + SwiftUI, AppKit, Charts, Observation |
+| `GanderUI` | builder-ui | `AppModel`, all scenes and views, gate test flow, overlays, switch preview, Focus Test window | + SwiftUI, AppKit, Charts, Observation |
 | `SwitchEngine` (M2) | builder-engine | Calibration profile fitting, pose classification, switch state machine | Foundation only (+ os) |
 | `FocusControl` (M3) | builder-focus | Last-used window per display, focus switching via Accessibility | + AppKit, ApplicationServices, CoreGraphics |
 | `SystemIntegration` (M4) | builder-system | Global shortcut (Carbon hot key) and the login item | + AppKit, Carbon, ServiceManagement |
@@ -56,37 +56,37 @@ PLAN.md's `CalibrationModel` and `SwitchDecider` live together in `SwitchEngine`
 recorded traces can exercise both without a cross-module import. Its `WindowTracker` and `FocusController` live
 together in `FocusControl` for the same reason.
 
-M4 + M5 keep the tracking loop, settings, and setup inside `SwayUI` (they are `AppModel` state and its pure
-helpers), and put the two system services (global shortcut, login item) in `SystemIntegration`. The `SwaySettings`
+M4 + M5 keep the tracking loop, settings, and setup inside `GanderUI` (they are `AppModel` state and its pure
+helpers), and put the two system services (global shortcut, login item) in `SystemIntegration`. The `GanderSettings`
 and `TrackingPipeline` modules planned earlier are not created.
 
 ## 3. Dependency rules
 
-- Every feature module depends **only** on `SwayModels`, plus Apple system frameworks from the table above.
-- No module imports another feature module. Cross-module collaboration goes through `SwayModels` protocols,
+- Every feature module depends **only** on `GanderModels`, plus Apple system frameworks from the table above.
+- No module imports another feature module. Cross-module collaboration goes through `GanderModels` protocols,
   and the app target injects concrete types (§7).
 - Zero third-party dependencies. No networking frameworks (§11).
 
 ## 4. Build and test commands
 
 The Command Line Tools toolchain cannot run `swift test` on this machine, so always set `DEVELOPER_DIR`.
-`SWAY_MODULE` makes the manifest declare only `SwayModels` plus your module, which isolates you from
+`GANDER_MODULE` makes the manifest declare only `GanderModels` plus your module, which isolates you from
 siblings that are mid-edit. The per-module scratch path stops parallel builds from blocking each other.
 
 **Never keep the repo or its build products in an iCloud-synced folder** (for example `~/Documents` or
 `~/Desktop`). The File Provider adds extended attributes that make codesign reject test bundles ("resource
-fork, Finder information, or similar detritus not allowed"). The repo lives in `~/Developer/Sway` for this
+fork, Finder information, or similar detritus not allowed"). The repo lives in `~/Developer/Gander` for this
 reason. The scratch paths below are inside the repo and gitignored (`.build-*/`).
 
 ```bash
-cd /Users/avimalhotra/Developer/Sway/SwayCore
+cd /Users/avimalhotra/Developer/Gander/GanderCore
 export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
-SWAY_MODULE=<Module> swift build --scratch-path .build-agents/<Module>
-SWAY_MODULE=<Module> swift test  --scratch-path .build-agents/<Module>
+GANDER_MODULE=<Module> swift build --scratch-path .build-agents/<Module>
+GANDER_MODULE=<Module> swift test  --scratch-path .build-agents/<Module>
 # full package / app (reviewer, orchestrator):
 swift test
-xcodebuild -project ../Sway.xcodeproj -scheme Sway -derivedDataPath ../.build-xcode test CODE_SIGNING_ALLOWED=NO
-# format + lint your own files (config: /Users/avimalhotra/Developer/Sway/.swift-format)
+xcodebuild -project ../Gander.xcodeproj -scheme Gander -derivedDataPath ../.build-xcode test CODE_SIGNING_ALLOWED=NO
+# format + lint your own files (config: /Users/avimalhotra/Developer/Gander/.swift-format)
 xcrun swift-format format --in-place --recursive Sources/<Module> Tests/<Module>Tests
 xcrun swift-format lint --strict --recursive Sources/<Module> Tests/<Module>Tests
 ```
@@ -97,9 +97,9 @@ Done means:
 - lint: clean;
 - `../scripts/privacy-guard.sh` passes.
 
-## 5. Shared types (`SwayModels`)
+## 5. Shared types (`GanderModels`)
 
-The source files in `SwayCore/Sources/SwayModels/` are the definitive API. Read them all before coding.
+The source files in `GanderCore/Sources/GanderModels/` are the definitive API. Read them all before coding.
 
 | File | Contents |
 |---|---|
@@ -109,14 +109,14 @@ The source files in `SwayCore/Sources/SwayModels/` are the definitive API. Read 
 | `Displays.swift` | `DisplayID`, `DisplayInfo`, `DisplayLayout` (sorting + fingerprint), protocol `DisplayProviding` (`@MainActor`) |
 | `Traces.swift` | `TraceSegment`, `PoseTrace`, `TraceStoreError`, protocol `TraceStoring` |
 | `Separability.swift` | `PoseFeatureSet`, `DisplayPoseStats`, `PairSeparation`, `GateVerdict`, `GateThresholds`, `SeparabilityReport`, `GateAnalysis`, `DisplayClassification`, protocol `SeparabilityAnalyzing` |
-| `SwayPolicy.swift` | `SwayPolicy` constants, `SwayLog.logger(category:)` |
+| `GanderPolicy.swift` | `GanderPolicy` constants, `GanderLog.logger(category:)` |
 | `Switching.swift` (M2) | `DisplayProfile`, `CalibrationProfile`, `CalibrationError`, `PoseClassification`, `SwitchSettings`, `SwitchContext`, `SwitchPhase`, `SwitchHoldReason`, `SwitchDecision`, protocols `SwitchDeciding`, `SwitchEngineMaking` |
 | `Focus.swift` (M3) | `WindowSummary`, `FocusMethod`, `FocusResult`, protocol `FocusControlling` |
 | `CalibrationLibrary.swift` (M5) | `CalibrationKey`, `CalibrationMatch`, `CalibrationLibrary`; `CalibrationProfile.key`, `.displayIDs`, `.restricted(to:)` |
 | `SwitchSensitivity.swift` (M5, 0.1.x) | `SwitchSensitivity` (hold time, confidence level, and pause after a switch → `SwitchSettings`) |
 | `SystemIntegration.swift` (M4, M5) | `HotKeyShortcut`, `HotKeyAction`, `HotKeyError`, protocol `HotKeyRegistering`; `LoginItemStatus`, `LoginItemError`, protocol `LoginItemControlling` |
 
-`SwayPolicy.maxTrackedDisplays` is now 3 (SPEC D22).
+`GanderPolicy.maxTrackedDisplays` is now 3 (SPEC D22).
 
 Semantics that the code cannot express:
 - **Angles** are degrees everywhere. Vision gives radians, so convert in `PoseEstimator`.
@@ -179,7 +179,7 @@ public final class CameraCaptureService: FrameSource {   // may be @unchecked Se
   tested type.
 - **`stop()`.** Stops the session, removes inputs and outputs, emits `.stopped`, drops the handlers,
   removes the observers, and is idempotent.
-- **Logging.** `SwayLog.logger(category: "camera")`. Never log frame data.
+- **Logging.** `GanderLog.logger(category: "camera")`. Never log frame data.
 
 **Tests** must never touch real devices, permission APIs, or sessions. Cover:
 - the selection rule over fake device lists;
@@ -287,7 +287,7 @@ public final class LivePoseSource: PoseSource {
 
 #### 6.2.1 M7 additions to `PoseEstimator` (builder-pose-m7): adaptive frame rate (SPEC D45)
 
-`LivePoseSource` gains `setDemand(_:)` (the `PoseSource` requirement in `SwayModels`) and one defaulted init
+`LivePoseSource` gains `setDemand(_:)` (the `PoseSource` requirement in `GanderModels`) and one defaulted init
 parameter. Source-compatible with every existing call:
 ```swift
 public init(
@@ -332,7 +332,7 @@ Result: a hard 15 fps cap whatever the device delivers; the switching speed with
 return on a face, `reset()`, `setDemand` mid-stream; `LivePoseSource` with `FakeFrameSource` and `FakePoseEstimator`:
 estimator calls drop to one per 5 fps interval after 2 s without a face and return to every frame at 15 fps on the
 first face, a 30 fps input is processed at 15 fps, `setDemand(.reduced)` lowers the rate, power-constrained changes
-intervals, `start` resets. Plus a new test file in `SwitchEngineTests` (SwayModels and SwitchEngine only) that feeds
+intervals, `start` resets. Plus a new test file in `SwitchEngineTests` (GanderModels and SwitchEngine only) that feeds
 the decider a face-then-absent-then-face scenario at the throttled sample times and checks the switch still fires
 at the dwell plus at most one frame interval after the first qualifying sample, and that a switch after an absent
 period fires within 1 s plus the dwell of the face returning.
@@ -353,12 +353,12 @@ public struct SyntheticCluster: Sendable, Equatable {
 public enum SyntheticTraces {
     public static func gateTrace(clusters: [SyntheticCluster], std: Double, samplesPerSegment: Int,
                                  rounds: Int, faceDropRate: Double = 0,
-                                 frameRate: Double = SwayPolicy.defaultFrameRate, seed: UInt64) -> PoseTrace
+                                 frameRate: Double = GanderPolicy.defaultFrameRate, seed: UInt64) -> PoseTrace
 }
 ```
 
 **`FileTraceStore`:**
-- Default folder: `URL.applicationSupportDirectory/Sway/Traces`.
+- Default folder: `URL.applicationSupportDirectory/Gander/Traces`.
 - JSON format: `.prettyPrinted` and `.sortedKeys`, ISO-8601 dates.
 - `save`:
   - creates the folder if needed;
@@ -479,7 +479,7 @@ there is only one candidate.
 injectable clock or scheduler), and that `layouts()` yields at least one value. Never assert on the number
 of real screens.
 
-### 6.5 `SwayUI` (builder-ui)
+### 6.5 `GanderUI` (builder-ui)
 
 **Public API (exact):**
 ```swift
@@ -488,7 +488,7 @@ of real screens.
                 traceStore: any TraceStoring, analyzer: any SeparabilityAnalyzing,
                 defaults: UserDefaults = .standard)
 }
-public struct SwayScenes: Scene { public init(model: AppModel) }
+public struct GanderScenes: Scene { public init(model: AppModel) }
 ```
 Everything else is internal and up to you, within SPEC.md F1–F9.
 
@@ -514,7 +514,7 @@ Everything else is internal and up to you, within SPEC.md F1–F9.
 - Track: latest sample, status, measured fps (samples per second over the last 2 s), a rolling 10 s history
   for plots, camera devices, authorization, layout (from `displays.layouts()`), the latest `GateAnalysis`
   plus its `PoseTrace`, and the live classification.
-- Persist the selected camera in `defaults` under `"sway.cameraDeviceID"` (nil = default).
+- Persist the selected camera in `defaults` under `"gander.cameraDeviceID"` (nil = default).
 - Permission flow per F2: `camera.requestAuthorization()`. The deep link is
   `x-apple.systempreferences:com.apple.preference.security?Privacy_Camera`, opened via `NSWorkspace`.
 - Stop the camera on `NSApplication.willTerminateNotification`.
@@ -537,7 +537,7 @@ Everything else is internal and up to you, within SPEC.md F1–F9.
 - Find the `NSScreen` for a `DisplayInfo` by matching `cgDisplayID` against `NSScreenNumber`.
 - Esc cancels via a local key monitor or the gate window's cancel button.
 
-**Palette** (internal `SwayPalette`): forest `#2F5D3A`, sage `#9CAF88`, ivory `#F6F3EA`, charcoal `#2B2B2B`.
+**Palette** (internal `GanderPalette`): forest `#2F5D3A`, sage `#9CAF88`, ivory `#F6F3EA`, charcoal `#2B2B2B`.
 Otherwise use system fonts and controls. The accent is Gander green or the system's, as the user chooses (§6.5.4).
 Support light and dark mode.
 
@@ -552,7 +552,7 @@ Support light and dark mode.
 Add `#Preview`s with fake dependencies where useful. Fakes live in the test target or in `#if DEBUG`
 internal files.
 
-#### 6.5.1 M2 + M3 additions to `SwayUI` (builder-ui)
+#### 6.5.1 M2 + M3 additions to `GanderUI` (builder-ui)
 
 **Public API change (exact):**
 ```swift
@@ -578,7 +578,7 @@ internal files.
 - After every successful gate analysis and every opened trace, call
   `engine.fitProfile(from: trace, features: .visionAngles, rounds: nil)`.
   - On success: store it as `calibrationProfile` and persist it as JSON (`JSONEncoder`, `.iso8601` dates) in
-    `defaults` under `"sway.calibrationProfile"`.
+    `defaults` under `"gander.calibrationProfile"`.
   - On failure: keep the previous profile and show the error in the report view in plain words:
     - `tooFewDisplays`: "Not enough face samples on at least two displays to calibrate. Run the gate test with your
       face visible.";
@@ -654,7 +654,7 @@ windows. The menu gets a "Focus Test Window…" item (SF Symbol `rectangle.2.swa
   - the trust poll runs only while visible;
 - the onboarding button calls `requestTrust` and opens the deep link.
 
-#### 6.5.2 M4 additions to `SwayUI` (builder-ui-m4)
+#### 6.5.2 M4 additions to `GanderUI` (builder-ui-m4)
 
 **Public API change (exact):**
 ```swift
@@ -667,17 +667,17 @@ windows. The menu gets a "Focus Test Window…" item (SF Symbol `rectangle.2.swa
 }
 ```
 `loginItem` is only stored in M4; M5 uses it. New `UserDefaults` keys (all JSON with `.iso8601` dates unless noted):
-`sway.calibrationLibrary`, `sway.trackingEnabled` (Bool), `sway.switchSensitivity`, `sway.focusLockShortcut`.
+`gander.calibrationLibrary`, `gander.trackingEnabled` (Bool), `gander.switchSensitivity`, `gander.focusLockShortcut`.
 
 **1. Calibration library (SPEC D25).**
-- `AppModel` keeps a `CalibrationLibrary`, persisted under `sway.calibrationLibrary` after every change.
-- **Migration at launch:** if that key is absent and `sway.calibrationProfile` holds a profile that decodes with the
+- `AppModel` keeps a `CalibrationLibrary`, persisted under `gander.calibrationLibrary` after every change.
+- **Migration at launch:** if that key is absent and `gander.calibrationProfile` holds a profile that decodes with the
   current format version, start the library with it, persist the library, and remove the old key.
 - **Active calibration:** `library.resolve(for: layout, cameraName: trackingCameraName)`, recomputed on launch, on a
   layout change, when the selected or running camera changes, and when the library changes.
   - `trackingCameraName` is `status.device?.name` while the camera runs. Otherwise it is the name of the camera
     capture would pick, asked of the camera service: `FrameSource.resolvedDevice(for: selectedCameraID)` (review
-    fix: a guess made in `SwayUI` disagreed with capture's system-default fallback, which start-stop-looped the
+    fix: a guess made in `GanderUI` disagreed with capture's system-default fallback, which start-stop-looped the
     camera or stopped it at the first screen lock). It is refreshed with the device list, on a camera choice, and
     when AVFoundation posts a camera connect or disconnect (observed by notification name).
 - Every successful fit (gate test, opened trace, and in M5 the Setup window) saves into the library instead of
@@ -686,7 +686,7 @@ windows. The menu gets a "Focus Test Window…" item (SF Symbol `rectangle.2.swa
 
 **2. Tracking switch (SPEC D23, D26, F18).**
 - `liveEnabled` becomes `trackingEnabled`. The menu and the Pose Debug window show it as a **Tracking** switch.
-- **Saved choice:** user actions (the switch, and in M5 "Start tracking") write `sway.trackingEnabled`. Automatic
+- **Saved choice:** user actions (the switch, and in M5 "Start tracking") write `gander.trackingEnabled`. Automatic
   changes do **not** write it: a camera failure or an unexpected end of stream turning tracking off, and quitting
   (`applicationWillTerminate()`, `shutdown()`, `quit()`). So the next launch restores the user's choice.
 - **Launch:** `init` reads the saved choice. When it is true, schedule one camera reconcile right after `init` (a
@@ -727,7 +727,7 @@ calibration, and a decider.
    lock cancels the decider's cooldown, which must run from the switch; the loop already reports the target as
    focused and refuses a second request). `holdReason` is the first that applies of:
    - `.focusLock` (Focus Lock on);
-   - `.swayInFront` (Gander is the active app);
+   - `.ganderInFront` (Gander is the active app);
    - `.focusTest` (a Focus Test countdown or request is running);
    - `.switching` (`loop.isFocusing`).
 2. Keep `previewDecision`, the dwell start, and the latency as the preview did. Then call
@@ -738,11 +738,11 @@ calibration, and a decider.
      tracking stopped or the loop was reset since), `loop.finishAttempt(D, result:)`, add a switch-log entry, and
      log once at info level (category `"tracking"`): outcome, app name, display name, method, ms. **Never titles.**
      `.notTrusted` also sets `isAccessibilityTrusted = false`.
-- `trackedTargets`: the first `SwayPolicy.maxTrackedDisplays` displays of the current layout, in layout order, that
+- `trackedTargets`: the first `GanderPolicy.maxTrackedDisplays` displays of the current layout, in layout order, that
   the active calibration profiles. `nil` when that is every display the profile has.
 - The decider is `engine.makeDecider(profile: activeCalibration.profile, settings: sensitivity.switchSettings())`,
   rebuilt (and `loop.reset()`) when the active calibration changes, when a tracking stream starts, and when the
-  sensitivity changes. `sensitivity` is read from `sway.switchSensitivity` (default `SwitchSensitivity.default`);
+  sensitivity changes. `sensitivity` is read from `gander.switchSensitivity` (default `SwitchSensitivity.default`);
   M5 adds the controls.
 - Reset the decider and the loop on a layout change, a stream restart, or the camera stopping (as the preview did).
 
@@ -762,7 +762,7 @@ Gander's last window closes, Gander stays the active app with nothing in front, 
 **4. Focus Lock (SPEC F17, D27).**
 - `focusLocked` (not saved; off at launch) and `toggleFocusLock()`. The Pose Debug "Simulate Focus Lock" toggle
   becomes the real Focus Lock.
-- **Shortcut:** `focusLockShortcut: HotKeyShortcut?`, saved under `sway.focusLockShortcut`: an absent key means
+- **Shortcut:** `focusLockShortcut: HotKeyShortcut?`, saved under `gander.focusLockShortcut`: an absent key means
   `.focusLockDefault`; the JSON of a shortcut means that shortcut; an empty `Data` means none.
 - At launch, register it with `hotKeys.register(_, for: .toggleFocusLock) { [weak self] in self?.toggleFocusLock() }`.
   On `HotKeyError`, keep `shortcutMessage` for Settings, and for the menu banner while the chosen shortcut is not
@@ -797,7 +797,7 @@ locked, and the switch log, now of real switches ("Focused <app> on <display> in
 <display>", "Failed: <reason>"). The section's own focus calls are gone; only the loop calls `focus.focus`.
 
 **8. Gate test.** It holds tracking while it runs (as the preview did) and saves its profile into the library.
-`SwayPolicy.maxTrackedDisplays` is now 3: update the gate setup's "Gander v1 will track N displays" note and its
+`GanderPolicy.maxTrackedDisplays` is now 3: update the gate setup's "Gander v1 will track N displays" note and its
 tests so they show only for more than 3 displays.
 
 **9. Tests** (fakes for `HotKeyRegistering` and `LoginItemControlling` in the test target; a fake workspace
@@ -810,16 +810,16 @@ notification center):
 - a stream restart or layout change resets the loop; a late focus result after a reset is ignored;
 - `trackedTargets` with 2, 3, and 4 displays;
 - the poll runs only while tracking runs, and an app activation triggers one;
-- the library: migration from `sway.calibrationProfile`, saving after a gate fit, resolution after a layout change
+- the library: migration from `gander.calibrationProfile`, saving after a gate fit, resolution after a layout change
   and a camera change, the camera starting or stopping as a calibration appears or disappears;
-- launch with `sway.trackingEnabled = true` starts the camera without any window; automatic turn-offs do not
+- launch with `gander.trackingEnabled = true` starts the camera without any window; automatic turn-offs do not
   change the saved value;
 - Focus Lock: toggling, the hot key handler toggles, default and saved shortcuts, a registration failure message,
   `setFocusLockShortcut` keeping the old shortcut on failure;
 - `TrackingStatus`: every row of the table and the priority between neighbors; every symbol resolves;
 - the "Looking at" line changes only when the summary changes.
 
-#### 6.5.3 M5 additions to `SwayUI` (builder-ui-m5, after builder-ui-m4)
+#### 6.5.3 M5 additions to `GanderUI` (builder-ui-m5, after builder-ui-m4)
 
 No public API change. New window IDs `"setup"` and `"settings"`, launch-guarded like the others.
 
@@ -867,7 +867,7 @@ No public API change. New window IDs `"setup"` and `"settings"`, launch-guarded 
   the toggle and shows the text; a `LoginItemError` shows its message under the toggle.
 - **Switching:** "Hold time" slider over `SwitchSensitivity.dwellRange` in 0.05 s steps with its value ("0.40 s");
   "Switch confidence" as a 5-step slider labelled Relaxed … Strict; **Restore Defaults**. Each change saves
-  `sway.switchSensitivity` and rebuilds the decider at once.
+  `gander.switchSensitivity` and rebuilds the decider at once.
 - **Focus Lock shortcut:** shows the shortcut ("⌃⌥⌘L", or "None"). **Record Shortcut** → "Type a shortcut…": a local
   key-down monitor (`NSEvent.addLocalMonitorForEvents`) in this window only, removed when recording ends. Esc
   cancels. A pure helper maps the event's key code, modifier flags, and `charactersIgnoringModifiers` (uppercased;
@@ -890,7 +890,7 @@ window. The needs-calibration banner says "New display setup. Calibrate so Gande
   Calibrate again, and a fit failure;
 - `FramingAdvice`: every hint and its boundaries;
 - a full calibration on the injected clock: the overlays, 2 rounds × displays, no landmarks, a saved library entry,
-  the verdict texts, Start tracking saving `sway.trackingEnabled`;
+  the verdict texts, Start tracking saving `gander.trackingEnabled`;
 - the camera runs for the camera check and calibrating steps, and stops when the window closes (with Tracking off);
 - sensitivity: the slider values, saving, the decider rebuilt with the mapped settings, Restore Defaults;
 - the shortcut mapping helper (letters, digits, named keys, F-keys, invalid combinations), recording success,
@@ -899,34 +899,34 @@ window. The needs-calibration banner says "New display setup. Calibrate so Gande
 - the calibration list: rows, "In use", Delete updating the library and the active calibration;
 - the banners' texts and the buttons opening the Setup window.
 
-#### 6.5.4 M6 additions to `SwayUI` (builder-ui-m6): the design pass
+#### 6.5.4 M6 additions to `GanderUI` (builder-ui-m6): the design pass
 
-No public API change. New `UserDefaults` keys: `sway.accentChoice` (String: `"sway"` or `"system"`, absent =
-`"sway"`), `sway.edgeGlowEnabled` (Bool, absent = true), `sway.focusLockNoticeEnabled` (Bool, absent = true).
+No public API change. New `UserDefaults` keys: `gander.accentChoice` (String: `"gander"` or `"system"`, absent =
+`"gander"`), `gander.edgeGlowEnabled` (Bool, absent = true), `gander.focusLockNoticeEnabled` (Bool, absent = true).
 Behavior (switching, holds, camera rules, calibration) does not change.
 
 **1. Theme and accent (SPEC F24, D34, D35).**
-- `SwayPalette` keeps the brand values (forest `0x2F5D3A`, sage `0x9CAF88`, ivory `0xF6F3EA`, charcoal `0x2B2B2B`) and
+- `GanderPalette` keeps the brand values (forest `0x2F5D3A`, sage `0x9CAF88`, ivory `0xF6F3EA`, charcoal `0x2B2B2B`) and
   gains `green`: a dynamic color (`NSColor(name:dynamicProvider:)`), forest in light appearances and `0x6FAF84` in dark
   ones. `green` is Gander green everywhere (tint, glow, the mark in the popover).
-- `AccentChoice` enum (`.sway`, `.system`), stored as above; `AppModel.accentChoice` with `setAccentChoice(_:)`.
-  `tint: Color?` is `SwayPalette.green` for `.sway` and `nil` for `.system`.
+- `AccentChoice` enum (`.gander`, `.system`), stored as above; `AppModel.accentChoice` with `setAccentChoice(_:)`.
+  `tint: Color?` is `GanderPalette.green` for `.gander` and `nil` for `.system`.
 - Every window's root view and the menu popover apply `.tint(model.accentChoice.tint)`: menu, Pose Debug, gate test,
-  Focus Test, Setup, Settings. Text and glyphs that used `SwayPalette.accent(for:)` keep it.
+  Focus Test, Setup, Settings. Text and glyphs that used `GanderPalette.accent(for:)` keep it.
 - The app has **no** asset-catalog accent color (orchestrator): with one, macOS's Multicolor setting would show it
   through, so "Match macOS" would still look green. Without it, Match macOS is exactly the system accent.
 
 **2. The Swing mark and the menu bar icon (SPEC F25, D36, D37).**
-- `SwayMarkGeometry`: the mark in a 100 × 100 unit square: an arc `M 24 40 Q 50 86 76 40` (quadratic), a start point
+- `GanderMarkGeometry`: the mark in a 100 × 100 unit square: an arc `M 24 40 Q 50 86 76 40` (quadratic), a start point
   at (24, 40) and an end point at (76, 40), y down. One definition shared by the drawing below and a SwiftUI
-  `SwayMark` view (stroke arc with round caps, small start dot, larger end dot; colors as parameters) for the popover
+  `GanderMark` view (stroke arc with round caps, small start dot, larger end dot; colors as parameters) for the popover
   header and the welcome step.
 - `MenuBarGlyph` enum: `.tracking`, `.paused`, `.focusLock`, `.attention`, with a pure mapping from `TrackingStatus`
   exactly as SPEC F25's table. Each glyph has a pure `MenuBarGlyph.Style` (`opacity`, `hollowEnd`, `lockBadge`,
   `alertDot`): tracking = (1, false, false, false); paused = (0.5, true, false, false); focusLock = (1, false, true,
   false); attention = (1, false, false, true).
 - `MenuBarIcon.image(for: MenuBarGlyph) -> NSImage`: 18 × 18 pt, `isTemplate = true`, drawn with `NSBezierPath` from
-  `SwayMarkGeometry` scaled to the image (arc width about 1.8 pt, start dot radius about 1.4 pt, end dot about 2 pt;
+  `GanderMarkGeometry` scaled to the image (arc width about 1.8 pt, start dot radius about 1.4 pt, end dot about 2 pt;
   hollow = a 1 pt ring), plus the lock badge at the bottom right or the dot at the top right (cut out from the mark
   with a clear ring so it reads at 18 pt). Drawn once per glyph and cached (`static let`).
 - `MenuBarLabel` shows `Image(nsImage: MenuBarIcon.image(for: model.menuBarGlyph))` and keeps its accessibility label
@@ -936,7 +936,7 @@ Behavior (switching, holds, camera rules, calibration) does not change.
 **3. Welcome and Setup restyle (SPEC F26, D40).**
 - `SetupFlow` gains a first step `.welcome`, used only when Setup opens with an empty calibration library. **Get
   Started** moves to the first step that applies after it. The welcome step is not counted in "Step N of 5".
-- The welcome step's text is exactly SPEC F26's. Layout: the `SwayMark` (64 pt, green arc on an ivory/charcoal
+- The welcome step's text is exactly SPEC F26's. Layout: the `GanderMark` (64 pt, green arc on an ivory/charcoal
   rounded square matching the appearance), the title, the line, the privacy text with an SF Symbol `lock.shield`, the
   button (prominent, tinted).
 - All Setup steps share one header view (the mark at 24 pt and the step title) and the same padding and width.
@@ -947,7 +947,7 @@ Behavior (switching, holds, camera rules, calibration) does not change.
   `func showNotice(_ text: String, symbol: String, on display: DisplayInfo, animated: Bool)`.
   Tests use a fake that records calls. The live `FeedbackOverlayController` reuses `OverlayPanel` (click-through,
   non-activating, never key or main, `.screenSaver` level, every Space, over full-screen apps).
-  - **Glow:** one reusable panel, moved to the display's frame. A 4 pt `SwayPalette.green` border with a soft outer
+  - **Glow:** one reusable panel, moved to the display's frame. A 4 pt `GanderPalette.green` border with a soft outer
     glow (about 10 pt, 40% opacity) along the screen edges (rounded corners on displays that have them are not
     required). Animated: fade in 0.1 s, hold 0.05 s, fade out 0.2 s. Not animated: shown for 0.35 s, then hidden. A
     new glow while one shows restarts it on the new display. Hidden (`orderOut`) between glows.
@@ -955,9 +955,9 @@ Behavior (switching, holds, camera rules, calibration) does not change.
     Symbol and text), centered horizontally, 48 pt below the top of the display's visible frame. Animated: fade in
     0.15 s, hold 1 s, fade out 0.3 s; not animated: shown for 1.3 s.
   - The panels are created lazily on first use and kept; nothing runs while hidden.
-- **When:** the glow follows a tracking switch whose result is `.focused`, when `sway.edgeGlowEnabled`. Never for
+- **When:** the glow follows a tracking switch whose result is `.focused`, when `gander.edgeGlowEnabled`. Never for
   Focus Test requests or failed and no-window results. The notice follows a Focus Lock toggle **from the hot key**
-  only (a separate entry point from the menu switch), when `sway.focusLockNoticeEnabled`; it shows on
+  only (a separate entry point from the menu switch), when `gander.focusLockNoticeEnabled`; it shows on
   `loop.focusedDisplay`, else the display with the menu bar (the layout's main display).
 - `animated` is `!environment.reduceMotion()`; live: `!NSWorkspace.shared.accessibilityDisplayShouldReduceMotion`.
 
@@ -971,7 +971,7 @@ true. No other new animations. Nothing animates at the frame rate.
 - "Show a notice when the shortcut toggles Focus Lock" toggle.
 Each change saves at once and applies at once.
 
-**7. Popover header.** The `SwayMark` (16 pt, Gander green regardless of the accent) before "Gander".
+**7. Popover header.** The `GanderMark` (16 pt, Gander green regardless of the accent) before "Gander".
 
 **8. Tests:**
 - `MenuBarGlyph` mapping for every `TrackingStatus` case, and each glyph's style;
@@ -987,9 +987,9 @@ Each change saves at once and applies at once.
 - view smoke tests for the welcome step, the Appearance section, and the popover header;
 - no frame-rate observation changes (the existing observation-count tests still pass).
 
-#### 6.5.5 M7 additions to `SwayUI` (builder-ui-m7): hardening
+#### 6.5.5 M7 additions to `GanderUI` (builder-ui-m7): hardening
 
-No public API change. Behavior with a face present and nothing changing does not change. `SwayModels` already has
+No public API change. Behavior with a face present and nothing changing does not change. `GanderModels` already has
 `SuspendReason.sessionInactive`, `PoseDemand`, and `PoseSource.setDemand(_:)` (a default no-op).
 
 1. **Display and Space holds (SPEC D44).** Two new `TrackingHold` cases, ordered after `focusTest` and before
@@ -1013,7 +1013,7 @@ No public API change. Behavior with a face present and nothing changing does not
    (Setup's camera check or calibration, the gate test, a calibration running, Pose Debug open, a Focus Test).
    `.reduced` while `trackingHold == .focusLock` or the status is `needsAccessibility`. `.adaptive` otherwise while
    tracking. The fake pose source records demands.
-3. **Suspend reason text.** `.sessionInactive` reads "another user's session" (done in `SwayModels`/`SwayUI`
+3. **Suspend reason text.** `.sessionInactive` reads "another user's session" (done in `GanderModels`/`GanderUI`
    `CaptureStatusPresentation`; add a test).
 4. **Only a running camera switches.** `processTracking` also requires the capture status to be running.
 5. **Fewer environment refreshes.** Coalesce camera connect/disconnect notifications into one `refreshEnvironment`
@@ -1047,7 +1047,7 @@ No public API change. Behavior with a face present and nothing changing does not
 
 #### 6.5.6 0.1.x tuning: switching timing (builder-timing)
 
-SPEC D49, F35. Owners for this task: `SwayModels/SwitchSensitivity.swift` and its tests, `SwayUI` and its tests, and
+SPEC D49, F35. Owners for this task: `GanderModels/SwitchSensitivity.swift` and its tests, `GanderUI` and its tests, and
 one new test file in `SwitchEngineTests`.
 
 1. **`SwitchSensitivity` gains `cooldown`** (seconds, the decider's "no new dwell starts after a switch"):
@@ -1061,8 +1061,8 @@ one new test file in `SwitchEngineTests`.
    - `switchSettings(base:)` also sets `settings.cooldown`.
    - `static let instant`: hold time 0.10 s and cooldown 0.30 s. A method `applyingInstantTiming()` returns the
      sensitivity with those two values and the same `confidenceLevel`.
-2. **`SwayUI`:**
-   - `AppModel.setCooldown(_:)` (snapped to 0.05 s and clamped, saved to `sway.switchSensitivity`, rebuilds the decider
+2. **`GanderUI`:**
+   - `AppModel.setCooldown(_:)` (snapped to 0.05 s and clamped, saved to `gander.switchSensitivity`, rebuilds the decider
      and resets the loop at once, exactly like `setHoldTime`) and `AppModel.useInstantTiming()`.
      `restoreSensitivityDefaults()` restores all three values.
    - `SensitivityPresentation`: the cooldown's step (0.05) and snapping helper, and the text ("0.75 s", the same
@@ -1073,13 +1073,13 @@ one new test file in `SwitchEngineTests`.
    - One info log line in the `tracking` category whenever the sensitivity is set or loaded at launch: "Switching
      settings: hold 0.10 s, pause 0.30 s, confidence Easy" (never anything else).
 3. **Tests:**
-   - `SwayModelsTests`: clamping of every field; the default equals `SwitchSettings.default`; decoding old saved JSON
+   - `GanderModelsTests`: clamping of every field; the default equals `SwitchSettings.default`; decoding old saved JSON
      without `cooldown`; round trip; `switchSettings()` carries the cooldown; the instant preset keeps the confidence.
    - `SwitchEngineTests` (new file): with default settings a switch to B followed at once by a held look back at A
      fires the second switch about 1.2 s after the first (cooldown 0.75 + dwell 0.4, in 15 fps frames); with the
      instant preset about 0.47 s after; and a head sweep through a middle display faster than the hold time still
      does not switch there with the instant preset at 15 fps. Use the existing scenario helpers.
-   - `SwayUITests`: the setters (snapping, clamping, saving, applying to the decider, resetting the loop), the preset
+   - `GanderUITests`: the setters (snapping, clamping, saving, applying to the decider, resetting the loop), the preset
      button, Restore Defaults, the presentation text, the Settings view renders with the new controls, the log line
      wording, and an old saved value loading with the default cooldown. The observation-count tests still pass.
 
@@ -1361,7 +1361,7 @@ Everything else is `internal`. One primary type per file.
 - `register(_:for:handler:)`:
   1. `!shortcut.isValid` → throw `.invalidShortcut` without touching Carbon.
   2. Unregister the action's current shortcut, if any.
-  3. `RegisterEventHotKey(UInt32(keyCode), carbonModifiers, EventHotKeyID(signature: "SWAY", id: actionID),
+  3. `RegisterEventHotKey(UInt32(keyCode), carbonModifiers, EventHotKeyID(signature: "GANDER", id: actionID),
      GetApplicationEventTarget(), 0, &ref)`.
   4. `eventHotKeyExistsErr` → `.shortcutInUse`; any other status but `noErr` → `.registrationFailed(status)`. On
      failure the action has no shortcut.
@@ -1396,14 +1396,14 @@ call `SMAppService` `register()` / `unregister()` (it would change the user's lo
 
 ## 7. App entry point and composition (orchestrator-owned)
 
-`Sway/SwayApp.swift`:
+`Gander/GanderApp.swift`:
 ```swift
-@main struct SwayApp: App {
+@main struct GanderApp: App {
     @State private var model = AppComposition.makeModel()
-    var body: some Scene { SwayScenes(model: model) }
+    var body: some Scene { GanderScenes(model: model) }
 }
 ```
-`Sway/AppComposition.swift` is the only place that names concrete types:
+`Gander/AppComposition.swift` is the only place that names concrete types:
 ```swift
 let camera = CameraCaptureService()
 let poseSource = LivePoseSource(frameSource: camera, estimator: VisionPoseEstimator())
@@ -1431,25 +1431,25 @@ AppModel(camera: camera, poseSource: poseSource, displays: ScreenDisplayTracker(
 - One primary type per file, with the file named after it.
 - Formatting: 4-space indent, 120 columns. `xcrun swift-format` with the repo's `.swift-format` must be clean.
 - Doc comments (`///`) on every public symbol and on non-obvious internal logic.
-- No force unwraps or `try!` outside tests. No `print`; use `SwayLog.logger(category:)` with categories
-  `camera`, `pose`, `traces`, `displays`, `ui`, `engine`, `focus`, `tracking` (the M4 loop in `SwayUI`), `system`.
-- `UserDefaults` keys are prefixed `sway.`. User-facing strings are plain English, sentence case.
+- No force unwraps or `try!` outside tests. No `print`; use `GanderLog.logger(category:)` with categories
+  `camera`, `pose`, `traces`, `displays`, `ui`, `engine`, `focus`, `tracking` (the M4 loop in `GanderUI`), `system`.
+- `UserDefaults` keys are prefixed `gander.`. User-facing strings are plain English, sentence case.
 - Tests use Swift Testing (`import Testing`, `@Suite`, `@Test`, `#expect`) and are named for the behavior.
 
 ## 10. Entitlements, Info.plist, signing, permissions (orchestrator-owned)
 
-- **Entitlements** (`Config/Sway.entitlements`): `com.apple.security.device.camera` only. No App Sandbox
+- **Entitlements** (`Config/Gander.entitlements`): `com.apple.security.device.camera` only. No App Sandbox
   (the Accessibility API in M3 needs it off). No network entitlements.
 - **Info.plist** (generated from build settings):
   - `LSUIElement = YES`;
   - `NSCameraUsageDescription`;
-  - bundle ID `com.avimal5000.sway`, version 0.1.0 (1), category productivity.
+  - bundle ID `com.avimal5000.gander`, version 0.1.0 (1), category productivity.
 - **Signing:** manual, "Apple Development", team `WNW4M84Z3U`, hardened runtime on.
   - Verification builds use `CODE_SIGNING_ALLOWED=NO`.
   - A stable signature keeps the TCC grants across rebuilds.
 - **Release signing (M8, `scripts/release.sh`, `.github/workflows/release.yml`):** the release build uses
   `CODE_SIGNING_ALLOWED=NO`, then signs the app once with `codesign --options runtime --entitlements
-  Config/Sway.entitlements`: with a "Developer ID Application" identity and a timestamp, or ad hoc (`-`) when there is
+  Config/Gander.entitlements`: with a "Developer ID Application" identity and a timestamp, or ad hoc (`-`) when there is
   none. The DMG is signed with the same identity, notarized with `notarytool`, and stapled. The version comes from
   the `vX.Y.Z` tag. Certificate and credentials live only in repository secrets (`MACOS_CERTIFICATE_P12_BASE64`,
   `MACOS_CERTIFICATE_PASSWORD`, `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`). The script runs
@@ -1467,7 +1467,7 @@ AppModel(camera: camera, poseSource: poseSource, displays: ScreenDisplayTracker(
 
 ## 11. Privacy rules (enforced by `scripts/privacy-guard.sh` in CI)
 
-The shipped code in `Sway/` and `SwayCore/Sources/` may not mention these, not even in comments:
+The shipped code in `Gander/` and `GanderCore/Sources/` may not mention these, not even in comments:
 - networking: `URLSession`, `URLRequest`, `NSURLConnection`, `Network` / `NW*`, sockets, `WebKit`;
 - image or video persistence: `AVAssetWriter`, `AVCaptureMovieFileOutput`, `AVCapturePhotoOutput`,
   `CGImageDestination`, `pngData` / `jpegData` / `tiffRepresentation`, etc.
@@ -1502,5 +1502,5 @@ Tests must cover all non-UI logic in the module.
 
 ## 13. Changing this contract
 
-Only the orchestrator edits CONTRACT.md, SwayModels, Package.swift, and the app target. Builders who need a
+Only the orchestrator edits CONTRACT.md, GanderModels, Package.swift, and the app target. Builders who need a
 change stop and report it with the exact proposed diff.

@@ -35,8 +35,8 @@ jobs:
       - name: Privacy guard
         run: scripts/privacy-guard.sh
 
-      - name: SwayCore tests
-        working-directory: SwayCore
+      - name: GanderCore tests
+        working-directory: GanderCore
         run: swift test
 
       # Without the signing secrets this step does nothing and the release is ad hoc signed (a Gatekeeper warning on

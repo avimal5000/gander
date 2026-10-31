@@ -27,7 +27,7 @@ jobs:
         run: scripts/privacy-guard.sh
 
       - name: swift-format lint
-        run: xcrun swift-format lint --strict --recursive --parallel Sway SwayCore/Package.swift SwayCore/Sources SwayCore/Tests
+        run: xcrun swift-format lint --strict --recursive --parallel Gander GanderCore/Package.swift GanderCore/Sources GanderCore/Tests
 
       # Errors fail the job; warnings are reported in the log (swift-format above is the strict style gate).
       - name: SwiftLint
@@ -35,9 +35,9 @@ jobs:
           command -v swiftlint >/dev/null || brew install swiftlint
           swiftlint lint
 
-      - name: SwayCore tests
-        working-directory: SwayCore
+      - name: GanderCore tests
+        working-directory: GanderCore
         run: swift test
 
       - name: Build app (unsigned)
-        run: xcodebuild -project Sway.xcodeproj -scheme Sway -configuration Debug -derivedDataPath .build-xcode build CODE_SIGNING_ALLOWED=NO
+        run: xcodebuild -project Gander.xcodeproj -scheme Gander -configuration Debug -derivedDataPath .build-xcode build CODE_SIGNING_ALLOWED=NO

@@ -12,8 +12,8 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
-subsystem="com.avimal5000.sway"
-bundle_id="com.avimal5000.sway"
+subsystem="com.avimal5000.gander"
+bundle_id="com.avimal5000.gander"
 # Only the app itself: the tests log under the same subsystem from their own processes.
 predicate="subsystem == \"$subsystem\" AND process == \"Gander\""
 
@@ -28,7 +28,7 @@ sample() {
   defaults export "$bundle_id" - 2>/dev/null | python3 -I -c '
 import sys, plistlib, json
 try:
-    value = plistlib.loads(sys.stdin.buffer.read()).get("sway.switchSensitivity")
+    value = plistlib.loads(sys.stdin.buffer.read()).get("gander.switchSensitivity")
     print(json.dumps(json.loads(value)) if value else "defaults (hold 0.40 s, pause 0.75 s, confidence 2)")
 except Exception:
     print("unknown")

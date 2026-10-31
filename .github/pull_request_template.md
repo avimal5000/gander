@@ -14,7 +14,7 @@ Closes #
 - [ ] No analytics, accounts, or crash reporters
 
 ## Verification
-- [ ] `swift test` in `SwayCore` passes
+- [ ] `swift test` in `GanderCore` passes
 - [ ] `xcodebuild` builds with zero warnings in our code
 - [ ] `scripts/lint.sh` clean
 - [ ] Manually checked on real hardware (describe):

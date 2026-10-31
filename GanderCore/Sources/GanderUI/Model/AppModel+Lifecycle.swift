@@ -1,0 +1,211 @@
+import AppKit
+import Foundation
+import GanderModels
+
+// Observers and shutdown.
+extension AppModel {
+    /// Watches app termination and deactivation, using the injected notification center.
+    func observeApplicationNotifications() {
+        let center = environment.notificationCenter
+        // Posted on the main thread by AppKit; with no queue the block runs synchronously on the poster.
+        let terminate = center.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: nil) {
+            [weak self] _ in
+            MainActor.assumeIsolated { self?.applicationWillTerminate() }
+        }
+        let resign = center.addObserver(forName: NSApplication.didResignActiveNotification, object: nil, queue: nil) {
+            [weak self] _ in
+            MainActor.assumeIsolated { self?.applicationDidResignActive() }
+        }
+        let become = center.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: nil) {
+            [weak self] _ in
+            MainActor.assumeIsolated { self?.applicationDidBecomeActive() }
+        }
+        // Any of Gander's windows (the menu included) gaining or losing key status. Closing Gander's last window leaves it
+        // active with nothing in front, which must release the hold.
+        let windowKeyChanges = [NSWindow.didBecomeKeyNotification, NSWindow.didResignKeyNotification].map { name in
+            center.addObserver(forName: name, object: nil, queue: nil) { [weak self] notification in
+                let resigned = notification.name == NSWindow.didResignKeyNotification
+                let window = notification.object as? NSWindow
+                MainActor.assumeIsolated { self?.windowKeyStatusChanged(window, resigned: resigned) }
+            }
+        }
+        // Displays plugged, unplugged, or rearranged: switching holds until the new layout is known (SPEC D44). Posted
+        // on the main thread by AppKit.
+        let screenParameters = center.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: nil
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.displayParametersDidChange() }
+        }
+        // A camera connected or disconnected (a late USB camera at login, a dock unplugged): the camera capture would
+        // pick, and so the calibration that fits, may have changed. AVFoundation's notification names, spelled out
+        // because this module does not import AVFoundation; they may arrive on any thread.
+        let cameraChanges = ["AVCaptureDeviceWasConnectedNotification", "AVCaptureDeviceWasDisconnectedNotification"]
+            .map { name in
+                center.addObserver(forName: Notification.Name(name), object: nil, queue: .main) { [weak self] _ in
+                    MainActor.assumeIsolated { self?.cameraDevicesDidChange() }
+                }
+            }
+        notificationObservers = [terminate, resign, become, screenParameters] + windowKeyChanges + cameraChanges
+        observeWorkspaceNotifications()
+    }
+
+    /// Watches app activations and Space changes on the injected workspace notification center.
+    private func observeWorkspaceNotifications() {
+        // Another app came to the front: ask where focus is now. Posted on the main thread by AppKit.
+        let activation = environment.workspaceNotificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: nil
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.pollFocusedDisplay() }
+        }
+        // A Space changed: switching holds for a moment (SPEC D44). Posted on the main thread by AppKit.
+        let spaceChange = environment.workspaceNotificationCenter.addObserver(
+            forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: nil
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.activeSpaceDidChange() }
+        }
+        workspaceObservers = [activation, spaceChange]
+    }
+
+    /// Follows the display layout; a change during a gate test cancels it.
+    func observeDisplayLayouts() {
+        let stream = displays.layouts()
+        layoutTask = Task { [weak self] in
+            for await layout in stream {
+                guard let self else { return }
+                self.layoutDidChange(layout)
+            }
+        }
+    }
+
+    func layoutDidChange(_ newLayout: DisplayLayout) {
+        guard newLayout != layout else { return }
+        let cameraWasWanted = wantsCamera
+        layout = newLayout
+        displayLabels = DisplayLabeler.labels(for: newLayout)
+        // Display identities may have changed, so a dwell or the believed focus no longer means anything. A changed
+        // calibration rebuilds the decider; an unchanged one still needs its targets and a clean loop.
+        if !refreshActiveCalibration() {
+            updateTrackedTargets()
+            resetTracking()
+            if isPollingFocus { pollFocusedDisplay() }
+        }
+        if gateRunState != .idle {
+            let noun = gatePurpose.noun
+            cancelRunningGate(reason: "The display arrangement changed, so the \(noun) was cancelled.")
+        }
+        // A camera left without a calibration by this change stays up for a short grace, in case the layout recovers.
+        if cameraWasWanted { beginCameraGrace() }
+        syncCameraFallback()
+        // The new layout is known: the hold that waited for it ends (SPEC D44).
+        endDisplaysChanging(by: .layout)
+    }
+
+    /// A camera connected or disconnected. A burst of these (a hub or dock re-attaching) becomes one refresh of the
+    /// device list 0.5 s after the last, and none while the camera is suspended, where nothing needs the list: one
+    /// refresh runs when the camera leaves that state.
+    func cameraDevicesDidChange() {
+        environmentRefreshTimer?.cancel()
+        environmentRefreshTimer = nil
+        guard !status.isSuspended else { return }
+        environmentRefreshTimer = environment.scheduler.schedule(after: Self.environmentRefreshDelay) { [weak self] in
+            self?.refreshEnvironmentIfDue()
+        }
+    }
+
+    private func refreshEnvironmentIfDue() {
+        environmentRefreshTimer = nil
+        guard !status.isSuspended else { return }
+        refreshEnvironment()
+    }
+
+    /// A window of Gander became or stopped being key. Re-reads whether Gander is in front, and ends a shortcut recording
+    /// when the Settings window it belongs to lost key status (the recorder listens to this window only).
+    func windowKeyStatusChanged(_ window: NSWindow?, resigned: Bool) {
+        refreshGanderInFront()
+        if resigned, isRecordingShortcut, let window, windowRefs[GanderWindowID.settings]?.window === window {
+            cancelShortcutRecording()
+        }
+    }
+
+    /// Gander became the active app; automatic switching holds while its menu or a window is in front.
+    func applicationDidBecomeActive() {
+        refreshGanderInFront()
+        // Back from System Settings: a permission the Setup window waits for may have been granted, and a login item
+        // approval may have been given.
+        if setupFlow?.isPermissionStep == true { setupTick() }
+        if settingsVisible { refreshLoginItemStatus() }
+    }
+
+    /// Re-reads whether Gander is in front, assigning only on a change.
+    func refreshGanderInFront() {
+        let inFront = environment.isAppActive()
+        if inFront != isAppActive { isAppActive = inFront }
+    }
+
+    /// The overlays hide the gate window, so Esc is the way out; if the app loses focus Esc stops working and the
+    /// test is no longer meaningful, so cancel it.
+    func applicationDidResignActive() {
+        refreshGanderInFront()
+        guard gateRunState == .running else { return }
+        let noun = gatePurpose.noun
+        cancelRunningGate(reason: "The \(noun) was cancelled because Gander was no longer the active app.")
+    }
+
+    /// Best effort at quit: close overlays and ask the camera to stop. The process exiting also ends capture.
+    ///
+    /// Tracking is turned off in memory only: the saved choice (`gander.trackingEnabled`) is the user's, so the next
+    /// launch restores it.
+    func applicationWillTerminate() {
+        cancelPendingTimers()
+        if gateRunState != .idle {
+            gateSession?.cancel()
+            endGate(message: nil)
+        }
+        closeSetup()
+        cancelShortcutRecording()
+        trackingEnabled = false
+        resetTracking()
+        streamTask?.cancel()
+        streamTask = nil
+        syncTrackingActivity()
+        stopFocusTest()
+        let poseSource = poseSource
+        let camera = camera
+        Task {
+            await poseSource.stop()
+            await camera.stop()
+        }
+    }
+
+    /// Drops every pending one-shot delay: the holds, the device list refresh, the camera grace, and the USB camera
+    /// wait. Quitting stops the camera at once, so none of them has anything left to do.
+    func cancelPendingTimers() {
+        cancelDisplayAndSpaceHolds()
+        cancelCameraGrace()
+        clearCameraFallback()
+        environmentRefreshTimer?.cancel()
+        environmentRefreshTimer = nil
+    }
+
+    /// Stops the gate test and the camera and waits until the camera is off.
+    func shutdown() async {
+        cancelPendingTimers()
+        if gateRunState != .idle {
+            gateSession?.cancel()
+            endGate(message: nil)
+        }
+        closeSetup()
+        cancelShortcutRecording()
+        trackingEnabled = false
+        layoutTask?.cancel()
+        stopFocusTest()
+        await reconcileCamera().value
+        await camera.stop()
+    }
+
+    /// Menu "Quit Gander": switch the camera off first so the indicator goes dark, then terminate.
+    func quit() async {
+        await shutdown()
+        environment.system.terminateApp()
+    }
+}

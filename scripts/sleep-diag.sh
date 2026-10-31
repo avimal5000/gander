@@ -5,14 +5,14 @@
 #   - per-second state and CPU of each Gander process (~100% = busy loop, ~0% = blocked),
 #   - a 3 s stack sample of every thread whenever spindump flags Gander as hung.
 # Usage: scripts/sleep-diag.sh [seconds, default 1800]. No admin rights needed.
-# Output: $SWAY_DIAG_DIR, or $TMPDIR/sway-sleep-diag.
-OUT="${SWAY_DIAG_DIR:-${TMPDIR:-/tmp}/sway-sleep-diag}"
+# Output: $GANDER_DIAG_DIR, or $TMPDIR/gander-sleep-diag.
+OUT="${GANDER_DIAG_DIR:-${TMPDIR:-/tmp}/gander-sleep-diag}"
 DURATION="${1:-1800}"
 mkdir -p "$OUT"
 rm -f "$OUT"/*.log "$OUT"/sample-*.txt
 
 /usr/bin/log stream --level info --style compact --predicate \
-  'subsystem == "com.avimal5000.sway"
+  'subsystem == "com.avimal5000.gander"
    OR (process == "spindump" AND eventMessage CONTAINS "Gander")
    OR (process == "Gander" AND (messageType == error OR messageType == fault) AND NOT eventMessage CONTAINS "PullInput")
    OR (process == "powerd" AND eventMessage CONTAINS[c] "Gander")' \
