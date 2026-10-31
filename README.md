@@ -49,7 +49,7 @@ scripts/lint.sh && scripts/privacy-guard.sh
 ## Privacy
 
 Frames are processed in memory and dropped. Nothing is written or sent anywhere; there is no networking code.
-Numeric pose traces are saved only in DEBUG builds, to `~/Library/Application Support/Sway/Traces`. The cursor
+Numeric pose traces are saved only in DEBUG builds, to `~/Library/Application Support/Gander/Traces`. The cursor
 is never moved, and Gander neither synthesizes nor globally monitors input events. Window titles are shown in the
 Focus Test window only, never logged or stored. All of this is enforced in CI by `scripts/privacy-guard.sh`.
 
