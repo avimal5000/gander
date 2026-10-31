@@ -26,7 +26,7 @@ is background only. If anything here is wrong or missing, **stop and report**. D
 ```
 Sway/                          repo root
 ├── PLAN.md  SPEC.md  CONTRACT.md  STATUS.md  README.md
-├── Sway.xcodeproj/            orchestrator only (synchronized folder group, shared scheme "Gander")
+├── Sway.xcodeproj/            orchestrator only (synchronized folder group, shared scheme "Sway")
 ├── Sway/                      app target sources: SwayApp.swift, AppComposition.swift, Assets.xcassets
 ├── Config/Sway.entitlements   orchestrator only
 ├── SwayCore/                  local Swift package "SwayCore" (one library product "SwayCore")

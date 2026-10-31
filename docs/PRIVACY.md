@@ -76,7 +76,7 @@ I check this in the project's own audit notes (`docs/PRIVACY-AUDIT.md`) with aut
 
 ## Downloads and GitHub
 
-Gander is distributed through the GitHub Releases page of its repository ([macOS](https://github.com/avimal5000/sway), [Windows](https://github.com/avimal5000/sway-windows)). When you visit GitHub or download a file, GitHub processes your visit (for example your IP address) under GitHub's own privacy statement. I do not get that data from the app, and this policy does not cover GitHub's handling of it. Each release has a `.sha256` file so you can check the download.
+Gander is distributed through the GitHub Releases page of its repository ([macOS](https://github.com/avimal5000/gander), [Windows](https://github.com/avimal5000/gander-windows)). When you visit GitHub or download a file, GitHub processes your visit (for example your IP address) under GitHub's own privacy statement. I do not get that data from the app, and this policy does not cover GitHub's handling of it. Each release has a `.sha256` file so you can check the download.
 
 The downloads may not be signed or notarized, so macOS or Windows SmartScreen may warn you when you first open them. That warning is about who signed the file. It is not about network use.
 

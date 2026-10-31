@@ -36,7 +36,7 @@ Earlier decisions still hold unless marked superseded:
 | D1 | Per-display focus (head pose cannot separate apps on one screen) | PLAN.md |
 | D2 | One local package `SwayCore`, one module per area, plus a thin app target | User + PLAN.md |
 | D3 | ~~The MVP tracks 2 displays~~ (superseded by D22). All logic is generic over N, with the limit only in `SwayPolicy.maxTrackedDisplays` | User |
-| D5 | Private repo `avimal5000/sway`, labels, milestones, issues, CI on PRs | User |
+| D5 | Private repo `avimal5000/gander`, labels, milestones, issues, CI on PRs | User |
 | D6 | Bundle ID `com.avimal5000.sway`; Focus Lock default ⌃⌥⌘L (M4) | PLAN.md |
 | D7 | Apple Development signing (team WNW4M84Z3U), hardened runtime, no App Sandbox | Assumption |
 | D8 | Built-in camera by default, with a picker (the user tests with the C922) | Assumption |
