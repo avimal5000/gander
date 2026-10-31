@@ -34,12 +34,12 @@ if scripts/privacy-guard.sh >/dev/null 2>&1; then pass "no networking, image per
 else fail "scripts/privacy-guard.sh reports forbidden APIs"; fi
 
 echo "2. Entitlements and Info.plist"
-keys=$(plutil -convert xml1 -o - Config/Sway.entitlements | grep -o "<key>[^<]*</key>" | sed 's/<[^>]*>//g' | sort)
+keys=$(plutil -convert xml1 -o - Config/Gander.entitlements | grep -o "<key>[^<]*</key>" | sed 's/<[^>]*>//g' | sort)
 if [[ "$keys" == "com.apple.security.device.camera" ]]; then pass "the only entitlement is the camera"
 else fail "unexpected entitlements: $(echo "$keys" | tr '\n' ' ')"; fi
-if grep -q 'INFOPLIST_KEY_NSCameraUsageDescription' Sway.xcodeproj/project.pbxproj; then pass "camera usage description present"
+if grep -q 'INFOPLIST_KEY_NSCameraUsageDescription' Gander.xcodeproj/project.pbxproj; then pass "camera usage description present"
 else fail "no camera usage description"; fi
-if grep -q 'INFOPLIST_KEY_LSUIElement = YES' Sway.xcodeproj/project.pbxproj; then pass "menu bar app (LSUIElement)"
+if grep -q 'INFOPLIST_KEY_LSUIElement = YES' Gander.xcodeproj/project.pbxproj; then pass "menu bar app (LSUIElement)"
 else fail "LSUIElement is not set"; fi
 
 echo "3. Built binary ($app)"
@@ -90,7 +90,7 @@ if $runtime; then
     echo "$written" | sed '/^$/d' | sort -u | grep -vE "^/dev/(null|tty)" | sed 's/^/    /'
     echo "  camera lines in Gander's log since $marker (should match your Tracking toggles):"
     log show --info --start "$marker" --style compact \
-      --predicate "subsystem == \"com.avimal5000.sway\" AND process == \"Gander\" AND (eventMessage CONTAINS \"Status:\" OR eventMessage CONTAINS \"Suspending\" OR eventMessage CONTAINS \"Resuming\")" 2>/dev/null |
+      --predicate "subsystem == \"com.avimal5000.gander\" AND process == \"Gander\" AND (eventMessage CONTAINS \"Status:\" OR eventMessage CONTAINS \"Suspending\" OR eventMessage CONTAINS \"Resuming\")" 2>/dev/null |
       grep -vE "^Timestamp|^Filtering" | sed 's/^/    /' | tail -12
   fi
 fi

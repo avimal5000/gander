@@ -14,19 +14,19 @@ You need the paid Apple Developer Program account (team ID `WNW4M84Z3U`, as in t
 1. **Create the certificate.** Xcode → Settings → Accounts → select your team → **Manage Certificates…** → **+** →
    **Developer ID Application**. (Only the account holder can create this type.)
 2. **Export it.** Keychain Access → My Certificates → right-click "Developer ID Application: …" → **Export…** → save
-   as `sway-developer-id.p12` with a password you choose.
+   as `gander-developer-id.p12` with a password you choose.
 3. **Make an app-specific password.** appleid.apple.com → Sign-In and Security → App-Specific Passwords → **+** → name
    it "Gander notarization".
 4. **Put them in the repository's secrets** (Terminal, in the Gander folder; `gh` asks for each value and nothing is
    printed or saved in the shell history):
    ```bash
-   base64 -i sway-developer-id.p12 | gh secret set MACOS_CERTIFICATE_P12_BASE64
+   base64 -i gander-developer-id.p12 | gh secret set MACOS_CERTIFICATE_P12_BASE64
    gh secret set MACOS_CERTIFICATE_PASSWORD      # the password from step 2
    gh secret set APPLE_ID                        # your Apple ID email
    gh secret set APPLE_APP_SPECIFIC_PASSWORD     # the password from step 3
    gh secret set APPLE_TEAM_ID                   # WNW4M84Z3U
    ```
-5. Delete `sway-developer-id.p12` from disk once it is a secret. Keep a copy in a password manager.
+5. Delete `gander-developer-id.p12` from disk once it is a secret. Keep a copy in a password manager.
 
 Any missing secret just means a less-signed release: the workflow says which kind it built in the release notes.
 

@@ -4,7 +4,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 export DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}"
 
-xcrun swift-format lint --strict --recursive --parallel Sway SwayCore/Package.swift SwayCore/Sources SwayCore/Tests
+xcrun swift-format lint --strict --recursive --parallel Gander GanderCore/Package.swift GanderCore/Sources GanderCore/Tests
 echo "swift-format: clean"
 
 if command -v swiftlint >/dev/null 2>&1; then

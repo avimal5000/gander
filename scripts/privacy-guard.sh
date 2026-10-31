@@ -2,7 +2,7 @@
 # Privacy and behavior guard (PLAN.md sections 1 and 4): fails if networking, image/video persistence,
 # cursor movement, input-event synthesis or capture, subprocesses, other image encoders, package dependencies, or
 # private window-server APIs appear in shipped code. It is a line-based grep: a call split across lines can slip past.
-# Scans the app target and SwayCore sources (tests excluded).
+# Scans the app target and GanderCore sources (tests excluded).
 # Escape hatch for a reviewed false positive: append the comment `privacy-guard:allow` to that line.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -17,7 +17,7 @@ PATTERNS=(
   # Persisting camera imagery
   'AVAssetWriter' 'AVCaptureMovieFileOutput' 'AVCapturePhotoOutput' 'AVCaptureStillImageOutput'
   'CGImageDestination' 'jpegData' 'pngData' 'heicData' 'tiffRepresentation'
-  # The cursor is never moved, and Sway neither synthesizes nor captures input events
+  # The cursor is never moved, and Gander neither synthesizes nor captures input events
   'CGWarpMouseCursorPosition' 'CGDisplayMoveCursorToPoint' 'CGAssociateMouseAndMouseCursorPosition'
   'CGEventPost' 'CGEventCreateMouseEvent' 'CGEventCreateKeyboardEvent' 'CGEventTapCreate' 'CGEvent\.tapCreate'
   'NSEvent\.addGlobalMonitorForEvents' 'IOHIDManager'
@@ -32,11 +32,11 @@ PATTERNS=(
 )
 
 regex=$(IFS='|'; echo "${PATTERNS[*]}")
-hits=$(grep -rnE --include='*.swift' "$regex" Sway SwayCore/Sources 2>/dev/null | grep -v 'privacy-guard:allow' || true)
+hits=$(grep -rnE --include='*.swift' "$regex" Gander GanderCore/Sources 2>/dev/null | grep -v 'privacy-guard:allow' || true)
 
 # Package manifests: a dependency (remote or local) would put unreviewed code in the app, and no manifest should
-# declare one. SwayCore/Package.swift has none today.
-manifest_hits=$(grep -nE '\.package\(|https?://|git@' Package.swift SwayCore/Package.swift 2>/dev/null \
+# declare one. GanderCore/Package.swift has none today.
+manifest_hits=$(grep -nE '\.package\(|https?://|git@' Package.swift GanderCore/Package.swift 2>/dev/null \
   | grep -v 'privacy-guard:allow' || true)
 if [[ -n "$manifest_hits" ]]; then
   hits="${hits:+$hits$'\n'}${manifest_hits}"
@@ -47,4 +47,4 @@ if [[ -n "$hits" ]]; then
   echo "$hits" >&2
   exit 1
 fi
-echo "Privacy guard passed: no networking, image-persistence, cursor/input-event or private APIs in Sway/ or SwayCore/Sources/."
+echo "Privacy guard passed: no networking, image-persistence, cursor/input-event or private APIs in Gander/ or GanderCore/Sources/."

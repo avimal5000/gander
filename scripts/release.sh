@@ -32,7 +32,7 @@ done
 
 export DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}"
 if [[ -z "$version" ]]; then
-  version=$(sed -n 's/^[[:space:]]*MARKETING_VERSION = \(.*\);/\1/p' Sway.xcodeproj/project.pbxproj | head -1)
+  version=$(sed -n 's/^[[:space:]]*MARKETING_VERSION = \(.*\);/\1/p' Gander.xcodeproj/project.pbxproj | head -1)
 fi
 if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
   echo "The version must look like 0.1.0 (got '$version')." >&2
@@ -55,7 +55,7 @@ dmg="$out/Gander-$version.dmg"
 echo "==> Building Gander $version ($build_number), Release"
 rm -rf "$derived"
 # Signing is done afterwards, in one place, so the same steps serve a certificate and ad-hoc signing.
-xcodebuild -project Sway.xcodeproj -scheme Sway -configuration Release -derivedDataPath "$derived" \
+xcodebuild -project Gander.xcodeproj -scheme Gander -configuration Release -derivedDataPath "$derived" \
   MARKETING_VERSION="$version" CURRENT_PROJECT_VERSION="$build_number" \
   CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO ONLY_ACTIVE_ARCH=NO build | tail -5
 
@@ -63,7 +63,7 @@ xcodebuild -project Sway.xcodeproj -scheme Sway -configuration Release -derivedD
 
 echo "==> Signing ${identity:-ad hoc}"
 sign_identity="${identity:--}"
-sign_flags=(--force --options runtime --entitlements Config/Sway.entitlements)
+sign_flags=(--force --options runtime --entitlements Config/Gander.entitlements)
 [[ -n "$identity" ]] && sign_flags+=(--timestamp)
 codesign "${sign_flags[@]}" --sign "$sign_identity" "$app"
 codesign --verify --strict --verbose=2 "$app"

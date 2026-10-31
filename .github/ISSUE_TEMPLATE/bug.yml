@@ -26,5 +26,5 @@ body:
     id: logs
     attributes:
       label: Logs
-      description: "Console.app, subsystem com.avimal5000.sway (no images are ever logged)."
+      description: "Console.app, subsystem com.avimal5000.gander (no images are ever logged)."
       render: text

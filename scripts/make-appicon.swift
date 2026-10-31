@@ -1,4 +1,4 @@
-// Renders Gander's app icon (the goose mark; SwayMarkGeometry holds the same outline) into the asset catalog at every macOS size.
+// Renders Gander's app icon (the goose mark; GanderMarkGeometry holds the same outline) into the asset catalog at every macOS size.
 // Usage: swift scripts/make-appicon.swift <output .appiconset folder> [preview.png]
 import AppKit
 import CoreGraphics

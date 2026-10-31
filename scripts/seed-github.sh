@@ -49,7 +49,7 @@ M6="M6 Design pass"
 M7="M7 Hardening"
 M8="M8 Release (later)"
 
-milestone "$M0" "Xcode installed; private repo; app + SwayCore skeleton; CI, lint, templates, labels, milestones, issues seeded from PLAN.md."
+milestone "$M0" "Xcode installed; private repo; app + GanderCore skeleton; CI, lint, templates, labels, milestones, issues seeded from PLAN.md."
 milestone "$M1" "Debug window shows live yaw/pitch; trace recorder; looking at each display shows clearly separated signals. Decision recorded in the repo. GO/NO-GO gate."
 milestone "$M2" "CalibrationModel + SwitchDecider with unit tests over synthetic and recorded traces: no false switches on noise, fast enough on intentional looks."
 milestone "$M3" "Per-display last-used window tracking; Accessibility onboarding; 'switch to display N' works from a debug button without moving the cursor."
@@ -60,10 +60,10 @@ milestone "$M7" "Sleep/wake, lid close, hot-plug, camera conflicts, full-screen/
 milestone "$M8" "Signing, notarization, DMG, release workflow on tag, optional auto-update (Sparkle)."
 
 # M0
-issue "$M0" "Xcode app target + SwayCore package skeleton" "area/infra" \
-  "Thin SwiftUI menu bar app (LSUIElement) importing the local SwayCore package, one module per area (CONTRACT.md). Builds with xcodebuild; swift test passes."
+issue "$M0" "Xcode app target + GanderCore package skeleton" "area/infra" \
+  "Thin SwiftUI menu bar app (LSUIElement) importing the local GanderCore package, one module per area (CONTRACT.md). Builds with xcodebuild; swift test passes."
 issue "$M0" "CI: build, test, lint, privacy guard on pull requests" "area/infra,area/privacy" \
-  "GitHub Actions macOS runner on pull requests only: swift test (SwayCore), unsigned xcodebuild, swift-format + SwiftLint, scripts/privacy-guard.sh."
+  "GitHub Actions macOS runner on pull requests only: swift test (GanderCore), unsigned xcodebuild, swift-format + SwiftLint, scripts/privacy-guard.sh."
 issue "$M0" "Issue/PR templates, labels, milestones, seeded issues" "area/infra" \
   "Bug, feature, and calibration-report templates; PR template with privacy/behavior checklist; labels and milestones M0-M8; issues from PLAN.md via scripts/seed-github.sh."
 issue "$M0" "Dependabot for GitHub Actions" "area/infra" "Weekly Dependabot updates for workflow action versions."
@@ -76,7 +76,7 @@ issue "$M1" "PoseEstimator: Vision head pose + landmark-based proxy" "area/camer
 issue "$M1" "Pose debug window: live yaw/pitch/roll, face confidence, fps" "area/ui,spike" \
   "Live numbers, a yaw/pitch plot, camera status and picker, and a live guess of the nearest display after a gate test."
 issue "$M1" "Pose trace recorder + replay PoseSource" "spike" \
-  "Numeric-only JSON traces (DEBUG builds only) in ~/Library/Application Support/Sway/Traces, ReplayPoseSource and synthetic traces for tests."
+  "Numeric-only JSON traces (DEBUG builds only) in ~/Library/Application Support/Gander/Traces, ReplayPoseSource and synthetic traces for tests."
 issue "$M1" "Guided gate test + separability report" "spike,risk" \
   "Highlight each display in turn, record labeled hold samples over several rounds, then report per-display stats, pairwise d', held-out accuracy, and a GO / MARGINAL / NO-GO verdict for each feature set. Copyable Markdown summary."
 issue "$M1" "Record M1 go/no-go decision" "risk" \
@@ -84,7 +84,7 @@ issue "$M1" "Record M1 go/no-go decision" "risk" \
 
 # M2
 issue "$M2" "CalibrationModel: per-display pose profiles -> P(display | pose) with margin" "area/core" \
-  "Per-display pose profiles from calibration samples; posterior over displays with a confidence margin (best vs runner-up). Generic over N displays; MVP limit via SwayPolicy.maxTrackedDisplays."
+  "Per-display pose profiles from calibration samples; posterior over displays with a confidence margin (best vs runner-up). Generic over N displays; MVP limit via GanderPolicy.maxTrackedDisplays."
 issue "$M2" "SwitchDecider: dwell, confidence threshold, hysteresis, cooldown, focus lock" "area/core" \
   "Pure state machine. Fires only when the best display beats the runner-up by the margin, the face is clearly detected, dwell completes, and Focus Lock is off. Uncertain = do nothing."
 issue "$M2" "Engine tests over synthetic and recorded traces" "area/core" \

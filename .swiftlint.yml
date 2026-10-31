@@ -1,12 +1,12 @@
 # SwiftLint is optional locally (not installed by default); CI installs it.
 # swift-format owns layout (and is strict on tests too); SwiftLint adds semantic checks on shipped code only.
 included:
-  - Sway
-  - SwayCore/Sources
+  - Gander
+  - GanderCore/Sources
 excluded:
-  - SwayCore/.build
-  - SwayCore/.build-agents
-  - SwayCore/Tests
+  - GanderCore/.build
+  - GanderCore/.build-agents
+  - GanderCore/Tests
 disabled_rules:
   - trailing_comma
   - opening_brace

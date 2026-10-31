@@ -1,0 +1,8 @@
+/// Identifiers of the app's windows, shared by the scenes and the views that open them.
+enum GanderWindowID {
+    static let poseDebug = "pose-debug"
+    static let gateTest = "gate-test"
+    static let focusTest = "focus-test"
+    static let setup = "setup"
+    static let settings = "settings"
+}

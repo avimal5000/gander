@@ -84,7 +84,7 @@ What this means for M2 and later:
 4. **Pitch is noisier than yaw** (std up to 4.1° vs 1.3–2.5°). The decider should rely mainly on yaw, use
    pitch as support, and use a per-display spread rather than a single global threshold.
 5. **Three displays separate cleanly.** The MVP stays at 2 tracked displays per D3 (user decision), but since
-   all logic is generic over N, raising `SwayPolicy.maxTrackedDisplays` to 3 looks viable on this setup.
+   all logic is generic over N, raising `GanderPolicy.maxTrackedDisplays` to 3 looks viable on this setup.
    That is the user's call after M2.
 
 What this gate did **not** measure (still open for M2, M5 and M7):

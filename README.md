@@ -33,16 +33,16 @@ macOS 14+, Xcode 26+. No third-party dependencies. Keep the repo out of iCloud-s
 ## Build and run
 
 ```bash
-open Sway.xcodeproj          # scheme "Sway", Run (signs with your Apple Development certificate)
+open Gander.xcodeproj          # scheme "Gander", Run (signs with your Apple Development certificate)
 ```
 
 Command line (unsigned):
 
 ```bash
 export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
-xcodebuild -project Sway.xcodeproj -scheme Sway build CODE_SIGNING_ALLOWED=NO
-xcodebuild -project Sway.xcodeproj -scheme Sway test CODE_SIGNING_ALLOWED=NO   # all package tests
-(cd SwayCore && swift test)
+xcodebuild -project Gander.xcodeproj -scheme Gander build CODE_SIGNING_ALLOWED=NO
+xcodebuild -project Gander.xcodeproj -scheme Gander test CODE_SIGNING_ALLOWED=NO   # all package tests
+(cd GanderCore && swift test)
 scripts/lint.sh && scripts/privacy-guard.sh
 ```
 

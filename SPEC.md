@@ -34,10 +34,10 @@ Earlier decisions still hold unless marked superseded:
 | # | Decision | Source |
 |---|---|---|
 | D1 | Per-display focus (head pose cannot separate apps on one screen) | PLAN.md |
-| D2 | One local package `SwayCore`, one module per area, plus a thin app target | User + PLAN.md |
-| D3 | ~~The MVP tracks 2 displays~~ (superseded by D22). All logic is generic over N, with the limit only in `SwayPolicy.maxTrackedDisplays` | User |
+| D2 | One local package `GanderCore`, one module per area, plus a thin app target | User + PLAN.md |
+| D3 | ~~The MVP tracks 2 displays~~ (superseded by D22). All logic is generic over N, with the limit only in `GanderPolicy.maxTrackedDisplays` | User |
 | D5 | Private repo `avimal5000/gander`, labels, milestones, issues, CI on PRs | User |
-| D6 | Bundle ID `com.avimal5000.sway`; Focus Lock default ⌃⌥⌘L (M4) | PLAN.md |
+| D6 | Bundle ID `com.avimal5000.gander`; Focus Lock default ⌃⌥⌘L (M4) | PLAN.md |
 | D7 | Apple Development signing (team WNW4M84Z3U), hardened runtime, no App Sandbox | Assumption |
 | D8 | Built-in camera by default, with a picker (the user tests with the C922) | Assumption |
 | D9 | No live video preview | Assumption |
@@ -56,8 +56,8 @@ M4 + M5 decisions:
 
 | # | Decision | Source |
 |---|---|---|
-| D22 | Track up to **3 displays** (`SwayPolicy.maxTrackedDisplays = 3`). Applied through the decider's `targets`: the first 3 calibrated displays in layout order | User, 2026-10-25 (the gate showed all three of the user's displays separate cleanly) |
-| D23 | At launch Gander restores Tracking as the user last set it (`sway.trackingEnabled`, default off). Only the user's own choices are saved; Gander turning tracking off by itself (a camera failure, quitting) does not change the saved choice (confirmed by the user). "Open Gander at login" is a setting, off by default | User, 2026-10-25 |
+| D22 | Track up to **3 displays** (`GanderPolicy.maxTrackedDisplays = 3`). Applied through the decider's `targets`: the first 3 calibrated displays in layout order | User, 2026-10-25 (the gate showed all three of the user's displays separate cleanly) |
+| D23 | At launch Gander restores Tracking as the user last set it (`gander.trackingEnabled`, default off). Only the user's own choices are saved; Gander turning tracking off by itself (a camera failure, quitting) does not change the saved choice (confirmed by the user). "Open Gander at login" is a setting, off by default | User, 2026-10-25 |
 | D24 | Build M4 and M5 together on one branch with one PR, as D14 did for M2 + M3 | User, 2026-10-25 |
 | D25 | **Calibrations are saved per display set and camera** (`CalibrationLibrary`, at most 24). A calibration covers any two or more of its displays, so unplugging a display (or closing the lid) keeps tracking on the rest. Arrangement and resolution changes keep it. A display set that no saved calibration covers is unknown: tracking waits, camera off, and the menu asks for a calibration. The existing gate-test profile is migrated. Replaces D17's fingerprint staleness | Issue #26 + orchestrator (a resolution change or a nudge in Displays settings does not move the monitors relative to the camera); confirmed by the user, 2026-10-25 |
 | D26 | **Tracking is one switch.** On means tracking; off is Paused, with the camera off. The camera runs only while Tracking is on and a calibration fits, or while a calibration or gate test needs it. Replaces the "Live camera" toggle | PLAN.md definition of done ("camera light is on only while tracking is on") |
