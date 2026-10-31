@@ -57,7 +57,8 @@ public struct DisplayLayout: Sendable, Equatable, Codable {
         self.fingerprint = sorted.map { display in
             let frame = display.frame.integral
             return
-                "\(display.id.rawValue)@\(Int(frame.minX)),\(Int(frame.minY)),\(Int(frame.width))x\(Int(frame.height))"
+                "\(display.id.rawValue)@\(Int(clamping: frame.minX)),\(Int(clamping: frame.minY)),"
+                + "\(Int(clamping: frame.width))x\(Int(clamping: frame.height))"
         }
         .joined(separator: "|")
     }

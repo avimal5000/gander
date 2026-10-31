@@ -33,8 +33,8 @@ enum GateMarkdownFormatter {
     private static func displaysText(_ layout: DisplayLayout?) -> String {
         guard let layout, !layout.displays.isEmpty else { return "unknown (no layout recorded)" }
         return layout.displays.map { display in
-            let width = Int(display.frame.width.rounded())
-            let height = Int(display.frame.height.rounded())
+            let width = Int(clamping: display.frame.width)
+            let height = Int(clamping: display.frame.height)
             return "\(display.name) (\(width)x\(height) pt\(display.isBuiltIn ? ", built-in" : ""))"
         }
         .joined(separator: ", ")

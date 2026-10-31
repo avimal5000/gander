@@ -25,8 +25,8 @@ public struct SwitchSensitivity: Sendable, Equatable, Codable {
 
     /// Clamps all three values into their allowed ranges.
     public init(dwell: Double, cooldown: Double, confidenceLevel: Int) {
-        self.dwell = Self.clamp(dwell, to: Self.dwellRange)
-        self.cooldown = Self.clamp(cooldown, to: Self.cooldownRange)
+        self.dwell = Self.clamp(dwell, to: Self.dwellRange, fallback: 0.40)
+        self.cooldown = Self.clamp(cooldown, to: Self.cooldownRange, fallback: 0.75)
         self.confidenceLevel = min(max(confidenceLevel, 0), Self.confidenceMargins.count - 1)
     }
 
@@ -72,7 +72,9 @@ public struct SwitchSensitivity: Sendable, Equatable, Codable {
         case dwell, cooldown, confidenceLevel
     }
 
-    private static func clamp(_ value: Double, to range: ClosedRange<Double>) -> Double {
-        min(max(value, range.lowerBound), range.upperBound)
+    /// Clamps into `range`. A non-finite value (NaN, infinity) becomes `fallback`, which is itself in range.
+    private static func clamp(_ value: Double, to range: ClosedRange<Double>, fallback: Double) -> Double {
+        guard value.isFinite else { return fallback }
+        return min(max(value, range.lowerBound), range.upperBound)
     }
 }

@@ -129,10 +129,12 @@ public final class AXFocusController: FocusControlling {
         switch result {
         case .focused(_, let method, let milliseconds):
             logger.info(
-                "focus outcome=focused app=\(app, privacy: .public) method=\(method.rawValue, privacy: .public) ms=\(milliseconds)"
+                "focus outcome=focused app=\(app, privacy: .private(mask: .hash)) method=\(method.rawValue, privacy: .public) ms=\(milliseconds)"
             )
         case .failed(_, let reason):
-            logger.info("focus outcome=failed app=\(app, privacy: .public) reason=\(reason, privacy: .public)")
+            logger.info(
+                "focus outcome=failed app=\(app, privacy: .private(mask: .hash)) reason=\(reason, privacy: .public)"
+            )
         case .noWindow:
             logger.info("focus outcome=noWindow")
         case .notTrusted:

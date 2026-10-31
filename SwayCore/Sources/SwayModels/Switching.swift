@@ -65,6 +65,16 @@ public struct CalibrationProfile: Sendable, Equatable, Codable {
         self.createdAt = createdAt
     }
 
+    /// True when every number a classification divides by or compares is usable: both scales finite and positive, and
+    /// every display mean, deviation and sample count finite and sane. Stored profiles that fail this are dropped.
+    public var isUsable: Bool {
+        guard yawScale.isFinite, pitchScale.isFinite, yawScale > 0, pitchScale > 0 else { return false }
+        return displays.allSatisfy { display in
+            display.yaw.isFinite && display.pitch.isFinite && display.yawStd.isFinite && display.pitchStd.isFinite
+                && display.yawStd >= 0 && display.pitchStd >= 0 && display.sampleCount >= 0
+        }
+    }
+
     public func profile(for id: DisplayID) -> DisplayProfile? {
         displays.first { $0.displayID == id }
     }
