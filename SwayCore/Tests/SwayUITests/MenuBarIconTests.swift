@@ -98,10 +98,8 @@ struct MenuBarIconTests {
 
     @Test func thePartsHaveTheContractSizesInPoints() {
         #expect(MenuBarIcon.side == 18)
-        #expect(MenuBarIcon.arcWidth == 1.8)
-        #expect(MenuBarIcon.startRadius == 1.4)
-        #expect(MenuBarIcon.endRadius == 2)
-        #expect(MenuBarIcon.ringWidth == 1)
+        #expect(MenuBarIcon.eyeRadius == 0.55)
+        #expect(MenuBarIcon.outlineWidth == 1.2)
     }
 
     // MARK: What is drawn
@@ -122,41 +120,30 @@ struct MenuBarIconTests {
     private let whole = CGRect(x: 0, y: 0, width: 18, height: 18)
     private let bottomRight = CGRect(x: 12.5, y: 13.5, width: 4, height: 2.5)
     private let topRight = CGRect(x: 14.5, y: 1.5, width: 2, height: 2)
-    private let middle = CGRect(x: 7, y: 9.5, width: 4, height: 2)
+    /// Inside the body, away from the neck and the badges.
+    private let body = CGRect(x: 6, y: 12.5, width: 3, height: 1.5)
 
-    @Test func theSolidMarkIsDrawnAtFullStrengthAndNothingIsInTheBadgeCorners() {
+    @Test func theSolidGooseIsDrawnAtFullStrengthAndTheTopRightCornerIsFree() {
         #expect(ink(.tracking, in: whole) > 0.99)
-        #expect(ink(.tracking, in: middle) > 0.99, "The bottom of the arc")
-        #expect(ink(.tracking, in: bottomRight) == 0)
-        #expect(ink(.tracking, in: topRight) == 0)
+        #expect(ink(.tracking, in: body) > 0.99, "The body")
+        #expect(ink(.tracking, in: topRight) == 0, "Room for the alert dot")
     }
 
-    @Test func thePausedMarkIsDimmedNotFaint() {
+    @Test func thePausedGooseIsDimmedNotFaint() {
         let strongest = ink(.paused, in: whole)
         #expect(strongest > 0.45 && strongest < 0.55, "Half strength: \(strongest)")
-        #expect(ink(.paused, in: middle) > 0.45)
     }
 
-    @Test func theHollowEndPointHasNothingInItsMiddle() {
-        // The solid mark has its end point disc there; the paused one is a ring, and the arc stops at the ring.
-        let endCenter = CGRect(x: 13.6, y: 5.9, width: 0.6, height: 0.6)
-        #expect(ink(.tracking, in: endCenter) > 0.99)
-        #expect(ink(.paused, in: endCenter) == 0)
+    @Test func thePausedGooseIsHollow() {
+        #expect(ink(.tracking, in: body) > 0.99)
+        #expect(ink(.paused, in: body) == 0, "Only the outline is drawn")
     }
 
     @Test func theLockBadgeIsAtTheBottomRightAndTheDotAtTheTopRight() {
         #expect(ink(.focusLock, in: bottomRight) > 0.99)
         #expect(ink(.focusLock, in: topRight) == 0)
         #expect(ink(.attention, in: topRight) > 0.99)
-        #expect(ink(.attention, in: bottomRight) == 0)
-        #expect(ink(.focusLock, in: middle) > 0.99, "The mark is still there")
-        #expect(ink(.attention, in: middle) > 0.99)
-    }
-
-    @Test func aBadgeIsCutOutOfTheMarkWithAClearRing() {
-        // Where the end point meets the alert dot: solid in the plain mark, cleared by the ring around the dot.
-        let ring = CGRect(x: 14.4, y: 4.6, width: 0.4, height: 0.4)
-        #expect(ink(.tracking, in: ring) > 0.99, "The end point is there without the dot")
-        #expect(ink(.attention, in: ring) < 0.05, "The ring leaves a gap")
+        #expect(ink(.focusLock, in: body) > 0.99, "The goose is still there")
+        #expect(ink(.attention, in: body) > 0.99)
     }
 }

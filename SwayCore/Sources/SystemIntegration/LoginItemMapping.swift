@@ -1,14 +1,14 @@
 import Foundation
 import SwayModels
 
-/// The pure translations between the system's login item state and Sway's `LoginItemStatus`, plus the wording of
+/// The pure translations between the system's login item state and Gander's `LoginItemStatus`, plus the wording of
 /// the errors the user sees.
 enum LoginItemMapping {
     static let notFoundMessage =
-        "macOS can't find this copy of Sway. Move Sway to the Applications folder, open it from there, and try again."
+        "macOS can't find this copy of Gander. Move Gander to the Applications folder, open it from there, and try again."
     static let unknownStateMessage = "macOS reported an unknown login item state."
 
-    /// The status Sway shows for a system state.
+    /// The status Gander shows for a system state.
     static func status(for state: LoginItemSystemState) -> LoginItemStatus {
         switch state {
         case .enabled: .enabled
@@ -21,7 +21,7 @@ enum LoginItemMapping {
 
     /// A plain sentence for a failed register or unregister call, ending with the system's own description.
     static func failureMessage(enabling: Bool, systemDescription: String) -> String {
-        let lead = "Sway couldn't \(enabling ? "turn on" : "turn off") opening at login."
+        let lead = "Gander couldn't \(enabling ? "turn on" : "turn off") opening at login."
         let detail = systemDescription.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !detail.isEmpty else { return lead }
         let endsSentence = detail.last.map { ".!?".contains($0) } ?? false

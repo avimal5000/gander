@@ -6,7 +6,7 @@ struct SetupAccessibilityStep: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("Allow Sway to move focus", systemImage: "hand.raised")
+            Label("Allow Gander to move focus", systemImage: "hand.raised")
                 .font(.headline)
             Text(FocusTestPresentation.accessibilityExplanation)
                 .foregroundStyle(.secondary)

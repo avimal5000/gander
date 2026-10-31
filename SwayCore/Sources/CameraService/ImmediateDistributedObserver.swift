@@ -3,7 +3,7 @@ import Foundation
 /// Receives one distributed notification and hands it to a handler, with immediate delivery.
 ///
 /// `DistributedNotificationCenter` suspends delivery to an app that is not active, and the block-based
-/// `addObserver(forName:...)` registers with the coalescing behavior, so a notification that arrives while Sway is in
+/// `addObserver(forName:...)` registers with the coalescing behavior, so a notification that arrives while Gander is in
 /// the background (nearly always) may reach it late. The screen lock is such a notification, and a late lock would
 /// leave the camera on at the lock screen. This registration uses `.deliverImmediately` instead, which only the
 /// selector-based `addObserver` offers, hence an `NSObject`.

@@ -2,7 +2,7 @@ import AppKit
 import SwayModels
 import SwiftUI
 
-/// The Sway Settings window (SPEC F21, D33): appearance, login item, switching, the Focus Lock shortcut, the camera,
+/// The Gander Settings window (SPEC F21, D33): appearance, login item, switching, the Focus Lock shortcut, the camera,
 /// and the saved calibrations. A regular window, because SwiftUI's `Settings` scene cannot be opened reliably from a
 /// menu bar app on macOS 14.
 struct SettingsView: View {
@@ -84,7 +84,7 @@ private struct AppearanceSettingsSection: View {
     }
 }
 
-/// Open Sway at login, with the system's "needs approval" state.
+/// Open Gander at login, with the system's "needs approval" state.
 private struct GeneralSettingsSection: View {
     let model: AppModel
 
@@ -92,11 +92,11 @@ private struct GeneralSettingsSection: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("General")
                 .font(.headline)
-            Toggle("Open Sway at login", isOn: binding)
+            Toggle("Open Gander at login", isOn: binding)
                 .toggleStyle(.switch)
                 .disabled(unavailableText != nil)
             if model.loginItemStatus == .requiresApproval {
-                Text("Allow Sway in System Settings > General > Login Items.")
+                Text("Allow Gander in System Settings > General > Login Items.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                 Button("Open Login Items") { model.openLoginItemsSettings() }
@@ -150,7 +150,7 @@ private struct SwitchingSettingsSection: View {
                     Text("Hold time")
                 }
                 .labelsHidden()
-                Text("How long you look at a display before Sway switches to it.")
+                Text("How long you look at a display before Gander switches to it.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -170,7 +170,7 @@ private struct SwitchingSettingsSection: View {
                 }
                 .labelsHidden()
                 Text(
-                    "How long Sway waits after switching before it will switch again. Shorter is faster for a quick "
+                    "How long Gander waits after switching before it will switch again. Shorter is faster for a quick "
                         + "look back, but can bounce."
                 )
                 .font(.caption)
@@ -196,7 +196,7 @@ private struct SwitchingSettingsSection: View {
                     Text("Strict")
                 }
                 .labelsHidden()
-                Text("A stricter setting needs a clearer look at one display before Sway switches.")
+                Text("A stricter setting needs a clearer look at one display before Gander switches.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

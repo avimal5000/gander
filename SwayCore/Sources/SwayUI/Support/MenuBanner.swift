@@ -23,8 +23,8 @@ enum MenuBanner: Equatable {
         }
     }
 
-    static let firstSetupText = "Sway needs a quick setup, about a minute."
-    static let needsCalibrationText = "New display setup. Calibrate so Sway can switch between them."
+    static let firstSetupText = "Gander needs a quick setup, about a minute."
+    static let needsCalibrationText = "New display setup. Calibrate so Gander can switch between them."
     /// The button of both needs-calibration banners.
     static let calibrateButtonTitle = "Calibrate (about 20 s)\u{2026}"
 
@@ -34,7 +34,7 @@ enum MenuBanner: Equatable {
     }
 
     static let needsAccessibilityText =
-        "Sway needs Accessibility access to move keyboard focus to a window on the display you look at. "
+        "Gander needs Accessibility access to move keyboard focus to a window on the display you look at. "
         + "It never moves the cursor and never reads window contents."
 
     /// What the popover facts say to show, in priority order: at most one banner.

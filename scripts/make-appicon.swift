@@ -1,4 +1,4 @@
-// Renders Sway's app icon (SPEC D36, option A "Swing") into the asset catalog at every macOS size.
+// Renders Gander's app icon (the goose mark; SwayMarkGeometry holds the same outline) into the asset catalog at every macOS size.
 // Usage: swift scripts/make-appicon.swift <output .appiconset folder> [preview.png]
 import AppKit
 import CoreGraphics
@@ -40,29 +40,45 @@ func render(px: Int) -> CGImage {
     ctx.drawLinearGradient(gradient, start: CGPoint(x: 0, y: 924), end: CGPoint(x: 0, y: 100), options: [])
     ctx.restoreGState()
 
-    // The mark, in a 100-unit square with y down (SwayMarkGeometry), mapped onto the tile.
-    let unit = tile.width / 100
-    func point(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: tile.minX + x * unit, y: tile.maxY - y * unit) }
-    // Thicker strokes at the smallest sizes so the arc survives.
-    let (stroke, small, big): (CGFloat, CGFloat, CGFloat) =
-        px <= 16 ? (10, 7, 10.5) : px <= 32 ? (8.5, 6.2, 9.4) : (7, 5.5, 8.5)
-
-    let arc = CGMutablePath()
-    arc.move(to: point(24, 40))
-    arc.addQuadCurve(to: point(76, 40), control: point(50, 86))
-    ctx.addPath(arc)
-    ctx.setStrokeColor(ivory)
-    ctx.setLineWidth(stroke * unit)
-    ctx.setLineCap(.round)
-    ctx.strokePath()
-
-    func dot(_ center: CGPoint, _ radius: CGFloat, _ color: CGColor) {
-        let r = radius * unit
-        ctx.setFillColor(color)
-        ctx.fillEllipse(in: CGRect(x: center.x - r, y: center.y - r, width: 2 * r, height: 2 * r))
+    // The goose, in its own coordinates (y down), fitted into the tile: 68% of the tile's height, centred.
+    let bounds = CGRect(x: 14, y: 10.9, width: 68.3, height: 75.8)
+    let scale = tile.height * 0.68 / bounds.height
+    func p(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
+        CGPoint(x: tile.midX + (x - bounds.midX) * scale, y: tile.midY - (y - bounds.midY) * scale)
     }
-    dot(point(24, 40), small, sage)
-    dot(point(76, 40), big, ivory)
+    let body = CGMutablePath()
+    body.move(to: p(14, 70))
+    body.addCurve(to: p(42, 64), control1: p(22, 72), control2: p(32, 66))
+    body.addCurve(to: p(49, 50), control1: p(48, 63), control2: p(50, 58))
+    body.addCurve(to: p(47, 26), control1: p(48, 40), control2: p(46, 34))
+    body.addCurve(to: p(57, 11), control1: p(47.5, 18), control2: p(50, 12))
+    body.addCurve(to: p(66, 15.5), control1: p(62, 10.5), control2: p(65, 13))
+    body.addLine(to: p(76.5, 18))
+    body.addLine(to: p(67, 22.5))
+    body.addCurve(to: p(60.5, 28), control1: p(64, 23.5), control2: p(61.5, 24.5))
+    body.addCurve(to: p(62, 46), control1: p(59.5, 34), control2: p(60.5, 40))
+    body.addCurve(to: p(78, 60), control1: p(64, 52), control2: p(72, 54))
+    body.addCurve(to: p(70, 84), control1: p(86, 68), control2: p(82, 80))
+    body.addCurve(to: p(14, 70), control1: p(54, 90), control2: p(28, 86))
+    body.closeSubpath()
+    let eyeRadius = max(1.6, px <= 32 ? 2.6 : 1.6) * scale
+    let eyeCenter = p(60.8, 17.1)
+    body.addEllipse(in: CGRect(x: eyeCenter.x - eyeRadius, y: eyeCenter.y - eyeRadius, width: eyeRadius * 2, height: eyeRadius * 2))
+    ctx.addPath(body)
+    ctx.setFillColor(ivory)
+    ctx.fillPath(using: .evenOdd)
+
+    // The wing, in sage; at the smallest sizes it would only be noise.
+    if px > 32 {
+        let wing = CGMutablePath()
+        wing.move(to: p(32, 73))
+        wing.addCurve(to: p(69, 71), control1: p(42, 65), control2: p(58, 65))
+        wing.addCurve(to: p(32, 73), control1: p(60, 80), control2: p(42, 80))
+        wing.closeSubpath()
+        ctx.addPath(wing)
+        ctx.setFillColor(sage)
+        ctx.fillPath()
+    }
 
     return ctx.makeImage()!
 }

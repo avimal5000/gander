@@ -1,4 +1,4 @@
-/// The pure state machine behind the Set Up Sway window (SPEC F20, CONTRACT 6.5.3): which step shows, decided by a
+/// The pure state machine behind the Set Up Gander window (SPEC F20, CONTRACT 6.5.3): which step shows, decided by a
 /// few facts and by the user's moves. It performs no I/O; `AppModel+Setup` feeds it the facts and acts on its steps.
 ///
 /// On first setup (nothing calibrated yet) the window opens on a `welcome` step; **Get Started** moves on to the first
@@ -12,7 +12,7 @@
 /// 5. `result`.
 struct SetupFlow: Equatable, Sendable {
     enum Step: Int, Equatable, Sendable {
-        /// First setup only: what Sway does and its privacy promise (SPEC F26). Not counted in "Step N of 5".
+        /// First setup only: what Gander does and its privacy promise (SPEC F26). Not counted in "Step N of 5".
         case welcome = 0
         case cameraAccess = 1
         case accessibility
@@ -55,7 +55,7 @@ struct SetupFlow: Equatable, Sendable {
     var needsCamera: Bool { step == .cameraCheck || step == .calibrating }
 
     /// True while automatic switching holds so the user can move and look freely: the camera check and the calibration.
-    /// The result step doesn't hold: while the window is in front, "Sway in front" already does, and a window left
+    /// The result step doesn't hold: while the window is in front, "Gander in front" already does, and a window left
     /// behind other apps must not stop switching unseen.
     var holdsTracking: Bool { step == .cameraCheck || step == .calibrating }
 

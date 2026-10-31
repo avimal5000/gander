@@ -2,7 +2,7 @@ import Foundation
 import SwayModels
 
 // The automatic tracking loop (SPEC F16, D28, D29): every pose sample goes through the switch decider; when it fires,
-// Sway focuses the last-used window on that display. `TrackingLoop` holds the pure bookkeeping (which display has
+// Gander focuses the last-used window on that display. `TrackingLoop` holds the pure bookkeeping (which display has
 // focus, what is in flight); this extension feeds it and does the I/O. The focused display is polled once a second
 // and on every app activation, and only while the camera runs for tracking.
 extension AppModel {
@@ -13,8 +13,8 @@ extension AppModel {
 
     // MARK: State
 
-    /// Why automatic switching is held right now, if it is: the first that applies of Focus Lock, Sway being the
-    /// active app, a Focus Test request, the displays or the Spaces changing (SPEC D44), and Sway's own request in
+    /// Why automatic switching is held right now, if it is: the first that applies of Focus Lock, Gander being the
+    /// active app, a Focus Test request, the displays or the Spaces changing (SPEC D44), and Gander's own request in
     /// flight.
     var trackingHold: TrackingHold? {
         if focusLocked { return .focusLock }
@@ -28,7 +28,7 @@ extension AppModel {
 
     /// True while samples feed the decider: Tracking is on, no gate test or calibration is steering the camera, the
     /// Setup window is not on its camera check, calibration, or result, and a calibration fits. (Those looks are
-    /// deliberate and the user is adjusting Sway; neither belongs in the loop.)
+    /// deliberate and the user is adjusting Gander; neither belongs in the loop.)
     var isTrackingActive: Bool {
         trackingEnabled && gateRunState == .idle && !isSetupHoldingTracking && activeCalibration != nil
             && decider != nil
@@ -130,7 +130,7 @@ extension AppModel {
     /// suspension) is stale.
     func processTracking(_ sample: PoseSample) {
         guard status.isRunning, isTrackingActive else { return }
-        // Sway's own request in flight is not a lock: a lock cancels the decider's cooldown, which must run from the
+        // Gander's own request in flight is not a lock: a lock cancels the decider's cooldown, which must run from the
         // switch. The loop already reports the target as focused and refuses a second request.
         let hold = trackingHold
         let context = SwitchContext(
@@ -200,7 +200,7 @@ extension AppModel {
         let display = displayName(for: target)
         appendSwitchLog(SwitchPreviewPresentation.logText(for: result, display: display, held: held))
         logSwitch(result, display: display)
-        // The glow marks a switch that really moved focus, and only Sway's own tracking requests come through here.
+        // The glow marks a switch that really moved focus, and only Gander's own tracking requests come through here.
         if case .focused = result { showEdgeGlow(on: target) }
     }
 

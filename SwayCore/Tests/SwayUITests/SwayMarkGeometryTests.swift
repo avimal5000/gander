@@ -3,59 +3,28 @@ import Testing
 
 @testable import SwayUI
 
-@Suite("Swing mark geometry")
+@Suite("Goose mark geometry")
 struct SwayMarkGeometryTests {
     private typealias Geometry = SwayMarkGeometry
 
-    private func close(_ a: CGPoint, _ b: CGPoint, tolerance: CGFloat = 1e-9) -> Bool {
-        abs(a.x - b.x) <= tolerance && abs(a.y - b.y) <= tolerance
-    }
-
     // MARK: The definition
 
-    @Test func theMarkIsTheArcFromTheContract() {
-        #expect(Geometry.unitSize == 100)
-        #expect(Geometry.start == CGPoint(x: 24, y: 40))
-        #expect(Geometry.end == CGPoint(x: 76, y: 40))
-        #expect(Geometry.control == CGPoint(x: 50, y: 86))
-    }
-
-    @Test func theArcRunsFromTheStartToTheEndAndDipsBetween() {
-        #expect(Geometry.arcPoint(at: 0) == Geometry.start)
-        #expect(Geometry.arcPoint(at: 1) == Geometry.end)
-        // Quadratic midpoint: a quarter of each end plus half of the control point; y points down.
-        #expect(Geometry.arcPoint(at: 0.5) == CGPoint(x: 50, y: 63))
-        for t in stride(from: 0.1, through: 0.9, by: 0.1) {
-            #expect(Geometry.arcPoint(at: t).y > Geometry.start.y, "The arc swings below the two points")
-        }
-    }
-
-    @Test func theCubicControlsDrawTheSameCurveAsTheQuadratic() {
-        let controls = Geometry.cubicControls
-        for t in stride(from: 0.0, through: 1.0, by: 0.125) {
-            let u = 1 - t
-            let cubic = CGPoint(
-                x: u * u * u * Geometry.start.x + 3 * u * u * t * controls.first.x + 3 * u * t * t * controls.second.x
-                    + t * t * t * Geometry.end.x,
-                y: u * u * u * Geometry.start.y + 3 * u * u * t * controls.first.y + 3 * u * t * t * controls.second.y
-                    + t * t * t * Geometry.end.y)
-            #expect(close(cubic, Geometry.arcPoint(at: t)), "t = \(t)")
-        }
-    }
-
-    @Test func theEndPointIsLargerThanTheStartPoint() {
-        #expect(Geometry.endRadius > Geometry.startRadius)
-        #expect(Geometry.arcWidth > 0)
-        #expect(Geometry.ringWidth < Geometry.endRadius)
-    }
-
-    @Test func theVisualBoundsHoldTheWholeMark() {
+    @Test func theSilhouetteFitsItsVisualBoundsInsideTheUnitSquare() {
+        let identity = Geometry.Placement(scale: 1, offset: .zero)
+        let box = Geometry.silhouette(in: identity).boundingBoxOfPath
         let bounds = Geometry.visualBounds
-        #expect(bounds.minX == Geometry.start.x - Geometry.startRadius)
-        #expect(bounds.maxX == Geometry.end.x + Geometry.endRadius)
-        #expect(bounds.minY == Geometry.end.y - Geometry.endRadius)
-        #expect(bounds.maxY == 63 + Geometry.arcWidth / 2, "The lowest point of the arc, with its stroke")
-        #expect(CGRect(x: 0, y: 0, width: 100, height: 100).contains(bounds), "Inside the unit square")
+        #expect(bounds.insetBy(dx: -1, dy: -1).contains(box), "The bounds hold the goose: \(box)")
+        #expect(box.width > bounds.width - 1 && box.height > bounds.height - 1, "...and are not loose: \(box)")
+        #expect(CGRect(x: 0, y: 0, width: 100, height: 100).contains(bounds))
+    }
+
+    @Test func theEyeAndTheWingSitInsideTheGoose() {
+        let identity = Geometry.Placement(scale: 1, offset: .zero)
+        let silhouette = Geometry.silhouette(in: identity)
+        #expect(silhouette.contains(Geometry.eyeCenter), "The eye is in the head")
+        #expect(silhouette.contains(CGPoint(x: 50, y: 72)), "The wing lies on the body")
+        let wing = Geometry.wing(in: identity).boundingBoxOfPath
+        #expect(silhouette.boundingBoxOfPath.contains(wing))
     }
 
     // MARK: Placement
@@ -69,32 +38,37 @@ struct SwayMarkGeometryTests {
             origin: placement.point(bounds.origin),
             size: CGSize(width: placement.length(bounds.width), height: placement.length(bounds.height)))
         #expect(area.contains(mapped.insetBy(dx: 1e-6, dy: 1e-6)), "Inside the area")
-        #expect(abs(mapped.width - area.width) < 1e-9, "The wide mark fills the width")
+        #expect(abs(mapped.height - area.height) < 1e-9, "The goose is taller than wide, so it fills the height")
         #expect(abs(mapped.midX - area.midX) < 1e-9)
         #expect(abs(mapped.midY - area.midY) < 1e-9)
-        #expect(placement.scale == area.width / bounds.width)
+        #expect(placement.scale == area.height / bounds.height)
     }
 
-    @Test func fittingATallAreaIsLimitedByItsWidth() {
+    @Test func fittingIsLimitedByTheTighterSide() {
+        let bounds = Geometry.visualBounds
         let tall = Geometry.placement(fitting: CGRect(x: 0, y: 0, width: 30, height: 90))
+        #expect(tall.scale == 30 / bounds.width, "A tall, narrow area is limited by its width")
         let square = Geometry.placement(fitting: CGRect(x: 0, y: 0, width: 30, height: 30))
-        #expect(tall.scale == square.scale)
+        #expect(square.scale == 30 / bounds.height, "The goose is taller than wide")
         #expect(Geometry.placement(fitting: CGRect(x: 0, y: 0, width: 90, height: 5)).scale < square.scale)
     }
 
     @Test func theUnitSquareKeepsTheAppIconPadding() {
-        let placement = Geometry.placement(unitSquareIn: CGRect(x: 0, y: 0, width: 64, height: 64))
-        #expect(placement.scale == 0.64)
-        #expect(placement.point(Geometry.start) == CGPoint(x: 24 * 0.64, y: 40 * 0.64))
-        #expect(placement.point(CGPoint(x: 50, y: 50)) == CGPoint(x: 32, y: 32), "The middle of the square")
+        let area = CGRect(x: 0, y: 0, width: 100, height: 100)
+        let placement = Geometry.placement(unitSquareIn: area)
+        let bounds = Geometry.visualBounds
+        let mapped = CGRect(
+            origin: placement.point(bounds.origin),
+            size: CGSize(width: placement.length(bounds.width), height: placement.length(bounds.height)))
+        #expect(abs(mapped.midX - 50) < 1e-9 && abs(mapped.midY - 50) < 1e-9, "Centered")
+        #expect(abs(mapped.maxY - 84) < 1e-9, "Padding of \(Geometry.squarePadding) at the bottom")
 
         let wide = Geometry.placement(unitSquareIn: CGRect(x: 0, y: 0, width: 200, height: 100))
-        #expect(wide.scale == 1)
-        #expect(wide.point(CGPoint(x: 50, y: 50)) == CGPoint(x: 100, y: 50), "A square centered in a wide area")
+        #expect(wide.scale == placement.scale, "A square centered in a wide area")
     }
 
     @Test func lengthsScaleWithThePlacement() {
-        let placement = Geometry.placement(unitSquareIn: CGRect(x: 0, y: 0, width: 200, height: 200))
-        #expect(placement.length(Geometry.arcWidth) == 14)
+        let placement = Geometry.Placement(scale: 2, offset: .zero)
+        #expect(placement.length(Geometry.eyeRadius) == 3.2)
     }
 }

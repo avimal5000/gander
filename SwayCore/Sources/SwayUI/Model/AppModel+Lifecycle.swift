@@ -20,7 +20,7 @@ extension AppModel {
             [weak self] _ in
             MainActor.assumeIsolated { self?.applicationDidBecomeActive() }
         }
-        // Any of Sway's windows (the menu included) gaining or losing key status. Closing Sway's last window leaves it
+        // Any of Gander's windows (the menu included) gaining or losing key status. Closing Gander's last window leaves it
         // active with nothing in front, which must release the hold.
         let windowKeyChanges = [NSWindow.didBecomeKeyNotification, NSWindow.didResignKeyNotification].map { name in
             center.addObserver(forName: name, object: nil, queue: nil) { [weak self] notification in
@@ -118,7 +118,7 @@ extension AppModel {
         refreshEnvironment()
     }
 
-    /// A window of Sway became or stopped being key. Re-reads whether Sway is in front, and ends a shortcut recording
+    /// A window of Gander became or stopped being key. Re-reads whether Gander is in front, and ends a shortcut recording
     /// when the Settings window it belongs to lost key status (the recorder listens to this window only).
     func windowKeyStatusChanged(_ window: NSWindow?, resigned: Bool) {
         refreshSwayInFront()
@@ -127,7 +127,7 @@ extension AppModel {
         }
     }
 
-    /// Sway became the active app; automatic switching holds while its menu or a window is in front.
+    /// Gander became the active app; automatic switching holds while its menu or a window is in front.
     func applicationDidBecomeActive() {
         refreshSwayInFront()
         // Back from System Settings: a permission the Setup window waits for may have been granted, and a login item
@@ -136,7 +136,7 @@ extension AppModel {
         if settingsVisible { refreshLoginItemStatus() }
     }
 
-    /// Re-reads whether Sway is in front, assigning only on a change.
+    /// Re-reads whether Gander is in front, assigning only on a change.
     func refreshSwayInFront() {
         let inFront = environment.isAppActive()
         if inFront != isAppActive { isAppActive = inFront }
@@ -148,7 +148,7 @@ extension AppModel {
         refreshSwayInFront()
         guard gateRunState == .running else { return }
         let noun = gatePurpose.noun
-        cancelRunningGate(reason: "The \(noun) was cancelled because Sway was no longer the active app.")
+        cancelRunningGate(reason: "The \(noun) was cancelled because Gander was no longer the active app.")
     }
 
     /// Best effort at quit: close overlays and ask the camera to stop. The process exiting also ends capture.
@@ -203,7 +203,7 @@ extension AppModel {
         await camera.stop()
     }
 
-    /// Menu "Quit Sway": switch the camera off first so the indicator goes dark, then terminate.
+    /// Menu "Quit Gander": switch the camera off first so the indicator goes dark, then terminate.
     func quit() async {
         await shutdown()
         environment.system.terminateApp()

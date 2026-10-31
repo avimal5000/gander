@@ -22,7 +22,7 @@ enum TrackingStatus: Equatable {
     case starting
     /// The camera is interrupted; carries the interruption text.
     case cameraBusy(String)
-    /// The camera the user chose is unplugged: Sway waits for it, or turned Tracking off when no calibrated camera was
+    /// The camera the user chose is unplugged: Gander waits for it, or turned Tracking off when no calibrated camera was
     /// left (SPEC D46); carries its name.
     case cameraDisconnected(String)
     case needsAccessibility

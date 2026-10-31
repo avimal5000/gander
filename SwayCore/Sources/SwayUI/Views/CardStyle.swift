@@ -14,7 +14,7 @@ struct CardStyle: ViewModifier {
 }
 
 extension View {
-    /// Wraps the view in Sway's card container.
+    /// Wraps the view in Gander's card container.
     func swayCard() -> some View {
         modifier(CardStyle())
     }

@@ -1,6 +1,6 @@
 import AppKit
 
-/// The edge glow (SPEC F27): a 4 pt Sway-green border along the edges of the display, with a soft glow of about 10 pt
+/// The edge glow (SPEC F27): a 4 pt Gander-green border along the edges of the display, with a soft glow of about 10 pt
 /// just inside it that fades out from 40% opacity.
 ///
 /// Drawn with eight thin layers along the edges (four solid borders, four gradients), so the panel holds no
@@ -62,7 +62,7 @@ final class EdgeGlowView: NSView {
         applyColors()
     }
 
-    /// Sway green, resolved for this view's appearance (light or dark), on every layer.
+    /// Gander green, resolved for this view's appearance (light or dark), on every layer.
     private func applyColors() {
         var green = CGColor(gray: 0, alpha: 0)
         effectiveAppearance.performAsCurrentDrawingAppearance { green = SwayPalette.makeGreen().cgColor }

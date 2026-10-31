@@ -7,7 +7,7 @@ import SwiftUI
 /// The panels are `OverlayPanel`s: borderless, click-through, non-activating, never key or main, above the normal
 /// window layer (so focus switching never picks them), on every Space and over full-screen apps. They are created on
 /// first use and kept. Between uses they are ordered out, so nothing draws and nothing runs. Fades are window alpha
-/// animations: no per-frame work in Sway, and no SwiftUI state to update.
+/// animations: no per-frame work in Gander, and no SwiftUI state to update.
 @MainActor
 final class FeedbackOverlayController: FeedbackPresenting {
     private var glowPanel: OverlayPanel?
@@ -74,7 +74,7 @@ final class FeedbackOverlayController: FeedbackPresenting {
 
     // MARK: Showing
 
-    /// Puts `panel` at `frame`, fully transparent, in front of everything without activating Sway, then fades it in,
+    /// Puts `panel` at `frame`, fully transparent, in front of everything without activating Gander, then fades it in,
     /// holds, fades it out, and orders it out. Cancelling the returned task stops the sequence where it is.
     private func present(
         _ panel: OverlayPanel, frame: NSRect, timing: FeedbackTiming, animated: Bool

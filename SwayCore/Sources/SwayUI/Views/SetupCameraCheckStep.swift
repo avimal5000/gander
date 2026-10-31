@@ -1,7 +1,7 @@
 import SwayModels
 import SwiftUI
 
-/// Step 3: the camera runs and Sway says whether it sees a face and whether to move (SPEC F20).
+/// Step 3: the camera runs and Gander says whether it sees a face and whether to move (SPEC F20).
 struct SetupCameraCheckStep: View {
     let model: AppModel
 

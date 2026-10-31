@@ -390,7 +390,7 @@ struct AppModelCameraRecoveryTests {
         h.scheduler.advance(by: 10)
         await h.model.cameraOperation?.value
 
-        #expect(h.pose.startCount == 1, "Sway never restarted anything")
+        #expect(h.pose.startCount == 1, "Gander never restarted anything")
         #expect(h.model.fallbackCamera == nil)
         #expect(h.model.trackingStatus == .noFace)
     }

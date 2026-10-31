@@ -15,7 +15,7 @@ enum DefaultsKey {
     static let switchSensitivity = "sway.switchSensitivity"
     /// The Focus Lock `HotKeyShortcut` as JSON; empty `Data` means no shortcut, an absent key means the default.
     static let focusLockShortcut = "sway.focusLockShortcut"
-    /// The accent the user chose, `"sway"` or `"system"`; absent means Sway green (SPEC D35).
+    /// The accent the user chose, `"sway"` or `"system"`; absent means Gander green (SPEC D35).
     static let accentChoice = "sway.accentChoice"
     /// Whether the edge glow follows a switch (`Bool`); absent means on (SPEC D38).
     static let edgeGlowEnabled = "sway.edgeGlowEnabled"

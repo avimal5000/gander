@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds Sway for release (issues #40, #41, #42): a Release archive, a DMG with the app and an Applications link, and,
+# Builds Gander for release (issues #40, #41, #42): a Release archive, a DMG with the app and an Applications link, and,
 # when you give it a Developer ID certificate and Apple credentials, a signed, notarized, stapled DMG.
 #
 #   scripts/release.sh [--version 0.1.0] [--build-number 1] [--out dist]
@@ -48,11 +48,11 @@ if $notarize; then
 fi
 
 derived=".build-release"
-app="$derived/Build/Products/Release/Sway.app"
+app="$derived/Build/Products/Release/Gander.app"
 mkdir -p "$out"
-dmg="$out/Sway-$version.dmg"
+dmg="$out/Gander-$version.dmg"
 
-echo "==> Building Sway $version ($build_number), Release"
+echo "==> Building Gander $version ($build_number), Release"
 rm -rf "$derived"
 # Signing is done afterwards, in one place, so the same steps serve a certificate and ad-hoc signing.
 xcodebuild -project Sway.xcodeproj -scheme Sway -configuration Release -derivedDataPath "$derived" \
@@ -75,9 +75,9 @@ echo "==> Making $dmg"
 stage="$derived/dmg-stage"
 rm -rf "$stage" "$dmg"
 mkdir -p "$stage"
-cp -R "$app" "$stage/Sway.app"
+cp -R "$app" "$stage/Gander.app"
 ln -s /Applications "$stage/Applications"
-hdiutil create -volname "Sway $version" -srcfolder "$stage" -fs HFS+ -format UDZO -ov "$dmg" >/dev/null
+hdiutil create -volname "Gander $version" -srcfolder "$stage" -fs HFS+ -format UDZO -ov "$dmg" >/dev/null
 if [[ -n "$identity" ]]; then
   codesign --force --timestamp --sign "$identity" "$dmg"
 fi

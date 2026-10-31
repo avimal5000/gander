@@ -67,7 +67,7 @@ import Testing
             try item.setEnabled(true)
             Issue.record("Expected a LoginItemError")
         } catch {
-            #expect(error.message == "Sway couldn't turn on opening at login. macOS said: Operation not permitted.")
+            #expect(error.message == "Gander couldn't turn on opening at login. macOS said: Operation not permitted.")
         }
     }
 

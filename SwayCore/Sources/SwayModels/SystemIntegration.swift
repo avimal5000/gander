@@ -77,7 +77,7 @@ public protocol HotKeyRegistering: AnyObject {
     func unregister(_ action: HotKeyAction)
 }
 
-/// Whether Sway opens at login.
+/// Whether Gander opens at login.
 public enum LoginItemStatus: Sendable, Equatable {
     case enabled
     case disabled
@@ -96,7 +96,7 @@ public struct LoginItemError: Error, Sendable, Equatable {
     }
 }
 
-/// Opens Sway at login, as the system's own login item for the app. Implemented by
+/// Opens Gander at login, as the system's own login item for the app. Implemented by
 /// `SystemIntegration.MainAppLoginItem`.
 @MainActor
 public protocol LoginItemControlling: AnyObject {

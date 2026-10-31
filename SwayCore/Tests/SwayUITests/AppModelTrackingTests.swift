@@ -186,7 +186,7 @@ struct AppModelTrackingTests {
         h.notifications.post(name: NSWindow.didBecomeKeyNotification, object: nil)
         #expect(h.model.trackingHold == .swayInFront)
 
-        // Still the active app, but its last window closed: nothing of Sway's is in front.
+        // Still the active app, but its last window closed: nothing of Gander's is in front.
         h.appState.isActive = false
         h.notifications.post(name: NSWindow.didResignKeyNotification, object: nil)
         #expect(h.model.trackingHold == nil)

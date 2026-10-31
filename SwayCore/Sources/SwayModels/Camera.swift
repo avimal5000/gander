@@ -1,7 +1,7 @@
 import CoreVideo
 import Foundation
 
-/// A video capture device as seen by Sway.
+/// A video capture device as seen by Gander.
 public struct CameraDevice: Sendable, Hashable, Codable, Identifiable {
     /// `AVCaptureDevice.uniqueID`.
     public var id: String

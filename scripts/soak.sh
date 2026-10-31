@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Soak test helper (issue #39): records Sway's CPU, memory, and threads while you use it all day, and Sway's own log
+# Soak test helper (issue #39): records Gander's CPU, memory, and threads while you use it all day, and Gander's own log
 # lines (switches, camera events), then summarizes both.
 #
 #   scripts/soak.sh sample [out.csv] [interval seconds]   run until Ctrl-C (default .build-logs/soak-<date>.csv, 30 s)
 #   scripts/soak.sh report <out.csv>                       summary of a finished or running sample
 #
-# Sampling only reads process statistics (`top`, `pmset`) and streams Sway's log; it never touches the camera or Sway
+# Sampling only reads process statistics (`top`, `pmset`) and streams Gander's log; it never touches the camera or Gander
 # itself. The log lines go to <out>.log next to the CSV, because macOS keeps info-level log lines only for a few
-# minutes: reading them afterwards would miss most of a day. A pid change in the middle of a run means Sway quit or
+# minutes: reading them afterwards would miss most of a day. A pid change in the middle of a run means Gander quit or
 # crashed, and the report says so.
 set -uo pipefail
 cd "$(dirname "$0")/.."
@@ -15,7 +15,7 @@ cd "$(dirname "$0")/.."
 subsystem="com.avimal5000.sway"
 bundle_id="com.avimal5000.sway"
 # Only the app itself: the tests log under the same subsystem from their own processes.
-predicate="subsystem == \"$subsystem\" AND process == \"Sway\""
+predicate="subsystem == \"$subsystem\" AND process == \"Gander\""
 
 sample() {
   local out="${1:-.build-logs/soak-$(date +%Y%m%d-%H%M).csv}"
@@ -37,10 +37,10 @@ except Exception:
   local stream_pid=$!
   trap 'kill "$stream_pid" 2>/dev/null; exit 0' INT TERM
   trap 'kill "$stream_pid" 2>/dev/null' EXIT
-  echo "Sampling Sway every ${interval} s into $out and its log lines into $logfile (Ctrl-C to stop)."
+  echo "Sampling Gander every ${interval} s into $out and its log lines into $logfile (Ctrl-C to stop)."
   while true; do
     local pid
-    pid=$(pgrep -x Sway | head -1 || true)
+    pid=$(pgrep -x Gander | head -1 || true)
     if [[ -n "$pid" ]]; then
       # Two `top` samples one second apart: the second is the CPU over that second, not since launch.
       local line cpu rss threads power
@@ -82,16 +82,16 @@ report() {
       thr = $5
     }
     END {
-      if (!n) { print "No samples with Sway running."; exit }
+      if (!n) { print "No samples with Gander running."; exit }
       # p95 of CPU by a simple insertion sort (a day is a few thousand samples at most).
       for (i = 2; i <= k; i++) { v = cpus[i]; j = i - 1; while (j > 0 && cpus[j] > v) { cpus[j+1] = cpus[j]; j-- } cpus[j+1] = v }
       p95 = cpus[int(k * 0.95) + (k * 0.95 > int(k * 0.95) ? 1 : 0)]
-      printf "Samples with Sway running: %d (%d with Sway not running)\n", n, gaps
+      printf "Samples with Gander running: %d (%d with Gander not running)\n", n, gaps
       printf "CPU of one core: mean %.1f%%, 95th percentile %.1f%%, max %.1f%%\n", sumc / n, p95, maxc
       for (p in cnt) printf "  on %s: mean %.1f%% over %d samples\n", (p == "" ? "unknown power" : p), byp[p] / cnt[p], cnt[p]
       printf "Memory: first %.1f MB, last %.1f MB, max %.1f MB (change %+.1f MB)\n", r0, rl, maxr, rl - r0
       printf "Threads at the end: %s\n", thr
-      if (restarts) printf "WARNING: Sway restarted %d time(s) during the run (quit or crash)\n", restarts
+      if (restarts) printf "WARNING: Gander restarted %d time(s) during the run (quit or crash)\n", restarts
     }' "$csv"
 
   # Memory growth per hour from the first and last running samples.
@@ -104,7 +104,7 @@ report() {
     }' "$csv"
 
   echo
-  echo "From Sway's log in that period:"
+  echo "From Gander's log in that period:"
   local events logfile="${csv%.csv}.log"
   if [[ -f "$logfile" ]]; then
     events=$(grep -vE "^Timestamp|^Filtering" "$logfile" || true)

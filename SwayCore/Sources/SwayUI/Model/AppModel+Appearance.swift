@@ -1,7 +1,7 @@
 import Foundation
 import SwayModels
 
-// The look of Sway (SPEC F24, F27, F28, CONTRACT 6.5.4): the accent, and the two small pieces of feedback on the
+// The look of Gander (SPEC F24, F27, F28, CONTRACT 6.5.4): the accent, and the two small pieces of feedback on the
 // displays, the edge glow after a switch and the notice when the shortcut toggles Focus Lock. The panels themselves
 // are `FeedbackOverlayController`'s; this extension decides when they show and on which display.
 extension AppModel {

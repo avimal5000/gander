@@ -262,7 +262,7 @@ struct ViewSmokeTests {
         #expect(renders(SettingsView(model: full.model), width: 520, height: 640), "Recording with a hint")
         full.model.cancelShortcutRecording()
 
-        full.loginItem.status = .unavailable("macOS can't find this copy of Sway.")
+        full.loginItem.status = .unavailable("macOS can't find this copy of Gander.")
         full.loginItem.error = LoginItemError(message: "Nope.")
         full.model.setOpensAtLogin(true)
         full.model.setHoldTime(1.2)
@@ -330,19 +330,17 @@ struct ViewSmokeTests {
         return { x, y in Double(bytes[(y * width + x) * 4 + 3]) / 255 }
     }
 
-    @Test func theSwingMarkDrawsInsideItsFrameInEveryFraming() throws {
+    @Test func theGooseMarkDrawsInsideItsFrameInEveryFraming() throws {
         let fitted = try #require(
             alphaReader(of: SwayMark(color: SwayPalette.green), width: 64, height: 64), "Fitted")
-        #expect(fitted(32, 45) > 0.9, "The dip of the arc, in the middle")
-        #expect(fitted(2, 2) == 0 && fitted(61, 61) == 0 && fitted(2, 61) == 0, "The corners are empty")
+        #expect(fitted(42, 50) > 0.9, "The body of the goose")
+        #expect(fitted(1, 1) == 0 && fitted(62, 1) == 0, "The top corners are empty")
 
         let square = try #require(
             alphaReader(of: SwayMark(color: SwayPalette.green, framing: .unitSquare), width: 100, height: 100),
             "Unit square")
-        #expect(square(24, 40) > 0.9, "The start point, where the geometry puts it")
-        #expect(square(76, 40) > 0.9, "The end point")
-        #expect(square(50, 63) > 0.9, "The bottom of the arc")
-        #expect(square(5, 5) == 0 && square(94, 94) == 0)
+        #expect(square(61, 69) > 0.9, "The body of the goose")
+        #expect(square(5, 5) == 0 && square(94, 94) == 0, "The padding is empty")
     }
 
     /// Renders an AppKit view's layer tree at 1x and reads alpha at a pixel, (0, 0) at the top left.

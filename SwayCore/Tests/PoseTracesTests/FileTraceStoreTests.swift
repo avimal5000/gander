@@ -25,7 +25,7 @@ import Testing
 
     @Test func defaultDirectoryIsApplicationSupportSwayTraces() {
         let store = FileTraceStore()
-        let expected = URL.applicationSupportDirectory.appending(path: "Sway/Traces", directoryHint: .isDirectory)
+        let expected = URL.applicationSupportDirectory.appending(path: "Gander/Traces", directoryHint: .isDirectory)
         #expect(store.directory.standardizedFileURL == expected.standardizedFileURL)
     }
 

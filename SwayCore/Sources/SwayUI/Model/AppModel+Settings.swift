@@ -1,7 +1,7 @@
 import Foundation
 import SwayModels
 
-// The Sway Settings window (SPEC F21, D31, D33): the login item, the switching sensitivity, the Focus Lock shortcut
+// The Gander Settings window (SPEC F21, D31, D33): the login item, the switching sensitivity, the Focus Lock shortcut
 // and its recorder, and the list of saved calibrations. The sensitivity and the shortcut themselves are saved and
 // applied by `setSensitivity(_:)` (`AppModel+Tracking`) and `setFocusLockShortcut(_:)` (`AppModel+FocusLock`).
 extension AppModel {
@@ -25,7 +25,7 @@ extension AppModel {
 
     // MARK: General: the login item
 
-    /// True when Sway opens at login, including while the system still waits for the user's approval.
+    /// True when Gander opens at login, including while the system still waits for the user's approval.
     var opensAtLogin: Bool {
         switch loginItemStatus {
         case .enabled, .requiresApproval: true
@@ -39,7 +39,7 @@ extension AppModel {
         if current != loginItemStatus { loginItemStatus = current }
     }
 
-    /// The "Open Sway at login" toggle. A failure keeps the toggle where the system left it and says why.
+    /// The "Open Gander at login" toggle. A failure keeps the toggle where the system left it and says why.
     func setOpensAtLogin(_ enabled: Bool) {
         loginItemMessage = nil
         do {
@@ -90,7 +90,7 @@ extension AppModel {
 
     // MARK: Focus Lock shortcut
 
-    /// "Record Shortcut": listens for one key press in Sway's own windows. The current shortcut is unregistered while
+    /// "Record Shortcut": listens for one key press in Gander's own windows. The current shortcut is unregistered while
     /// recording, so pressing it again cannot toggle Focus Lock.
     func beginShortcutRecording() {
         guard !isRecordingShortcut else { return }

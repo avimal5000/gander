@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
-# Privacy audit (issue #38; PLAN.md sections 1 and 4): checks that Sway has no network access, writes no video or
-# images, and uses the camera only while tracking. Run it after a build; add --runtime while Sway is running.
+# Privacy audit (issue #38; PLAN.md sections 1 and 4): checks that Gander has no network access, writes no video or
+# images, and uses the camera only while tracking. Run it after a build; add --runtime while Gander is running.
 #
-#   scripts/audit-privacy.sh [--app <path to Sway.app>] [--runtime [seconds]]
+#   scripts/audit-privacy.sh [--app <path to Gander.app>] [--runtime [seconds]]
 #
 # Static checks (always): source guard, entitlements, Info.plist, and the built binary's linked libraries,
 # undefined symbols, and embedded URLs.
-# Runtime checks (--runtime): open sockets and written files of the running Sway process, and the camera
+# Runtime checks (--runtime): open sockets and written files of the running Gander process, and the camera
 # start/stop lines in its log. They sample for `seconds` (default 20); toggle Tracking while they run.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
-app=".build-xcode/Build/Products/Debug/Sway.app"
+app=".build-xcode/Build/Products/Debug/Gander.app"
 runtime=false
 seconds=20
 while [[ $# -gt 0 ]]; do
@@ -46,7 +46,7 @@ echo "3. Built binary ($app)"
 if [[ ! -d "$app" ]]; then
   fail "no app at $app (build first, or pass --app)"
 else
-  # A Debug build keeps the code in Sway.debug.dylib beside a small stub executable; check every Mach-O inside.
+  # A Debug build keeps the code in Gander.debug.dylib beside a small stub executable; check every Mach-O inside.
   binaries=("$app/Contents/MacOS/"*)
   forbidden_libs='CFNetwork|WebKit|SystemConfiguration|NetworkExtension|libnetwork|/Network\.framework|Sparkle'
   net_symbols='_socket$|_connect$|_getaddrinfo$|_CFNetwork|NSURLSession|CFHTTP|_nw_connection|_nw_listener|_SCNetworkReachab|NSURLConnection'
@@ -67,11 +67,11 @@ fi
 
 if $runtime; then
   echo "4. Running process (${seconds} s; toggle Tracking now)"
-  pid=$(pgrep -x Sway | head -1 || true)
+  pid=$(pgrep -x Gander | head -1 || true)
   if [[ -z "$pid" ]]; then
-    fail "Sway is not running"
+    fail "Gander is not running"
   else
-    note "Sway pid $pid"
+    note "Gander pid $pid"
     marker=$(date "+%Y-%m-%d %H:%M:%S")
     sockets=""
     written=""
@@ -88,9 +88,9 @@ if $runtime; then
     else fail "image or video files open for writing:"; echo "$media" >&2; fi
     echo "  files held open for writing (for review):"
     echo "$written" | sed '/^$/d' | sort -u | grep -vE "^/dev/(null|tty)" | sed 's/^/    /'
-    echo "  camera lines in Sway's log since $marker (should match your Tracking toggles):"
+    echo "  camera lines in Gander's log since $marker (should match your Tracking toggles):"
     log show --info --start "$marker" --style compact \
-      --predicate "subsystem == \"com.avimal5000.sway\" AND process == \"Sway\" AND (eventMessage CONTAINS \"Status:\" OR eventMessage CONTAINS \"Suspending\" OR eventMessage CONTAINS \"Resuming\")" 2>/dev/null |
+      --predicate "subsystem == \"com.avimal5000.sway\" AND process == \"Gander\" AND (eventMessage CONTAINS \"Status:\" OR eventMessage CONTAINS \"Suspending\" OR eventMessage CONTAINS \"Resuming\")" 2>/dev/null |
       grep -vE "^Timestamp|^Filtering" | sed 's/^/    /' | tail -12
   fi
 fi

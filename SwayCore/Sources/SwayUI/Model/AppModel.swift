@@ -10,8 +10,8 @@ import SwayModels
 /// test through ``GateTestSession``, and holds the latest separability analysis. From each analysis it fits a
 /// calibration and saves it in the ``CalibrationLibrary``. While Tracking is on, it runs every pose sample through the
 /// switch decider and moves real focus when a look is held (``TrackingLoop``), with Focus Lock and its global
-/// shortcut. It drives the Focus Test window, the Set Up Sway window (permissions, a camera check, and a guided
-/// calibration that reuses the gate machinery), and the Sway Settings window. It only talks to the protocols in
+/// shortcut. It drives the Focus Test window, the Set Up Gander window (permissions, a camera check, and a guided
+/// calibration that reuses the gate machinery), and the Gander Settings window. It only talks to the protocols in
 /// `SwayModels`; the app target injects the concrete implementations.
 ///
 /// The logic is split across extensions by concern (camera, permission, gate, analysis, calibration, tracking, focus
@@ -35,7 +35,7 @@ public final class AppModel {
     @ObservationIgnored let engine: any SwitchEngineMaking
     @ObservationIgnored let focus: any FocusControlling
     @ObservationIgnored let hotKeys: any HotKeyRegistering
-    /// Opens Sway at login (the Settings window's General section).
+    /// Opens Gander at login (the Settings window's General section).
     @ObservationIgnored let loginItem: any LoginItemControlling
     @ObservationIgnored let defaults: UserDefaults
     @ObservationIgnored let environment: AppModelEnvironment
@@ -63,10 +63,10 @@ public final class AppModel {
     /// The camera the current session most recently reported as running; `nil` once the session ends. It tells a lost
     /// camera that was the chosen one from a stand-in capture opened on its own.
     var runningDevice: CameraDevice?
-    /// The connected camera Sway uses while the chosen one is unplugged (SPEC D46); `nil` when it uses the chosen
+    /// The connected camera Gander uses while the chosen one is unplugged (SPEC D46); `nil` when it uses the chosen
     /// camera. Never saved: the user's choice (`selectedCameraID`) stays as it was.
     var fallbackCamera: CameraDevice?
-    /// The ID of the chosen camera that went missing and left no calibrated camera to use, so Sway turned Tracking off
+    /// The ID of the chosen camera that went missing and left no calibrated camera to use, so Gander turned Tracking off
     /// in memory (SPEC D46). The status names it while it is still not connected. Cleared when it is connected again,
     /// when the user turns Tracking on, or when the user picks a camera.
     var lostCameraID: String?
@@ -139,13 +139,13 @@ public final class AppModel {
     /// What the tracking loop believes has keyboard focus (`loop.focusedDisplay`), for the Pose Debug window. The loop
     /// itself is not observed: it changes on every sample.
     var trackingFocus: DisplayID?
-    /// True while Sway's own focus request runs (`loop.isFocusing`).
+    /// True while Gander's own focus request runs (`loop.isFocusing`).
     var isSwitching = false
     /// The displays are changing and the new layout is not known yet (SPEC D44). Switching holds.
     var displaysChanging = false
     /// A Space just changed (SPEC D44). Switching holds for a moment.
     var spaceChanging = false
-    /// Sway is in front: the active app with its menu or one of its windows key (SPEC D28).
+    /// Gander is in front: the active app with its menu or one of its windows key (SPEC D28).
     var isAppActive = false
     /// The popover's "Looking at" line, assigned only when it changes.
     var lookSummary: LookSummary = .off
@@ -154,7 +154,7 @@ public final class AppModel {
 
     // MARK: Setup window
 
-    /// The Set Up Sway window's flow; `nil` while the window is closed.
+    /// The Set Up Gander window's flow; `nil` while the window is closed.
     var setupFlow: SetupFlow?
     /// A note under the camera check: "Calibration cancelled.", or why a run ended early.
     var setupMessage: UserMessage?
@@ -312,7 +312,7 @@ public final class AppModel {
     ///   - engine: fits the calibration profile and makes the switch decider for the preview.
     ///   - focus: last-used windows, focused display, Accessibility trust, and focus requests.
     ///   - hotKeys: registers the Focus Lock shortcut.
-    ///   - loginItem: opens Sway at login (used by the Settings window).
+    ///   - loginItem: opens Gander at login (used by the Settings window).
     ///   - defaults: where the camera choice, calibrations, Tracking choice, sensitivity, and shortcut are persisted.
     public convenience init(
         camera: any FrameSource,

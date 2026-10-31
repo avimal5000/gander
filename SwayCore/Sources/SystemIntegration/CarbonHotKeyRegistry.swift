@@ -75,7 +75,7 @@ final class CarbonHotKeyRegistry: @unchecked Sendable {
         }
     }
 
-    /// The handler registered for `hotKeyID`, or nil when it isn't one of Sway's live hot keys.
+    /// The handler registered for `hotKeyID`, or nil when it isn't one of Gander's live hot keys.
     func handler(for hotKeyID: EventHotKeyID) -> (@MainActor () -> Void)? {
         guard let action = CarbonHotKeyMapping.action(for: hotKeyID) else { return nil }
         return state.withLockUnchecked { $0.entries[action]?.handler }

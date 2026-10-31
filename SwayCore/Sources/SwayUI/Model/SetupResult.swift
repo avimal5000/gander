@@ -30,7 +30,7 @@ struct SetupResult: Equatable, Sendable {
     /// The fit left out the displays named in `names` (too few face samples while looking at them): nothing was saved.
     static func missingDisplays(_ names: [String]) -> SetupResult {
         .failed(
-            "Sway couldn't see your face well enough while you looked at \(listed(names)). "
+            "Gander couldn't see your face well enough while you looked at \(listed(names)). "
                 + "Make sure the camera sees you from every display, then calibrate again.")
     }
 
@@ -77,7 +77,7 @@ struct SetupResult: Equatable, Sendable {
             // Setup saves only a calibration that covers every display, so this means few samples somewhere.
             quality = .fair
             text =
-                "Calibration saved, but Sway saw your face only briefly on some displays. "
+                "Calibration saved, but Gander saw your face only briefly on some displays. "
                 + "If switching feels unreliable, calibrate again."
         case .go?, nil:
             quality = .good

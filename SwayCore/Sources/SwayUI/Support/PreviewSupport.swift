@@ -149,7 +149,7 @@ enum PreviewSupport {
         return model
     }
 
-    /// A model with the Set Up Sway window open on `step`. The welcome step shows with an empty library, as on first
+    /// A model with the Set Up Gander window open on `step`. The welcome step shows with an empty library, as on first
     /// setup; the result step shows a good calibration.
     @MainActor
     static func setupModel(step: SetupFlow.Step) -> AppModel {
@@ -319,7 +319,7 @@ private struct PreviewFocus: FocusControlling {
         guard let first = layout.displays.first else { return [:] }
         return [
             first.id: WindowSummary(
-                id: 1, processID: 100, appName: "Safari", title: "Sway", bounds: first.frame, displayID: first.id)
+                id: 1, processID: 100, appName: "Safari", title: "Gander", bounds: first.frame, displayID: first.id)
         ]
     }
 

@@ -39,7 +39,7 @@ extension AppModel {
         }
         if let missing = current.displays.first(where: { !environment.overlay.canPresent(on: $0) }) {
             post(
-                .error("Sway could not find the screen for \(missing.name). Check the display connections."),
+                .error("Gander could not find the screen for \(missing.name). Check the display connections."),
                 for: purpose)
             return
         }

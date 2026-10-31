@@ -13,7 +13,7 @@ struct GateSetupView: View {
                         .font(.title2.weight(.semibold))
                     Text(
                         "A green overlay appears on each display in turn. Look at its center and hold still. "
-                            + "Sway checks whether your head pose tells the displays apart. Nothing leaves your Mac."
+                            + "Gander checks whether your head pose tells the displays apart. Nothing leaves your Mac."
                     )
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -57,7 +57,7 @@ struct GateSetupView: View {
             } else if model.exceedsTrackedDisplays {
                 MessageView(
                     message: .info(
-                        "Sway v1 will track \(SwayPolicy.maxTrackedDisplays) displays. "
+                        "Gander v1 will track \(SwayPolicy.maxTrackedDisplays) displays. "
                             + "This test measures all \(model.layout.displays.count) connected displays."
                     )
                 )

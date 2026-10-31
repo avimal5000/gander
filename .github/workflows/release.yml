@@ -92,20 +92,20 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cat > "$RUNNER_TEMP/notes.md" <<NOTES
-          Sway $VERSION for macOS 14 or later (Apple silicon and Intel).
+          Gander $VERSION for macOS 14 or later (Apple silicon and Intel).
 
           **Build:** $SIGNING_STATUS.
 
-          Open the DMG, drag Sway to Applications, and open it from there. If macOS says Apple could not verify the app
+          Open the DMG, drag Gander to Applications, and open it from there. If macOS says Apple could not verify the app
           (builds that are not notarized): click Done, then System Settings, Privacy & Security, scroll to Security,
-          click Open Anyway next to "Sway was blocked", and confirm. Or run
-          \`xattr -dr com.apple.quarantine /Applications/Sway.app\` in Terminal and open Sway again.
+          click Open Anyway next to "Gander was blocked", and confirm. Or run
+          \`xattr -dr com.apple.quarantine /Applications/Gander.app\` in Terminal and open Gander again.
 
-          Sway asks for Camera access when you set it up, and Accessibility access so it can focus windows. Sway never
+          Gander asks for Camera access when you set it up, and Accessibility access so it can focus windows. Gander never
           uses the network. The SHA-256 checksum is in the \`.sha256\` file.
           NOTES
           gh release create "$GITHUB_REF_NAME" dist/*.dmg dist/*.sha256 \
-            --title "Sway $VERSION" --notes-file "$RUNNER_TEMP/notes.md" --verify-tag --prerelease
+            --title "Gander $VERSION" --notes-file "$RUNNER_TEMP/notes.md" --verify-tag --prerelease
 
       - name: Remove the signing keychain
         if: always()

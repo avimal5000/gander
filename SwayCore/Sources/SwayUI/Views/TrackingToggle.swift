@@ -12,7 +12,7 @@ struct TrackingToggle: View {
         .disabled(model.gateRunState != .idle)
         .help(
             model.gateRunState == .idle
-                ? "Switch focus to the display you look at. Off pauses Sway and turns the camera off."
+                ? "Switch focus to the display you look at. Off pauses Gander and turns the camera off."
                 : "A calibration is running.")
     }
 

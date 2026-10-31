@@ -65,7 +65,7 @@ extension TraceStoreError {
         switch self {
         case .disabledInReleaseBuilds: "Traces are only saved in debug builds."
         case .io(let message): "File error: \(message)"
-        case .decoding(let message): "This file is not a valid Sway trace: \(message)"
+        case .decoding(let message): "This file is not a valid Gander trace: \(message)"
         }
     }
 }

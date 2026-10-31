@@ -25,7 +25,7 @@ struct MenuContentView: View {
                 ForEach(MenuWindowItem.allCases, id: \.self) { item in
                     MenuRow(title: item.title, systemImage: item.systemImage) { open(item.windowID) }
                 }
-                MenuRow(title: "Quit Sway", systemImage: "power") {
+                MenuRow(title: "Quit Gander", systemImage: "power") {
                     Task { await model.quit() }
                 }
             }
@@ -51,13 +51,13 @@ struct MenuContentView: View {
         reduceMotion ? nil : .easeInOut(duration: 0.2)
     }
 
-    /// The Swing mark, in Sway green whatever the accent, and "Sway", over the status line.
+    /// The Swing mark, in Gander green whatever the accent, and "Gander", over the status line.
     private var header: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 6) {
                 SwayMark(color: SwayPalette.green)
                     .frame(width: Self.markSize, height: Self.markSize)
-                Text("Sway")
+                Text("Gander")
                     .font(.headline)
             }
             StatusBadge(model: model, lineLimit: 1)

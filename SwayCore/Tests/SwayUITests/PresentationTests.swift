@@ -161,7 +161,7 @@ struct SwitchPreviewWordingTests {
 
     @Test func theHoldReasonsReadAsInTheContract() {
         #expect(TrackingHold.focusLock.text == "Focus Lock on")
-        #expect(TrackingHold.swayInFront.text == "Sway is in front")
+        #expect(TrackingHold.swayInFront.text == "Gander is in front")
         #expect(TrackingHold.switching.text == "Switching\u{2026}")
         #expect(TrackingHold.focusTest.text == "Focus Test running")
     }

@@ -15,7 +15,7 @@ struct FramingAdviceTests {
 
     @Test func noPoseMeansNoFace() {
         #expect(FramingAdvice(nil) == .noFace)
-        #expect(FramingAdvice.noFace.text == "Sway can't see your face yet.")
+        #expect(FramingAdvice.noFace.text == "Gander can't see your face yet.")
     }
 
     @Test func aFaceThatIsTooSmallAsksToMoveCloser() {

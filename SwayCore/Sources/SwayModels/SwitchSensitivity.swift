@@ -1,7 +1,7 @@
 import Foundation
 
 /// The switching settings the user can change (SPEC F21, F35): how long to hold a look, how long to pause after a
-/// switch, and how sure Sway must be. The other `SwitchSettings` fields keep their defaults.
+/// switch, and how sure Gander must be. The other `SwitchSettings` fields keep their defaults.
 public struct SwitchSensitivity: Sendable, Equatable, Codable {
     /// Allowed dwell, in seconds.
     public static let dwellRange: ClosedRange<Double> = 0.05...1.5

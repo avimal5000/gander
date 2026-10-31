@@ -10,7 +10,7 @@ struct MenuBarLabel: View {
     var body: some View {
         Image(nsImage: MenuBarIcon.image(for: model.menuBarGlyph))
             .renderingMode(.template)
-            .accessibilityLabel("Sway")
+            .accessibilityLabel("Gander")
             .accessibilityValue(model.statusLine)
     }
 }

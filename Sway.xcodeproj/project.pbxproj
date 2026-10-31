@@ -11,7 +11,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		5A0000000000000000000201 /* Sway.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Sway.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		5A0000000000000000000201 /* Gander.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Gander.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5A0000000000000000000202 /* Sway.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Sway.entitlements; sourceTree = "<group>"; };
 		5A0000000000000000000204 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		5A0000000000000000000203 /* SwayCore */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = SwayCore; sourceTree = "<group>"; };
@@ -59,7 +59,7 @@
 		5A0000000000000000000603 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				5A0000000000000000000201 /* Sway.app */,
+				5A0000000000000000000201 /* Gander.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -87,7 +87,7 @@
 				5A0000000000000000000301 /* SwayCore */,
 			);
 			productName = Sway;
-			productReference = 5A0000000000000000000201 /* Sway.app */;
+			productReference = 5A0000000000000000000201 /* Gander.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -278,10 +278,10 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Config/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Sway;
+				INFOPLIST_KEY_CFBundleDisplayName = Gander;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_LSUIElement = YES;
-				INFOPLIST_KEY_NSCameraUsageDescription = "Sway uses the camera to estimate which display you are looking at. Frames are processed in memory on this Mac and are never saved or sent anywhere.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Gander uses the camera to estimate which display you are looking at. Frames are processed in memory on this Mac and are never saved or sent anywhere.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -289,7 +289,7 @@
 				);
 				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.avimal5000.sway;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = Gander;
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 6.0;
@@ -309,10 +309,10 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Config/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Sway;
+				INFOPLIST_KEY_CFBundleDisplayName = Gander;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_LSUIElement = YES;
-				INFOPLIST_KEY_NSCameraUsageDescription = "Sway uses the camera to estimate which display you are looking at. Frames are processed in memory on this Mac and are never saved or sent anywhere.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Gander uses the camera to estimate which display you are looking at. Frames are processed in memory on this Mac and are never saved or sent anywhere.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -320,7 +320,7 @@
 				);
 				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.avimal5000.sway;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = Gander;
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 6.0;

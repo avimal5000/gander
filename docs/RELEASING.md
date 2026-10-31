@@ -1,6 +1,6 @@
-# Releasing Sway
+# Releasing Gander
 
-Sway is released as a DMG on GitHub Releases. There is no auto-update (SPEC D48): Sway never uses the network, so a
+Gander is released as a DMG on GitHub Releases. There is no auto-update (SPEC D48): Gander never uses the network, so a
 new version is a new DMG that replaces the app.
 
 A release is built by `scripts/release.sh`, either on your Mac or by the **Release** workflow when you push a `vX.Y.Z`
@@ -16,8 +16,8 @@ You need the paid Apple Developer Program account (team ID `WNW4M84Z3U`, as in t
 2. **Export it.** Keychain Access → My Certificates → right-click "Developer ID Application: …" → **Export…** → save
    as `sway-developer-id.p12` with a password you choose.
 3. **Make an app-specific password.** appleid.apple.com → Sign-In and Security → App-Specific Passwords → **+** → name
-   it "Sway notarization".
-4. **Put them in the repository's secrets** (Terminal, in the Sway folder; `gh` asks for each value and nothing is
+   it "Gander notarization".
+4. **Put them in the repository's secrets** (Terminal, in the Gander folder; `gh` asks for each value and nothing is
    printed or saved in the shell history):
    ```bash
    base64 -i sway-developer-id.p12 | gh secret set MACOS_CERTIFICATE_P12_BASE64
@@ -65,18 +65,18 @@ has a network entitlement.
 
 ## What users see
 
-- **Signed and notarized:** open the DMG, drag Sway to Applications, open it. No warning.
+- **Signed and notarized:** open the DMG, drag Gander to Applications, open it. No warning.
 - **Ad hoc only:** macOS says Apple could not verify the app. Click **Done** (not Move to Trash), then System
-  Settings → Privacy & Security → scroll to Security → **Open Anyway** next to "Sway was blocked", and confirm with
+  Settings → Privacy & Security → scroll to Security → **Open Anyway** next to "Gander was blocked", and confirm with
   the password or Touch ID. macOS 15 and later removed the right-click → Open shortcut, so that no longer works.
-  Or: `xattr -dr com.apple.quarantine /Applications/Sway.app`, then open Sway.
+  Or: `xattr -dr com.apple.quarantine /Applications/Gander.app`, then open Gander.
 - **Permissions:** Camera and Accessibility are granted per app signature. A different signature (the Xcode build,
   the ad hoc build, and the Developer ID build are three different ones) asks again, and the old Accessibility
   entry stays in the list: remove it with the **−** button and add the new one. Do this once after switching from
   an Xcode build to an installed release.
-- **Login item:** "Open at login" is registered for the app in `/Applications`; run Sway from there.
+- **Login item:** "Open at login" is registered for the app in `/Applications`; run Gander from there.
 
 ## Why there is no auto-update
 
-Auto-update needs the network, which would break Sway's promise that it never uses it. If that ever changes, it needs a
+Auto-update needs the network, which would break Gander's promise that it never uses it. If that ever changes, it needs a
 new decision, a network entitlement, an updated privacy audit and welcome text, and a library such as Sparkle.

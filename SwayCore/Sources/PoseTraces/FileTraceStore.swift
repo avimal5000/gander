@@ -19,7 +19,7 @@ public struct FileTraceStore: TraceStoring {
     /// - Parameter directory: folder for trace files; `nil` selects `Application Support/Sway/Traces`.
     public init(directory: URL? = nil) {
         self.directory =
-            directory ?? URL.applicationSupportDirectory.appending(path: "Sway/Traces", directoryHint: .isDirectory)
+            directory ?? URL.applicationSupportDirectory.appending(path: "Gander/Traces", directoryHint: .isDirectory)
     }
 
     /// Writes `trace` atomically as `yyyyMMdd-HHmmss-<first 8 of id>.json` and returns the file URL.
