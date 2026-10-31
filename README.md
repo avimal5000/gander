@@ -33,7 +33,7 @@ macOS 14+, Xcode 26+. No third-party dependencies. Keep the repo out of iCloud-s
 ## Build and run
 
 ```bash
-open Sway.xcodeproj          # scheme "Gander", Run (signs with your Apple Development certificate)
+open Sway.xcodeproj          # scheme "Sway", Run (signs with your Apple Development certificate)
 ```
 
 Command line (unsigned):

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Seeds GitHub labels, milestones M0-M8, and issues from PLAN.md. Idempotent: existing items are skipped.
-# Usage: scripts/seed-github.sh            (REPO defaults to avimal5000/sway)
+# Usage: scripts/seed-github.sh            (REPO defaults to avimal5000/gander)
 set -euo pipefail
-REPO="${REPO:-avimal5000/sway}"
+REPO="${REPO:-avimal5000/gander}"
 
 existing_labels=$(gh label list -R "$REPO" --limit 300 --json name -q '.[].name')
 existing_milestones=$(gh api "repos/$REPO/milestones?state=all&per_page=100" -q '.[].title')
