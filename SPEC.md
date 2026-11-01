@@ -100,6 +100,7 @@ Decision for tuning (0.1.x):
 |---|---|---|
 | D49 | **Faster switching is adjustable.** A new setting, "Pause after a switch" (the decider's `cooldown`), range 0.2–1.5 s, default 0.75 s. The hold time's lower limit drops from 0.2 s to 0.05 s. A button applies "Instant" timing: hold time 0.10 s and pause 0.30 s, leaving the user's confidence setting alone. Defaults do not change, and saved settings without the new value keep working. Whether faster timing means more unwanted switches is measured with the all-day tool's count of quick back-and-forths | User asked "make the transition instant", 2026-10-26 |
 | D50 | **Setup ends at the camera check.** Reaching the camera check (intro and permissions done) finishes the first setup, calibrated or not, and is saved (`gander.setupCompleted`). The menu then stops offering **Set Up…** and the intro does not replay (the Welcome Tour does on request). With one display the camera check offers **Done**; once 2+ displays are connected and nothing is calibrated, the needs-calibration banner asks, Tracking on or off | User, 2026-11-01 |
+| D51 | **A short menu.** The menu bar popover lists only Calibrate…, Settings… and Quit Gander below the camera picker. The Welcome Tour, Pose Debug, the Head-Pose Gate Test and the Focus Test move to a new **Advanced** section at the end of Settings | User, 2026-11-01 ("I want the tray to be more neat") |
 
 An extra, uncalibrated display (a fourth monitor, Sidecar, AirPlay) still stops tracking until it is calibrated (D25).
 
@@ -217,7 +218,7 @@ The popover, top to bottom (fixed width, constant height while tracking starts a
 4. **Focus Lock** switch, with the shortcut shown.
 5. One line: "Looking at <display>", "Looking elsewhere", "No face", or a dash when the camera is off.
 6. Camera picker.
-7. Calibrate…, Settings…, Pose Debug Window…, Head-Pose Gate Test…, Focus Test Window…, Quit Gander.
+7. Calibrate…, Settings…, Quit Gander. The Welcome Tour and the test windows are in Settings > Advanced (D51).
 
 **F20. Guided calibration (M5, #24, D30).** A "Set Up Gander" window, in steps:
 1. **Camera access**, skipped when granted.
@@ -240,6 +241,8 @@ step 3 and takes under 30 s.
 - **Camera:** the picker.
 - **Calibrations:** each saved calibration (its displays, camera, and date), the one in use marked, Delete per
   row, and Calibrate….
+- **Advanced:** Welcome Tour, Pose Debug Window, Head-Pose Gate Test and Focus Test Window, each with one line on
+  what it does and an Open button (D51).
 
 **F22. Recalibrate prompt (M5, #26, D25).** When the connected displays (two or more) are not covered by any
 saved calibration for the current camera, tracking waits with the camera off, the icon shows Needs calibration,

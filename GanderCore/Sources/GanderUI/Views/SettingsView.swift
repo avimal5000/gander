@@ -3,7 +3,7 @@ import GanderModels
 import SwiftUI
 
 /// The Gander Settings window (SPEC F21, D33): appearance, login item, switching, the Focus Lock shortcut, the camera,
-/// and the saved calibrations. A regular window, because SwiftUI's `Settings` scene cannot be opened reliably from a
+/// the saved calibrations, and Advanced (the Welcome Tour and the tools for checking Gander). A regular window, because SwiftUI's `Settings` scene cannot be opened reliably from a
 /// menu bar app on macOS 14.
 struct SettingsView: View {
     let model: AppModel
@@ -18,6 +18,7 @@ struct SettingsView: View {
                 ShortcutSettingsSection(model: model)
                 cameraSection
                 CalibrationsSettingsSection(model: model, openSetup: openSetup)
+                AdvancedSettingsSection(open: open)
             }
             .padding(20)
         }
@@ -38,9 +39,51 @@ struct SettingsView: View {
     }
 
     private func openSetup() {
-        model.noteWindowRequested(GanderWindowID.setup)
-        openWindow(id: GanderWindowID.setup)
+        open(.calibrate)
+    }
+
+    private func open(_ item: MenuWindowItem) {
+        if item == .welcomeTour { model.requestWelcomeTour() }
+        model.noteWindowRequested(item.windowID)
+        openWindow(id: item.windowID)
         NSApp.activate()
+    }
+}
+
+/// The Welcome Tour and the tools for checking Gander, which used to crowd the menu bar popover.
+private struct AdvancedSettingsSection: View {
+    let open: (MenuWindowItem) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Advanced")
+                .font(.headline)
+            Text("Gander works without these. They help when switching goes wrong.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            ForEach(MenuWindowItem.advanced, id: \.self) { item in
+                HStack(alignment: .center, spacing: 10) {
+                    Image(systemName: item.systemImage)
+                        .frame(width: 20)
+                        .foregroundStyle(.secondary)
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(item.title.replacingOccurrences(of: "\u{2026}", with: ""))
+                        Text(item.help)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer()
+                    Button("Open") { open(item) }
+                        .accessibilityLabel("Open \(item.title)")
+                }
+                .help(item.help)
+                if item != MenuWindowItem.advanced.last { Divider() }
+            }
+        }
+        .ganderCard()
     }
 }
 
