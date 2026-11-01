@@ -63,6 +63,12 @@ APPLE_ID=you@example.com APPLE_APP_SPECIFIC_PASSWORD=xxxx-xxxx-xxxx-xxxx APPLE_T
 The script also runs `scripts/audit-privacy.sh` on the built app, and fails if the app links a networking library or
 has a network entitlement.
 
+The DMG window has a branded background with an arrow from Gander to Applications. `scripts/make-dmg-background.swift`
+draws it, and `dmgbuild` lays out the window (`scripts/dmg-settings.py`); keep the icon positions in those two files
+in step. The script installs `dmgbuild` into `.build-release/` from `scripts/dmg-requirements.txt`, pinned by hash,
+so a build needs network access for that step. It is a build tool only and never ships in Gander. A notarized build
+leaves out the "Open Anyway" hint at the bottom of the window.
+
 ## What users see
 
 - **Signed and notarized:** open the DMG, drag Gander to Applications, open it. No warning.

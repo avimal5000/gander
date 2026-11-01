@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Builds Gander for release (issues #40, #41, #42): a Release archive, a DMG with the app and an Applications link, and,
-# when you give it a Developer ID certificate and Apple credentials, a signed, notarized, stapled DMG.
+# Builds Gander for release (issues #40, #41, #42): a Release archive, a DMG with the app, an Applications link and a
+# branded window, and, when you give it a Developer ID certificate and Apple credentials, a signed, notarized, stapled
+# DMG.
 #
 #   scripts/release.sh [--version 0.1.0] [--build-number 1] [--out dist]
 #                      [--identity "Developer ID Application: Name (TEAMID)"]
@@ -72,12 +73,23 @@ echo "==> Checking the app before packaging"
 scripts/audit-privacy.sh --app "$app"
 
 echo "==> Making $dmg"
-stage="$derived/dmg-stage"
-rm -rf "$stage" "$dmg"
-mkdir -p "$stage"
-cp -R "$app" "$stage/Gander.app"
-ln -s /Applications "$stage/Applications"
-hdiutil create -volname "Gander $version" -srcfolder "$stage" -fs HFS+ -format UDZO -ov "$dmg" >/dev/null
+# The window: a branded background with an arrow from Gander to Applications (scripts/make-dmg-background.swift),
+# laid out by dmgbuild (scripts/dmg-settings.py), which writes Finder's layout file directly instead of driving Finder.
+art="$derived/dmg-art"
+background_flags=()
+$notarize && background_flags+=(--notarized)
+swift scripts/make-dmg-background.swift "$art" ${background_flags[@]+"${background_flags[@]}"}
+tiffutil -cathidpicheck "$art/background.png" "$art/background@2x.png" -out "$art/background.tiff" >/dev/null 2>&1
+venv="$derived/dmgbuild-venv"
+python3 -m venv "$venv"
+"$venv/bin/pip" install --quiet --disable-pip-version-check --require-hashes -r scripts/dmg-requirements.txt
+rm -f "$dmg"
+# hdiutil prints a deprecation warning for each step; show dmgbuild's output only when it fails.
+if ! dmgbuild_log=$("$venv/bin/dmgbuild" -s scripts/dmg-settings.py -D app="$app" \
+  -D background="$art/background.tiff" "Gander $version" "$dmg" 2>&1); then
+  echo "$dmgbuild_log" >&2
+  exit 1
+fi
 if [[ -n "$identity" ]]; then
   codesign --force --timestamp --sign "$identity" "$dmg"
 fi
