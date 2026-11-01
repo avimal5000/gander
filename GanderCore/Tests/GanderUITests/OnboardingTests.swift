@@ -88,4 +88,26 @@ struct OnboardingTests {
         }
         #expect(h.model.setupFlow?.introPage == SetupFlow.introPageCount - 1)
     }
+
+    @Test func theWelcomeTourOpensOnTheIntroEvenWhenCalibrated() {
+        let h = Harness.make(calibrated: true)
+        defer { h.tearDown() }
+
+        h.model.requestWelcomeTour()
+        h.openSetup(welcome: true)
+
+        #expect(h.model.setupFlow?.step == .welcome)
+        #expect(!h.model.tourPending)
+    }
+
+    @Test func theWelcomeTourRestartsAnOpenSetupWindow() {
+        let h = Harness.make(calibrated: true)
+        defer { h.tearDown() }
+        h.openSetup(welcome: true)
+        #expect(h.model.setupFlow?.step == .cameraCheck)
+
+        h.model.requestWelcomeTour()
+
+        #expect(h.model.setupFlow?.step == .welcome)
+    }
 }

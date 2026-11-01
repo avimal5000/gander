@@ -18,4 +18,15 @@ extension AppModel {
         noteWindowRequested(GanderWindowID.setup)
         return true
     }
+
+    /// The menu's Welcome Tour: the Set Up window on the intro, for anyone, any time. A window already open goes back
+    /// to the first page; a closed one opens on it.
+    func requestWelcomeTour() {
+        guard setupFlow != nil else {
+            tourPending = true
+            return
+        }
+        let facts = setupFacts
+        mutateSetup { $0 = SetupFlow(facts: facts, showsWelcome: true) }
+    }
 }

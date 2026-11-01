@@ -42,7 +42,8 @@ extension AppModel {
         refreshAccessibilityTrust()
         setupMessage = nil
         setupResult = nil
-        let flow = SetupFlow(facts: setupFacts, showsWelcome: library.profiles.isEmpty)
+        let flow = SetupFlow(facts: setupFacts, showsWelcome: library.profiles.isEmpty || tourPending)
+        tourPending = false
         setupFlow = flow
         setupFlowDidChange(from: nil, to: flow)
         // The walkthrough has shown once: quitting mid-way never brings it back by itself.
