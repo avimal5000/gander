@@ -251,6 +251,60 @@ struct SetupFlowTests {
         }
         return flow
     }
+
+    // MARK: Intro pages
+
+    @Test func theIntroStartsOnTheFirstPage() {
+        let flow = SetupFlow(facts: facts(), showsWelcome: true)
+        #expect(flow.introPage == 0)
+        #expect(!flow.isLastIntroPage)
+        #expect(SetupFlow.introPageCount == 4)
+    }
+
+    @Test func nextAndBackMoveOnePageAndStopAtTheEnds() {
+        var flow = SetupFlow(facts: facts(), showsWelcome: true)
+        flow.previousIntroPage()
+        #expect(flow.introPage == 0, "Back stops at the first page")
+        for expected in 1...3 {
+            flow.nextIntroPage()
+            #expect(flow.introPage == expected)
+        }
+        #expect(flow.isLastIntroPage)
+        flow.nextIntroPage()
+        #expect(flow.introPage == 3, "Next stops at the last page")
+        #expect(flow.step == .welcome)
+        flow.previousIntroPage()
+        #expect(flow.introPage == 2)
+    }
+
+    @Test func skippingFromAnyPageGoesToTheFirstApplicableStep() {
+        for page in 0..<SetupFlow.introPageCount {
+            var flow = SetupFlow(facts: facts(camera: false), showsWelcome: true)
+            for _ in 0..<page { flow.nextIntroPage() }
+            flow.getStarted(facts(camera: false))
+            #expect(flow.step == .cameraAccess)
+        }
+        var flow = SetupFlow(facts: facts(), showsWelcome: true)
+        flow.nextIntroPage()
+        flow.getStarted(facts())
+        #expect(flow.step == .cameraCheck)
+    }
+
+    @Test func pagingDoesNothingOutsideTheWelcome() {
+        var flow = SetupFlow(facts: facts())
+        flow.nextIntroPage()
+        flow.previousIntroPage()
+        #expect(flow.introPage == 0)
+        #expect(flow.step == .cameraCheck)
+    }
+
+    @Test func permissionChangesDoNotTurnTheIntroPage() {
+        var flow = SetupFlow(facts: facts(camera: false), showsWelcome: true)
+        flow.nextIntroPage()
+        flow.update(facts())
+        #expect(flow.step == .welcome)
+        #expect(flow.introPage == 1)
+    }
 }
 
 extension SetupFlow.Step {

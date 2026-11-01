@@ -21,6 +21,8 @@ enum DefaultsKey {
     static let edgeGlowEnabled = "gander.edgeGlowEnabled"
     /// Whether the shortcut shows the Focus Lock notice (`Bool`); absent means on (SPEC D39).
     static let focusLockNoticeEnabled = "gander.focusLockNoticeEnabled"
+    /// Whether the first-run walkthrough has appeared once (`Bool`); absent means no. Set as soon as it shows.
+    static let onboardingSeen = "gander.onboardingSeen"
 }
 
 /// What the camera permission banner should currently say.

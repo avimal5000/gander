@@ -389,7 +389,7 @@ struct ViewSmokeTests {
         #expect(
             renders(SetupView(model: h.model).environment(\.colorScheme, .dark), width: 520, height: 420),
             "Welcome, dark")
-        #expect(renders(SetupWelcomeStep(model: h.model), width: 472, height: 372), "The step alone")
+        #expect(renders(SetupWelcomeStep(model: h.model), width: 512, height: 432), "The step alone")
         #expect(renders(SetupHeader(step: .cameraCheck), width: 472, height: 60), "The shared header")
     }
 

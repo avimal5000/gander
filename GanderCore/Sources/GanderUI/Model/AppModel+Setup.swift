@@ -33,9 +33,11 @@ extension AppModel {
 
     /// The Setup window appeared: open the flow at the first step that applies, after the welcome step when nothing is
     /// calibrated yet (SPEC F26). Ignored for the copy SwiftUI opens at launch, which the launch guard closes unseen
-    /// (nobody asked for it), and when the flow is already open.
-    func setupWindowDidAppear() {
-        guard hasWindowRequest(GanderWindowID.setup), setupFlow == nil else { return }
+    /// (nobody asked for it), and when the flow is already open. Returns true when the window is the first-run
+    /// walkthrough, which the view then brings to the front.
+    @discardableResult
+    func setupWindowDidAppear() -> Bool {
+        guard hasWindowRequest(GanderWindowID.setup), setupFlow == nil else { return false }
         refreshEnvironment()
         refreshAccessibilityTrust()
         setupMessage = nil
@@ -43,6 +45,11 @@ extension AppModel {
         let flow = SetupFlow(facts: setupFacts, showsWelcome: library.profiles.isEmpty)
         setupFlow = flow
         setupFlowDidChange(from: nil, to: flow)
+        // The walkthrough has shown once: quitting mid-way never brings it back by itself.
+        let opened = onboardingPending
+        onboardingPending = false
+        if opened { defaults.set(true, forKey: DefaultsKey.onboardingSeen) }
+        return opened
     }
 
     /// The Setup window closed.
@@ -66,8 +73,18 @@ extension AppModel {
 
     // MARK: Welcome
 
-    /// "Get Started" on the welcome step: on to the first step that applies. The permissions are read again first,
-    /// because the user may have read the welcome for a while.
+    /// "Next" on the intro.
+    func nextIntroPage() {
+        mutateSetup { $0.nextIntroPage() }
+    }
+
+    /// "Back" on the intro.
+    func previousIntroPage() {
+        mutateSetup { $0.previousIntroPage() }
+    }
+
+    /// "Set Up Gander" on the last intro page, or "Skip intro": on to the first step that applies. The permissions are
+    /// read again first, because the user may have read the intro for a while.
     func getStartedFromSetup() {
         guard setupFlow?.step == .welcome else { return }
         refreshEnvironment()

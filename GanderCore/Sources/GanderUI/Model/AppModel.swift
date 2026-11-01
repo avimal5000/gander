@@ -255,6 +255,8 @@ public final class AppModel {
     @ObservationIgnored var settingsVisible = false
     @ObservationIgnored var copyResetTask: Task<Void, Never>?
     @ObservationIgnored var requestedWindows: Set<String> = []
+    /// The Setup window was requested by the first-run rule and has not appeared yet.
+    @ObservationIgnored var onboardingPending = false
     @ObservationIgnored var windowRefs: [String: WeakWindow] = [:]
     @ObservationIgnored var notificationObservers: [any NSObjectProtocol] = []
     @ObservationIgnored var workspaceObservers: [any NSObjectProtocol] = []

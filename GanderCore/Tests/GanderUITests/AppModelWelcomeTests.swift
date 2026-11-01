@@ -157,17 +157,36 @@ struct AppModelWelcomeTests {
 
     // MARK: Words
 
-    @Test func theWelcomeSaysExactlyWhatTheSpecSays() {
+    @Test func theWelcomeSaysTheCopyOfTheWalkthrough() {
         #expect(SetupPresentation.welcomeTitle == "Welcome to Gander")
-        #expect(
-            SetupPresentation.welcomeLine
-                == "Look at a display, and Gander moves your typing there. The pointer never moves.")
-        #expect(
-            SetupPresentation.welcomePrivacy
-                == "Your camera stays private. Gander reads only which way your head is turned, on this Mac. Video is never recorded, saved, or sent anywhere."
-        )
-        #expect(SetupPresentation.welcomeButton == "Get Started")
+        #expect(SetupPresentation.welcomeHeadline == "Look at a screen. Start typing.")
+        #expect(SetupPresentation.welcomeCaption == "Gander at work: the head turns, focus follows, the pointer stays.")
+        #expect(SetupPresentation.stepsTitle == "Look. Settle. Type.")
+        #expect(SetupPresentation.steps.count == 3)
+        #expect(SetupPresentation.privacyTitle == "Your camera stays yours.")
+        #expect(SetupPresentation.privacyLines.count == 3)
+        #expect(SetupPresentation.menuBarTitle == "Find Gander in the menu bar")
+        #expect(SetupPresentation.nextSteps.count == 3)
+        #expect(SetupPresentation.welcomeButton == "Set Up Gander")
+        #expect(SetupPresentation.pageLabel(1) == "Page 2 of 4")
         #expect(SetupView.title(for: .welcome) == "Welcome to Gander")
+    }
+
+    @Test func theIntroPagesThroughTheModel() {
+        let h = Harness.make()
+        defer { h.tearDown() }
+        h.openSetup(welcome: true)
+        #expect(h.model.setupFlow?.introPage == 0)
+
+        h.model.nextIntroPage()
+        h.model.nextIntroPage()
+        #expect(h.model.setupFlow?.introPage == 2)
+        h.model.previousIntroPage()
+        #expect(h.model.setupFlow?.introPage == 1)
+        #expect(h.model.setupFlow?.step == .welcome)
+
+        h.model.getStartedFromSetup()
+        #expect(h.model.setupFlow?.step == .cameraCheck, "Skip intro leaves the welcome")
     }
 
     @Test func everyNumberedStepKeepsItsTitle() {

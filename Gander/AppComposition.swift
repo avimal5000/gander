@@ -15,7 +15,7 @@ enum AppComposition {
         EarlierNameMigration.run()
         let camera = CameraCaptureService()
         let poseSource = LivePoseSource(frameSource: camera, estimator: VisionPoseEstimator())
-        return AppModel(
+        let model = AppModel(
             camera: camera,
             poseSource: poseSource,
             displays: ScreenDisplayTracker(),
@@ -26,5 +26,7 @@ enum AppComposition {
             hotKeys: CarbonHotKeyCenter(),
             loginItem: MainAppLoginItem()
         )
+        model.requestOnboardingIfFirstRun()
+        return model
     }
 }

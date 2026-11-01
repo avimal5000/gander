@@ -1,3 +1,4 @@
+import AppKit
 import GanderModels
 import SwiftUI
 
@@ -6,6 +7,7 @@ import SwiftUI
 struct SetupView: View {
     let model: AppModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         // One step at a time, cross-fading over the same area when the step changes (F29).
@@ -18,9 +20,15 @@ struct SetupView: View {
         }
         .animation(Self.stepAnimation(reduceMotion: reduceMotion), value: model.setupFlow?.step)
         .padding(24)
-        .frame(width: 520, height: 420, alignment: .topLeading)
+        .frame(width: 560, height: 480, alignment: .topLeading)
+        .background {
+            if model.setupFlow?.step == .welcome { IntroStyle.ground(colorScheme).ignoresSafeArea() }
+        }
         .tint(model.accentChoice.tint)
-        .onAppear { model.setupWindowDidAppear() }
+        .onAppear {
+            // The first-run walkthrough opens by itself: bring it in front of the other apps.
+            if model.setupWindowDidAppear() { NSApp.activate() }
+        }
         .onDisappear { model.setupWindowDidDisappear() }
         .launchGuarded(id: GanderWindowID.setup, model: model)
     }

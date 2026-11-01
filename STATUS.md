@@ -4,6 +4,8 @@ Phase: **M6, M7, and M8 are merged.** Updated by the orchestrator.
 
 **Rebrand (2026-10-31): Sway is now Gander.** Goose mark in the same colours; `Gander.app`, bundle identifier `com.avimal5000.gander`, project `Gander.xcodeproj`, package `GanderCore` with modules `GanderUI` and `GanderModels`, defaults keys `gander.*`. `EarlierNameMigration` copies the old `sway.*` settings (calibrations, sensitivity, shortcut, accent) on first launch. Because the bundle identifier changed, macOS asks again for Camera and Accessibility access, and the "open at login" switch must be turned on again. The Carbon hot key signature is now `GNDR` (four characters). Name risk: a 2012 US trademark filing for GANDER (software) turned up in a web search; check USPTO before a public launch.
 
+**Onboarding (2026-10-31):** the Set Up window now opens by itself on first launch (empty library and `gander.onboardingSeen` false) on a four-page intro (Fig. 1 animation, Look. Settle. Type., privacy, find Gander in the menu bar); the key is set when the window first appears. PR `feat/onboarding`.
+
 **Current state (2026-10-26):** M6 (#48), M7 (#50), and M8 (#51, f7e9a49) are on `main`; the user approved the merges.
 Still open: **#40**, signing and notarization, until the user adds a Developer ID certificate and the five repository
 secrets (docs/RELEASING.md), and **#39**, the all-day soak test, which the user runs with `scripts/soak.sh`. The
