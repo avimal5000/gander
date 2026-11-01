@@ -184,9 +184,10 @@ struct Harness {
     }
 }
 
-/// Polls `condition` (yielding to other main-actor work) until it holds or `timeout` passes.
+/// Polls `condition` (yielding to other main-actor work) until it holds or `timeout` passes. The limit is generous
+/// because CI runs over a thousand tests in parallel on one main actor; a wait returns as soon as its condition holds.
 @MainActor
-func waitUntil(timeout: Duration = .seconds(5), _ condition: @MainActor () -> Bool) async -> Bool {
+func waitUntil(timeout: Duration = .seconds(20), _ condition: @MainActor () -> Bool) async -> Bool {
     let deadline = ContinuousClock.now + timeout
     while !condition() {
         if ContinuousClock.now > deadline { return false }
