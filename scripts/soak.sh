@@ -47,7 +47,8 @@ except Exception:
       line=$(top -l 2 -s 1 -pid "$pid" -stats cpu,mem,th 2>/dev/null | tail -1)
       cpu=$(awk '{print $1}' <<<"$line")
       rss=$(ps -o rss= -p "$pid" 2>/dev/null | awk '{printf "%.1f", $1/1024}')
-      threads=$(awk '{print $3}' <<<"$line" | tr -d '/+')
+      # `top` shows threads as "16" or, while some run, "16/1" (total/running): keep the total only.
+      threads=$(awk '{print $3}' <<<"$line" | cut -d/ -f1 | tr -d '+')
       power=$(pmset -g batt | head -1 | grep -q "AC Power" && echo ac || echo battery)
       echo "$(date '+%Y-%m-%d %H:%M:%S'),$pid,${cpu:-0},${rss:-0},${threads:-0},$power" >> "$out"
     else
