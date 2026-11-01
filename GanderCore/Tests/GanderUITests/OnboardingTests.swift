@@ -49,9 +49,9 @@ struct OnboardingTests {
     }
 
     @Test func theMigrationCopiesNothingThatCountsAsOnboardingSeen() {
-        let suite = "gander.test.onboarding.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = TemporaryDefaults()
+        defer { store.remove() }
+        let defaults = store.defaults
         EarlierNameMigration.run(in: defaults, earlierValues: ["sway.trackingEnabled": true])
         #expect(defaults.bool(forKey: "gander.trackingEnabled"))
         #expect(!defaults.bool(forKey: DefaultsKey.onboardingSeen))
