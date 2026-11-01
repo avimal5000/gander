@@ -1,8 +1,9 @@
 /// The pure state machine behind the Set Up Gander window (SPEC F20, CONTRACT 6.5.3): which step shows, decided by a
 /// few facts and by the user's moves. It performs no I/O; `AppModel+Setup` feeds it the facts and acts on its steps.
 ///
-/// On first setup (nothing calibrated yet) the window opens on a `welcome` step; **Get Started** moves on to the first
-/// step below that applies. The welcome step is not one of the five numbered steps.
+/// On first setup (nothing calibrated yet) the window opens on a `welcome` step, a paged intro of `introPageCount` pages
+/// (Next, Back, Skip intro); leaving it, from the last page or by skipping, moves on to the first step below that
+/// applies. The welcome step is not one of the five numbered steps.
 ///
 /// Steps run in this order, and the window opens at the first one that applies:
 /// 1. `cameraAccess`, unless the camera is authorized;
@@ -32,7 +33,12 @@ struct SetupFlow: Equatable, Sendable {
     /// Number of steps, for "Step 3 of 5".
     static let stepCount = 5
 
+    /// Pages in the welcome intro: what Gander does, how it works, the privacy promise, and where to find it.
+    static let introPageCount = 4
+
     private(set) var step: Step
+    /// The intro page showing while `step` is `.welcome`, from 0 to `introPageCount - 1`.
+    private(set) var introPage = 0
 
     /// Opens at the first step that applies to `facts`, or on the welcome step when `showsWelcome` is set (first
     /// setup, with an empty calibration library).
@@ -83,7 +89,20 @@ struct SetupFlow: Equatable, Sendable {
         }
     }
 
-    /// "Get Started" on the welcome step: on to the first step that applies to `facts`.
+    /// True on the last intro page, where the primary button starts the setup instead of turning the page.
+    var isLastIntroPage: Bool { introPage == Self.introPageCount - 1 }
+
+    /// "Next" on the intro: the following page. Stays on the last page; its button leaves the intro instead.
+    mutating func nextIntroPage() {
+        if step == .welcome, !isLastIntroPage { introPage += 1 }
+    }
+
+    /// "Back" on the intro: the page before. Stays on the first page.
+    mutating func previousIntroPage() {
+        if step == .welcome, introPage > 0 { introPage -= 1 }
+    }
+
+    /// "Set Up Gander" on the last intro page, or "Skip intro" on any page: on to the first step that applies to `facts`.
     mutating func getStarted(_ facts: Facts) {
         if step == .welcome { step = Self.firstStep(for: facts) }
     }
