@@ -782,8 +782,9 @@ exactly SPEC F19's table. Each case has `symbol` and `line`. `MenuBarLabel` uses
 - **Test:** every case's symbol resolves with `NSImage(systemSymbolName:accessibilityDescription:)`.
 
 **6. Menu (SPEC F19).** Layout exactly as SPEC F19's list.
-- Banners, at most one, in this order: camera permission; first setup (the library is empty); needs calibration
-  (Tracking on, 2+ displays, nothing fits); needs Accessibility (Tracking on, calibrated, not trusted; **Grant
+- Banners, at most one, in this order: camera permission; first setup (the library is empty and
+  `gander.setupCompleted` is not set, SPEC D50); needs calibration (2+ displays, nothing fits, and Tracking on or the
+  library empty); needs Accessibility (Tracking on, calibrated, not trusted; **Grant
   Access…** as in the Focus Test window); `shortcutMessage`.
 - In M4, **Set Up…**, **Calibrate…**, and the needs-calibration button open the gate test window. M5 points them at
   the Setup window.

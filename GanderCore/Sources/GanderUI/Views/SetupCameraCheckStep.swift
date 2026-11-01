@@ -4,6 +4,7 @@ import SwiftUI
 /// Step 3: the camera runs and Gander says whether it sees a face and whether to move (SPEC F20).
 struct SetupCameraCheckStep: View {
     let model: AppModel
+    @Environment(\.dismissWindow) private var dismissWindow
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -15,19 +16,20 @@ struct SetupCameraCheckStep: View {
             }
             .ganderCard()
             if let message = model.setupMessage { MessageView(message: message) }
-            if !model.canStartCalibration {
-                MessageView(message: .info(SetupPresentation.needsSecondDisplay))
-            }
-            HStack(spacing: 12) {
-                Button("Start calibration") { Task { await model.startCalibration() } }
-                    .buttonStyle(.borderedProminent)
-                    .keyboardShortcut(.defaultAction)
-                    .disabled(!model.canStartCalibration)
-                if model.canStartCalibration {
+            if model.canStartCalibration {
+                HStack(spacing: 12) {
+                    Button("Start calibration") { Task { await model.startCalibration() } }
+                        .buttonStyle(.borderedProminent)
+                        .keyboardShortcut(.defaultAction)
                     Text(duration)
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 }
+            } else {
+                MessageView(message: .info(SetupPresentation.calibrateLater))
+                Button("Done") { dismissWindow(id: GanderWindowID.setup) }
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
             }
         }
     }

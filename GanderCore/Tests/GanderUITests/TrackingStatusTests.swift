@@ -276,6 +276,25 @@ struct MenuBannerTests {
         #expect(banner { $0.shortcutMessage = "Taken" } == .shortcut("Taken"))
     }
 
+    @Test func afterTheWalkthroughTheFirstSetupIsNotOfferedAgain() {
+        let done: (inout MenuBanner.Facts) -> Void = {
+            $0.libraryIsEmpty = true; $0.hasCalibration = false; $0.setupCompleted = true; $0.trackingEnabled = false
+        }
+        #expect(
+            banner {
+                done(&$0); $0.displayCount = 1
+            } == nil, "One display: nothing to ask")
+        #expect(banner { done(&$0) } == .needsCalibration, "A second display asks to calibrate, Tracking off or not")
+        #expect(
+            banner {
+                done(&$0); $0.libraryIsEmpty = false
+            } == nil, "Other calibrations: only with Tracking on")
+        #expect(
+            banner {
+                $0.libraryIsEmpty = true; $0.setupCompleted = false
+            } == .firstSetup)
+    }
+
     @Test func atMostOneBannerShowsInTheOrderOfTheContract() {
         #expect(
             banner {

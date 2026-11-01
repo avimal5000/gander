@@ -26,6 +26,10 @@ extension AppModel {
     /// Automatic switching holds: the Setup window is on the camera check, the calibration, or the result.
     var isSetupHoldingTracking: Bool { setupFlow?.holdsTracking ?? false }
 
+    /// Nothing is calibrated and the walkthrough has never reached the camera check: the window opens on the intro and
+    /// the menu offers the first setup.
+    var isFirstSetup: Bool { library.profiles.isEmpty && !setupCompleted }
+
     /// True when the layout has enough displays to calibrate.
     var canStartCalibration: Bool { layout.displays.count >= GateTestSession.minimumDisplays }
 
@@ -42,7 +46,7 @@ extension AppModel {
         refreshAccessibilityTrust()
         setupMessage = nil
         setupResult = nil
-        let flow = SetupFlow(facts: setupFacts, showsWelcome: library.profiles.isEmpty || tourPending)
+        let flow = SetupFlow(facts: setupFacts, showsWelcome: isFirstSetup || tourPending)
         tourPending = false
         setupFlow = flow
         setupFlowDidChange(from: nil, to: flow)
@@ -237,11 +241,19 @@ extension AppModel {
         let holdChanged = (old?.holdsTracking ?? false) != (new?.holdsTracking ?? false)
         let cameraChanged = (old?.needsCamera ?? false) != (new?.needsCamera ?? false)
         if new?.step == .cameraCheck, old?.step != .cameraCheck { resetFramingAdvice() }
+        if let step = new?.step, step.rawValue >= SetupFlow.Step.cameraCheck.rawValue { markSetupCompleted() }
         if new == nil { resetFramingAdvice() }
         if holdChanged { resetTracking() }
         syncTrackingActivity()
         syncSetupTimer()
         if cameraChanged { reconcileCamera() }
+    }
+
+    /// Records once that the walkthrough is done: the intro and the permissions are behind the user.
+    private func markSetupCompleted() {
+        guard !setupCompleted else { return }
+        setupCompleted = true
+        defaults.set(true, forKey: DefaultsKey.setupCompleted)
     }
 
     /// Runs the permission timer exactly while a permission step shows.

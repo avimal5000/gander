@@ -2,9 +2,10 @@
 enum MenuBanner: Equatable {
     /// The camera permission explanation or instructions (SPEC F2); the permission view draws it.
     case cameraPermission
-    /// Nothing is calibrated yet.
+    /// Nothing is calibrated yet and the walkthrough was never finished.
     case firstSetup
-    /// Tracking is on, two or more displays are connected, and no saved calibration fits.
+    /// Two or more displays are connected and no saved calibration fits, while Tracking is on or nothing is calibrated
+    /// at all.
     case needsCalibration
     /// As `needsCalibration`, but these displays are calibrated for another camera (SPEC F23). Carries the camera's
     /// name.
@@ -48,12 +49,15 @@ enum MenuBanner: Equatable {
         var shortcutMessage: String?
         /// The camera in use when it has no calibration for these displays but another camera does.
         var cameraWithoutCalibration: String?
+        /// The walkthrough reached the camera check once, so the first setup is not offered again.
+        var setupCompleted = false
     }
 
     static func current(_ facts: Facts) -> MenuBanner? {
         if facts.hasPermissionPrompt { return .cameraPermission }
-        if facts.libraryIsEmpty { return .firstSetup }
-        if facts.trackingEnabled, facts.displayCount >= 2, !facts.hasCalibration {
+        if facts.libraryIsEmpty, !facts.setupCompleted { return .firstSetup }
+        // After the walkthrough with nothing calibrated, a second display is the moment to ask, Tracking on or not.
+        if facts.trackingEnabled || facts.libraryIsEmpty, facts.displayCount >= 2, !facts.hasCalibration {
             return facts.cameraWithoutCalibration.map { .needsCameraCalibration($0) } ?? .needsCalibration
         }
         if facts.trackingEnabled, facts.hasCalibration, !facts.accessibilityTrusted { return .needsAccessibility }

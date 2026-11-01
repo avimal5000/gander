@@ -50,6 +50,10 @@ enum SetupPresentation {
     static let cameraAdvice =
         "Put the camera where it sees your face from every display. On top of the middle display works best."
     static let needsSecondDisplay = "Connect a second display to calibrate."
+    /// The camera check with one display: setup ends here, and the menu asks to calibrate once a second display is in.
+    static let calibrateLater =
+        "Connect a second display to calibrate. You can finish now: when one is connected, Gander's menu offers "
+        + "the calibration."
     static let calibrationCancelled = "Calibration cancelled."
     /// What skipping the Accessibility step leads to.
     static let skipConsequence =

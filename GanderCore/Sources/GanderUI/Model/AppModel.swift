@@ -184,6 +184,9 @@ public final class AppModel {
     var edgeGlowEnabled = true
     /// Whether the Focus Lock shortcut shows a notice (SPEC D39). Saved under `gander.focusLockNoticeEnabled`.
     var focusLockNoticeEnabled = true
+    /// The walkthrough reached the camera check once: the first setup is done, calibrated or not. Saved under
+    /// `gander.setupCompleted`.
+    var setupCompleted = false
 
     // MARK: Focus Lock
 
@@ -384,6 +387,7 @@ public final class AppModel {
         self.accentChoice = AccentChoice.stored(in: defaults)
         self.edgeGlowEnabled = Self.storedFlag(DefaultsKey.edgeGlowEnabled, in: defaults)
         self.focusLockNoticeEnabled = Self.storedFlag(DefaultsKey.focusLockNoticeEnabled, in: defaults)
+        self.setupCompleted = defaults.bool(forKey: DefaultsKey.setupCompleted)
         self.isAppActive = environment.isAppActive()
         self.displayLabels = DisplayLabeler.labels(for: initialLayout)
         self.enterMargin = storedSensitivity.switchSettings().enterMargin

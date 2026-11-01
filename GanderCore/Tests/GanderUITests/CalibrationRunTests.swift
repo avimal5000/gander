@@ -67,6 +67,7 @@ struct CalibrationRunTests {
                 == "Put the camera where it sees your face from every display. On top of the middle display works best."
         )
         #expect(SetupPresentation.needsSecondDisplay == "Connect a second display to calibrate.")
+        #expect(SetupPresentation.calibrateLater.hasPrefix(SetupPresentation.needsSecondDisplay))
         #expect(SetupPresentation.calibrationCancelled == "Calibration cancelled.")
     }
 
