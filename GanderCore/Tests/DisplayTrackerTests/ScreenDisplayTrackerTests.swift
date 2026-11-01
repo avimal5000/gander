@@ -143,7 +143,7 @@ struct ScreenDisplayTrackerTests {
         collector.cancel()
     }
 
-    @Test func aChangedCGDisplayIDForTheSameArrangementIsStillYielded() async {
+    @Test func aChangedCGDisplayIDForTheSameArrangementIsStillYielded() async throws {
         let fixture = TrackerFixture([Self.left])
         let collector = LayoutCollector(fixture.tracker.layouts())
         _ = await waitUntil { collector.layouts.count == 1 }
@@ -154,7 +154,8 @@ struct ScreenDisplayTrackerTests {
         fixture.postScreenChange()
         let delivered = await fixture.fireUntil { collector.layouts.count == 2 }
 
-        #expect(delivered)
+        // Stop here on a timeout: indexing a missing layout would crash the whole test process.
+        try #require(delivered)
         #expect(collector.layouts[0].fingerprint == collector.layouts[1].fingerprint)
         #expect(collector.layouts[1].displays.first?.cgDisplayID == 50)
         collector.cancel()

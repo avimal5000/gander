@@ -135,7 +135,9 @@ final class LayoutCollector {
 ///
 /// Polling is short (1 ms) so passing tests finish almost at once. The timeout only matters when a test fails.
 @MainActor
-func waitUntil(timeout: Duration = .seconds(2), _ condition: @MainActor () -> Bool) async -> Bool {
+// The limits are generous because CI runs every suite in parallel on a shared runner; a wait returns as soon as its
+// condition holds, so passing tests don't get slower.
+func waitUntil(timeout: Duration = .seconds(10), _ condition: @MainActor () -> Bool) async -> Bool {
     let deadline = ContinuousClock.now + timeout
     while !condition() {
         if ContinuousClock.now >= deadline { return false }
@@ -188,7 +190,7 @@ struct TrackerFixture {
 
     /// Releases pending debounce sleeps until `condition` holds. Firing repeatedly is harmless: sleeps from
     /// superseded notifications are cancelled and must not cause a recompute.
-    func fireUntil(timeout: Duration = .seconds(2), _ condition: @MainActor () -> Bool) async -> Bool {
+    func fireUntil(timeout: Duration = .seconds(10), _ condition: @MainActor () -> Bool) async -> Bool {
         await waitUntil(timeout: timeout) {
             sleeper.fireAll()
             return condition()
