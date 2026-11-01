@@ -125,7 +125,7 @@ struct Harness {
     /// A fresh defaults suite stored under the temporary directory (CONTRACT section 12). An absolute path as the
     /// suite name makes the preferences system keep the suite in `<path>.plist`; a plain name would leave a file in
     /// `~/Library/Preferences` for every test run.
-    static func temporarySuiteName() -> String {
+    nonisolated static func temporarySuiteName() -> String {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("gander-ui-tests-defaults")
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         return directory.appendingPathComponent(UUID().uuidString).path
