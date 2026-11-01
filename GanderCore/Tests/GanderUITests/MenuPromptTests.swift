@@ -169,14 +169,21 @@ struct MenuPromptTests {
 
     // MARK: Menu rows
 
-    @Test func theMenuRowsOpenTheirWindowsInTheOrderOfTheSpec() {
+    @Test func theMenuListsOnlyCalibrateAndSettings() {
+        #expect(MenuWindowItem.menu.map(\.title) == ["Calibrate\u{2026}", "Settings\u{2026}"])
+        #expect(MenuWindowItem.menu.map(\.windowID) == ["setup", "settings"])
+    }
+
+    @Test func settingsAdvancedHoldsTheTourAndTheTestWindows() {
         #expect(
-            MenuWindowItem.allCases.map(\.title) == [
-                "Calibrate\u{2026}", "Settings\u{2026}", "Pose Debug Window\u{2026}", "Head-Pose Gate Test\u{2026}",
+            MenuWindowItem.advanced.map(\.title) == [
+                "Welcome Tour\u{2026}", "Pose Debug Window\u{2026}", "Head-Pose Gate Test\u{2026}",
                 "Focus Test Window\u{2026}",
             ])
-        #expect(
-            MenuWindowItem.allCases.map(\.windowID) == ["setup", "settings", "pose-debug", "gate-test", "focus-test"])
+        #expect(MenuWindowItem.advanced.map(\.windowID) == ["setup", "pose-debug", "gate-test", "focus-test"])
+        // Every row is in exactly one place.
+        #expect(Set(MenuWindowItem.menu + MenuWindowItem.advanced) == Set(MenuWindowItem.allCases))
+        #expect(MenuWindowItem.allCases.allSatisfy { !$0.help.isEmpty })
     }
 
     @Test func calibrateAndSettingsHaveTheirSymbolsAndEverySymbolResolves() {

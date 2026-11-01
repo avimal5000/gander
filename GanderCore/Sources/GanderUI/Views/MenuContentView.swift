@@ -3,7 +3,8 @@ import GanderModels
 import SwiftUI
 
 /// The menu bar popover (SPEC F19): the status line, at most one banner, the Tracking and Focus Lock switches, the
-/// "Looking at" line, the camera picker, and the window shortcuts.
+/// "Looking at" line, the camera picker, Calibrate and Settings, and Quit. The tools for checking Gander and the
+/// Welcome Tour live in Settings > Advanced.
 struct MenuContentView: View {
     let model: AppModel
     @Environment(\.openWindow) private var openWindow
@@ -22,12 +23,8 @@ struct MenuContentView: View {
             CameraPickerView(model: model)
             Divider()
             VStack(alignment: .leading, spacing: 2) {
-                ForEach(MenuWindowItem.allCases, id: \.self) { item in
+                ForEach(MenuWindowItem.menu, id: \.self) { item in
                     MenuRow(title: item.title, systemImage: item.systemImage) { open(item.windowID) }
-                }
-                MenuRow(title: "Welcome Tour", systemImage: "sparkles") {
-                    model.requestWelcomeTour()
-                    open(GanderWindowID.setup)
                 }
                 MenuRow(title: "Quit Gander", systemImage: "power") {
                     Task { await model.quit() }
