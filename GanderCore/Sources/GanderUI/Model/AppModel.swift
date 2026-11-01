@@ -257,6 +257,8 @@ public final class AppModel {
     @ObservationIgnored var requestedWindows: Set<String> = []
     /// The Setup window was requested by the first-run rule and has not appeared yet.
     @ObservationIgnored var onboardingPending = false
+    /// The menu's Welcome Tour asked for the Setup window to open on the intro, whatever is calibrated.
+    @ObservationIgnored var tourPending = false
     @ObservationIgnored var windowRefs: [String: WeakWindow] = [:]
     @ObservationIgnored var notificationObservers: [any NSObjectProtocol] = []
     @ObservationIgnored var workspaceObservers: [any NSObjectProtocol] = []

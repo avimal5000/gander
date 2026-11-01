@@ -25,6 +25,10 @@ struct MenuContentView: View {
                 ForEach(MenuWindowItem.allCases, id: \.self) { item in
                     MenuRow(title: item.title, systemImage: item.systemImage) { open(item.windowID) }
                 }
+                MenuRow(title: "Welcome Tour", systemImage: "sparkles") {
+                    model.requestWelcomeTour()
+                    open(GanderWindowID.setup)
+                }
                 MenuRow(title: "Quit Gander", systemImage: "power") {
                     Task { await model.quit() }
                 }
