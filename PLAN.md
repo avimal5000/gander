@@ -1,4 +1,4 @@
-# Sway: Build Plan
+# Gander: Build Plan
 
 **Look. Focus. Flow.** A quiet macOS menu bar utility that switches keyboard focus to the monitor you are looking at, using head pose from the built-in camera, entirely on-device.
 
@@ -10,7 +10,7 @@ Status: planning only. No code until the go-ahead.
 |---|---|
 | Distribution | Personal use first; signed/notarized GitHub Releases later (needs paid Apple Developer account then) |
 | Mac App Store | Not a target (sandbox blocks cross-app window control) |
-| Repo | `avimal5000/sway`, private, GitHub as source of truth + automation |
+| Repo | `avimal5000/gander`, private, GitHub as source of truth + automation |
 | Dev machine | MacBook Air M4, macOS 26.6.2, built-in + external 2560x1440 display. Xcode must be installed (user step) |
 | Setup coverage | Layout varies day to day, so calibration and layout-change handling are core, not optional |
 | Detection | Head pose only (Vision yaw/pitch/roll) for v1. Eye gaze deferred |
@@ -32,11 +32,11 @@ Status: planning only. No code until the go-ahead.
 
 ## 3. Architecture
 
-A local Swift package `SwayCore` (pure logic, testable with `swift test`, no camera needed) plus a thin app target.
+A local Swift package `GanderCore` (pure logic, testable with `swift test`, no camera needed) plus a thin app target.
 
 ```
-Sway.app (SwiftUI shell: menu bar, settings, onboarding, glow overlay)
- └─ SwayCore
+Gander.app (SwiftUI shell: menu bar, settings, onboarding, glow overlay)
+ └─ GanderCore
      ├─ CameraService        capture session, start/stop on tracking state, sleep/lock/lid aware
      ├─ PoseEstimator        Vision frame -> HeadPose(yaw, pitch, roll, faceConfidence)
      ├─ PoseSource (protocol) live camera OR replayed pose trace OR synthetic (tests)
@@ -65,13 +65,13 @@ Key rule: the decider only fires when the best monitor beats the runner-up by a 
 3. **Calibration drift.** Posture, chair, and screen position change daily. Quick recalibration plus layout-change detection must be low-friction.
 4. **Testing without a camera in CI.** Solved by the `PoseSource` abstraction with replayable numeric traces; real-camera checks stay a manual checklist.
 5. **CPU/battery.** Low fps, small frames, adaptive throttling when the face is idle or absent. Measure with Instruments.
-6. **Camera busy.** Zoom/FaceTime may hold the camera. Sway must degrade gracefully and show it.
+6. **Camera busy.** Zoom/FaceTime may hold the camera. Gander must degrade gracefully and show it.
 
 ## 6. Milestones (each becomes a GitHub milestone with issues)
 
 | # | Milestone | Outcome / exit criteria |
 |---|---|---|
-| M0 | Foundations | Xcode installed; private repo; app + `SwayCore` skeleton; CI, lint, templates, labels, milestones, issues seeded from this plan |
+| M0 | Foundations | Xcode installed; private repo; app + `GanderCore` skeleton; CI, lint, templates, labels, milestones, issues seeded from this plan |
 | M1 | Head-pose spike (go/no-go) | Debug window shows live yaw/pitch; trace recorder; you look at each display and we confirm the signals separate clearly. Decision recorded in the repo |
 | M2 | Core engine | `CalibrationModel` + `SwitchDecider` with unit tests over synthetic and recorded traces: no false switches on noise, fast enough on intentional looks |
 | M3 | Focus controller | Per-display last-used window tracking; Accessibility onboarding; "switch to display N" works from a debug button without moving the cursor |
@@ -88,7 +88,7 @@ Suggested order of operations: M0 -> M1 (gate) -> M3 and M2 can overlap -> M4 ->
 Set up in M0 with `gh` (already authenticated as `avimal5000`, scopes repo + workflow):
 
 - Repo creation, labels (`area/camera`, `area/focus`, `area/ui`, `area/privacy`, `risk`, `spike`), milestones M0-M8, and issues generated from this plan by script.
-- **CI (GitHub Actions, macOS runner):** build, `swift test` on `SwayCore`, SwiftLint/swift-format, privacy guard (no networking APIs). Runs on pull requests only to conserve minutes.
+- **CI (GitHub Actions, macOS runner):** build, `swift test` on `GanderCore`, SwiftLint/swift-format, privacy guard (no networking APIs). Runs on pull requests only to conserve minutes.
 - Branch-per-issue workflow: `feat/<issue>-slug`, PR template with a privacy/behavior checklist, squash merge, conventional commit titles.
 - Issue templates: bug, feature, and a "calibration report" (setup, layout, what failed).
 - Dependabot for Actions versions. Release workflow on `v*` tags (M8).
@@ -106,6 +106,6 @@ Caveats: on a private repo with the Free plan, macOS runner minutes are billed a
 ## 9. Open items before M0
 
 1. Install Xcode (App Store or developer.apple.com), then run `sudo xcode-select -s /Applications/Xcode.app` and open it once to accept the license.
-2. Bundle identifier (proposal: `com.avimal5000.sway`; changeable until release).
+2. Bundle identifier (proposal: `com.avimal5000.gander`; changeable until release).
 3. Default Focus Lock shortcut (proposal: Control-Option-Command-L; configurable).
 4. Do you want the Projects board (extra `gh` scope) or milestones + labels only?
