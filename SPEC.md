@@ -99,6 +99,7 @@ Decision for tuning (0.1.x):
 | # | Decision | Source |
 |---|---|---|
 | D49 | **Faster switching is adjustable.** A new setting, "Pause after a switch" (the decider's `cooldown`), range 0.2–1.5 s, default 0.75 s. The hold time's lower limit drops from 0.2 s to 0.05 s. A button applies "Instant" timing: hold time 0.10 s and pause 0.30 s, leaving the user's confidence setting alone. Defaults do not change, and saved settings without the new value keep working. Whether faster timing means more unwanted switches is measured with the all-day tool's count of quick back-and-forths | User asked "make the transition instant", 2026-10-26 |
+| D50 | **Setup ends at the camera check.** Reaching the camera check (intro and permissions done) finishes the first setup, calibrated or not, and is saved (`gander.setupCompleted`). The menu then stops offering **Set Up…** and the intro does not replay (the Welcome Tour does on request). With one display the camera check offers **Done**; once 2+ displays are connected and nothing is calibrated, the needs-calibration banner asks, Tracking on or off | User, 2026-11-01 |
 
 An extra, uncalibrated display (a fourth monitor, Sidecar, AirPlay) still stops tracking until it is calibrated (D25).
 
@@ -209,7 +210,8 @@ symbols per D32:
 The popover, top to bottom (fixed width, constant height while tracking starts and stops):
 1. "Gander" and the status line with the camera name.
 2. At most one banner: camera permission (F2); first setup ("Gander needs a quick setup, about a minute." with
-   **Set Up…**) when nothing is calibrated yet; an unknown display setup (F22); Accessibility needed
+   **Set Up…**) when nothing is calibrated yet and the walkthrough was never finished (D50); an unknown display setup
+   (F22); Accessibility needed
    (**Grant Access…**); a shortcut that could not be registered.
 3. **Tracking** switch.
 4. **Focus Lock** switch, with the shortcut shown.

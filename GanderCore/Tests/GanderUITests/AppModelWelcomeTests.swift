@@ -45,7 +45,7 @@ struct AppModelWelcomeTests {
         #expect(h.model.setupFlow?.step == .cameraCheck)
     }
 
-    @Test func deletingEveryCalibrationBringsTheWelcomeBack() {
+    @Test func deletingEveryCalibrationAfterTheWalkthroughDoesNotReplayIt() {
         let h = Harness.make(calibrated: true)
         defer { h.tearDown() }
         h.openSetup(welcome: true)
@@ -55,19 +55,48 @@ struct AppModelWelcomeTests {
         h.model.deleteCalibration(Fixtures.profile().key)
         h.openSetup(welcome: true)
 
-        #expect(h.model.setupFlow?.step == .welcome)
+        #expect(h.model.setupFlow?.step == .cameraCheck, "The Welcome Tour replays the intro on request")
     }
 
-    @Test func theWelcomeComesBackWhenTheWindowIsOpenedAgainBeforeCalibrating() {
-        let h = Harness.make()
+    @Test func theWelcomeComesBackWhenTheWindowClosesBeforeThePermissionsAreDone() {
+        let h = Harness.make(authorization: .notDetermined)
         defer { h.tearDown() }
         h.openSetup(welcome: true)
         h.model.getStartedFromSetup()
+        #expect(h.model.setupFlow?.step == .cameraAccess)
         h.model.setupWindowDidDisappear()
 
         h.openSetup(welcome: true)
 
-        #expect(h.model.setupFlow?.step == .welcome, "Still nothing calibrated")
+        #expect(h.model.setupFlow?.step == .welcome, "The walkthrough was not finished")
+        #expect(!h.model.setupCompleted)
+    }
+
+    @Test func reachingTheCameraCheckFinishesTheWalkthroughEvenWithOneDisplay() {
+        let h = Harness.make(layout: Fixtures.oneDisplay)
+        defer { h.tearDown() }
+        h.openSetup(welcome: true)
+        #expect(h.model.menuBanner == .firstSetup)
+
+        h.model.getStartedFromSetup()
+
+        #expect(h.model.setupFlow?.step == .cameraCheck)
+        #expect(!h.model.canStartCalibration)
+        #expect(h.model.setupCompleted)
+        #expect(h.defaults.bool(forKey: DefaultsKey.setupCompleted))
+        h.model.setupWindowDidDisappear()
+        #expect(h.model.menuBanner == nil, "No Set Up banner once the walkthrough is done")
+
+        h.openSetup(welcome: true)
+        #expect(h.model.setupFlow?.step == .cameraCheck, "Calibrate later skips the intro")
+    }
+
+    @Test func aFinishedWalkthroughIsRememberedAcrossLaunches() {
+        let h = Harness.make(layout: Fixtures.oneDisplay, seed: { $0.set(true, forKey: DefaultsKey.setupCompleted) })
+        defer { h.tearDown() }
+
+        #expect(h.model.setupCompleted)
+        #expect(h.model.menuBanner == nil)
     }
 
     // MARK: Get Started

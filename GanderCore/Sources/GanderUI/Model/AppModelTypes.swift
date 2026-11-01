@@ -23,6 +23,9 @@ enum DefaultsKey {
     static let focusLockNoticeEnabled = "gander.focusLockNoticeEnabled"
     /// Whether the first-run walkthrough has appeared once (`Bool`); absent means no. Set as soon as it shows.
     static let onboardingSeen = "gander.onboardingSeen"
+    /// Whether the user got through the walkthrough's intro and permissions to the camera check (`Bool`); absent means
+    /// no. From then on the menu stops offering the first setup, even with nothing calibrated (one display, say).
+    static let setupCompleted = "gander.setupCompleted"
 }
 
 /// What the camera permission banner should currently say.

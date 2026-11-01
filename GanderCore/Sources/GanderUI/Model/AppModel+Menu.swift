@@ -12,7 +12,8 @@ extension AppModel {
             hasCalibration: activeCalibration != nil,
             accessibilityTrusted: isAccessibilityTrusted,
             shortcutMessage: menuShortcutMessage,
-            cameraWithoutCalibration: cameraWithoutCalibration
+            cameraWithoutCalibration: cameraWithoutCalibration,
+            setupCompleted: setupCompleted
         )
     }
 
