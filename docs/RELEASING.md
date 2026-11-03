@@ -63,6 +63,25 @@ APPLE_ID=you@example.com APPLE_APP_SPECIFIC_PASSWORD=xxxx-xxxx-xxxx-xxxx APPLE_T
 The script also runs `scripts/audit-privacy.sh` on the built app, and fails if the app links a networking library or
 has a network entitlement.
 
+Before packaging it runs `scripts/notary-preflight.sh`, which checks the app for what Apple's notary service and
+Gatekeeper reject, so a bad build fails in seconds instead of after a submission. Every piece of code must be signed
+with the hardened runtime and hold both Apple silicon and Intel code. The signature must verify strictly. The
+entitlements must be exactly the camera, with no debugging entitlement. Info.plist must have the keys a release needs,
+and nothing may be linked from outside the system or the bundle. With a Developer ID identity it also checks the
+certificate type, the team and the secure timestamp.
+
+With `--notarize`, the app is notarized and stapled on its own before it goes into the DMG, then the DMG is notarized
+and stapled too. A copy dragged out of the DMG then carries its own ticket and opens without an online check. If
+Apple does not accept a submission, the script prints Apple's log, which names each rejected file and the reason, and
+stops.
+
+## Why not the Mac App Store
+
+Mac App Store apps must run in the App Sandbox (App Review Guideline 2.4.5(i)). The sandbox blocks the Accessibility
+API that Gander uses to focus a window in another app, even when the user grants Accessibility access. Gander
+therefore ships as a notarized Developer ID download. Notarization is an automated scan for malware and signing
+problems, not App Review, so the Review Guidelines do not apply to it.
+
 The DMG window has a branded background with an arrow from Gander to Applications. `scripts/make-dmg-background.swift`
 draws it, and `dmgbuild` lays out the window (`scripts/dmg-settings.py`); keep the icon positions in those two files
 in step. The script installs `dmgbuild` into `.build-release/` from `scripts/dmg-requirements.txt`, pinned by hash,
