@@ -71,6 +71,43 @@ codesign --verify --strict --verbose=2 "$app"
 
 echo "==> Checking the app before packaging"
 scripts/audit-privacy.sh --app "$app"
+preflight_flags=()
+[[ -n "$identity" ]] && preflight_flags+=(--developer-id)
+scripts/notary-preflight.sh "$app" ${preflight_flags[@]+"${preflight_flags[@]}"}
+
+# Submits a file to Apple's notary service and waits. On anything but Accepted, prints Apple's log (which names each
+# rejected file and the reason) and stops the release.
+notarize_file() {
+  local file="$1" result status id
+  result="$derived/notary-$(basename "$1").json"
+  xcrun notarytool submit "$file" --apple-id "$APPLE_ID" --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+    --team-id "$APPLE_TEAM_ID" --wait --output-format json > "$result" || true
+  status=$(plutil -extract status raw -o - "$result" 2>/dev/null || echo "no result")
+  id=$(plutil -extract id raw -o - "$result" 2>/dev/null || true)
+  echo "    $(basename "$file"): $status${id:+ (submission $id)}"
+  if [[ "$status" != "Accepted" ]]; then
+    if [[ -n "$id" ]]; then
+      xcrun notarytool log "$id" --apple-id "$APPLE_ID" --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+        --team-id "$APPLE_TEAM_ID" >&2 || true
+    else
+      cat "$result" >&2
+    fi
+    echo "Notarization of $(basename "$file") was not accepted." >&2
+    exit 1
+  fi
+}
+
+if $notarize; then
+  # The app is notarized and stapled on its own first, so a copy dragged out of the DMG carries its own ticket and
+  # opens without an online check (the DMG's ticket stays with the DMG).
+  echo "==> Notarizing the app (this waits for Apple, usually a few minutes)"
+  ditto -c -k --keepParent "$app" "$derived/Gander-notarize.zip"
+  notarize_file "$derived/Gander-notarize.zip"
+  rm -f "$derived/Gander-notarize.zip"
+  xcrun stapler staple "$app"
+  xcrun stapler validate "$app"
+  spctl --assess --type execute --verbose=2 "$app"
+fi
 
 echo "==> Making $dmg"
 # The window: a branded background with an arrow from Gander to Applications (scripts/make-dmg-background.swift),
@@ -95,9 +132,8 @@ if [[ -n "$identity" ]]; then
 fi
 
 if $notarize; then
-  echo "==> Notarizing (this waits for Apple, usually a few minutes)"
-  xcrun notarytool submit "$dmg" --apple-id "$APPLE_ID" --password "$APPLE_APP_SPECIFIC_PASSWORD" \
-    --team-id "$APPLE_TEAM_ID" --wait
+  echo "==> Notarizing the DMG"
+  notarize_file "$dmg"
   xcrun stapler staple "$dmg"
   xcrun stapler validate "$dmg"
   spctl --assess --type open --context context:primary-signature --verbose=2 "$dmg"
