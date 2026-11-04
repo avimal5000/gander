@@ -46,6 +46,8 @@ enum FocusTestPresentation {
     /// The log line for a focus result. Names the app and display, never a window title.
     static func logText(for result: FocusResult, displayName: (DisplayID) -> String) -> String {
         switch result {
+        case .focused(let window, .alreadyFocused, _):
+            "\(window.appName) already had focus there"
         case .focused(let window, let method, let milliseconds):
             "Focused \(window.appName) via \(methodText(method)) in \(milliseconds) ms"
         case .noWindow(let display):
@@ -61,6 +63,7 @@ enum FocusTestPresentation {
         switch method {
         case .appActivation: "app activation"
         case .accessibilityFrontmost: "Accessibility frontmost"
+        case .alreadyFocused: "no change"
         }
     }
 }

@@ -42,6 +42,25 @@ struct TrackingLoopTests {
         #expect(loop.polled == left)
     }
 
+    // MARK: Already focused (SPEC D52)
+
+    @Test func anAttemptThatFoundTheFocusedWindowAlreadyThereHoldsThatDisplayUntilFocusMoves() {
+        var loop = TrackingLoop()
+        loop.pollFinished(left, epoch: loop.pollStarted())
+        loop.beginAttempt(right)
+        let already = FocusResult.focused(
+            Fixtures.window(on: Fixtures.left), method: .alreadyFocused, milliseconds: 3)
+
+        loop.finishAttempt(right, result: already)
+
+        #expect(loop.override == TrackingLoop.Override(display: right, before: left))
+        #expect(loop.polled == left)
+        loop.pollFinished(left, epoch: loop.pollStarted())
+        #expect(loop.focusedDisplay == right, "A straddling window keeps polling as the other display")
+        loop.pollFinished(far, epoch: loop.pollStarted())
+        #expect(loop.focusedDisplay == far, "Focus really moved")
+    }
+
     // MARK: Attempts
 
     @Test func beginAttemptRemembersTheFocusAsItWasAndCountsAnEpoch() {

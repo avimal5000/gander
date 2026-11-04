@@ -177,6 +177,10 @@ struct SwitchPreviewWordingTests {
         let text = SwitchPreviewPresentation.logText(for: focused, display: "Right", held: 0.4)
         #expect(text == "Focused Safari on Right in 120 ms, held 0.40 s")
         #expect(!text.contains("Secret"))
+        let already = FocusResult.focused(window, method: .alreadyFocused, milliseconds: 3)
+        #expect(
+            SwitchPreviewPresentation.logText(for: already, display: "Right", held: 0.4)
+                == "Already in Safari on Right, held 0.40 s")
         #expect(
             SwitchPreviewPresentation.logText(for: .noWindow(Fixtures.right.id), display: "Right", held: 0.4)
                 == "No window on Right")

@@ -50,6 +50,8 @@ enum SwitchPreviewPresentation {
     /// A log line for a focus request's result. Names the app and the display, never a window title.
     static func logText(for result: FocusResult, display: String, held: TimeInterval) -> String {
         switch result {
+        case .focused(let window, .alreadyFocused, _):
+            "Already in \(window.appName) on \(display), held \(Formatting.twoDecimals(held)) s"
         case .focused(let window, _, let milliseconds):
             "Focused \(window.appName) on \(display) in \(milliseconds) ms, held \(Formatting.twoDecimals(held)) s"
         case .noWindow:

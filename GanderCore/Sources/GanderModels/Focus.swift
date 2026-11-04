@@ -33,6 +33,8 @@ public enum FocusMethod: String, Sendable, Equatable, Codable {
     case appActivation
     /// The fallback: `AXFrontmost` on the app, then the raise again. This can bring all of the app's windows forward.
     case accessibilityFrontmost
+    /// Nothing was raised: the frontmost app's focused window already shows on the display (SPEC D52).
+    case alreadyFocused
 }
 
 /// Outcome of a focus request.
@@ -59,6 +61,7 @@ public protocol FocusControlling: Sendable {
     func lastUsedWindows(in layout: DisplayLayout) async -> [DisplayID: WindowSummary]
     /// The display of the frontmost app's focused window (Gander's own windows excluded); `nil` if unknown.
     func focusedDisplay(in layout: DisplayLayout) async -> DisplayID?
-    /// Raises and activates the last-used window on `display`, then verifies it. Never moves the cursor.
+    /// Raises and activates the last-used window on `display`, then verifies it. Never moves the cursor. When the
+    /// frontmost app's focused window already shows on `display`, changes nothing and reports `.alreadyFocused`.
     func focus(display: DisplayID, in layout: DisplayLayout) async -> FocusResult
 }

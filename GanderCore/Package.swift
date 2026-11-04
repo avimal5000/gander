@@ -2,7 +2,8 @@
 import Foundation
 import PackageDescription
 
-// Module map: see CONTRACT.md. Every feature module depends only on GanderModels.
+// Module map: see CONTRACT.md. Every feature module depends only on GanderModels (and FocusControl on its C helper,
+// FrontProcess).
 // Do not add cross-module dependencies without updating CONTRACT.md first.
 let featureModules = [
     "CameraService",
@@ -25,12 +26,18 @@ let testResources: [String: [Resource]] = [
 let isolatedModule = ProcessInfo.processInfo.environment["GANDER_MODULE"].flatMap { $0.isEmpty ? nil : $0 }
 let activeModules = isolatedModule.map { name in featureModules.filter { $0 == name } } ?? featureModules
 
+// FocusControl's one C helper: the front-window-only activation Swift cannot call (SPEC D53).
+let extraDependencies: [String: [Target.Dependency]] = [
+    "FocusControl": ["FrontProcess"]
+]
+
 var targets: [Target] = [
     .target(name: "GanderModels"),
     .testTarget(name: "GanderModelsTests", dependencies: ["GanderModels"]),
+    .target(name: "FrontProcess"),
 ]
 for module in activeModules {
-    targets.append(.target(name: module, dependencies: ["GanderModels"]))
+    targets.append(.target(name: module, dependencies: ["GanderModels"] + (extraDependencies[module] ?? [])))
     targets.append(
         .testTarget(
             name: "\(module)Tests",

@@ -8,8 +8,10 @@ import GanderModels
 /// The focused display is the first of three sources that is known:
 /// 1. `inFlight`: the display a focus request is moving focus to right now;
 /// 2. `override`: a display Gander treats as focused after a failed or "no window" attempt, so a look at a display
-///    without a usable window does not retry every 0.75 s. It ends when the real focus is seen elsewhere (a poll that
-///    differs from what it was before the attempt) or when the look moves to another display;
+///    without a usable window does not retry every 0.75 s, and after an attempt that found the focused window already
+///    showing there (SPEC D52), so a window that straddles two displays does not trigger an attempt on every look. It
+///    ends when the real focus is seen elsewhere (a poll that differs from what it was before the attempt) or when the
+///    look moves to another display;
 /// 3. `polled`: the last accepted answer of the poll.
 ///
 /// `epoch` counts everything that can make an in-progress poll or request out of date; a poll that started under an
@@ -56,6 +58,10 @@ struct TrackingLoop: Equatable, Sendable {
         attemptBefore = nil
         epoch += 1
         switch result {
+        case .focused(_, .alreadyFocused, _):
+            // Nothing moved. The poll may keep naming the display before the attempt (the window straddles displays
+            // and most of it is there), so hold this display until focus really moves or the look does.
+            override = Override(display: display, before: before)
         case .focused:
             polled = display
             override = nil
