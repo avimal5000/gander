@@ -1287,6 +1287,10 @@ Everything else is `internal`.
 
 **`focus(display:in:)`**, the fallback list (issue #15):
 1. Not trusted → `.notTrusted`.
+   Then (SPEC D52): if the frontmost app (not Gander) has a focused window that shows on `display` (its normal
+   window matching the AX focused frame within 2 pt, else its frontmost normal window if that is the topmost normal
+   window of its display; assigned to `display` or covering at least 25 % of it), raise nothing and return
+   `.focused(thatWindow, method: .alreadyFocused, ...)`.
 2. The target is the last-used window on `display`. None → `.noWindow(display)`.
 3. Prepare the app and window:
    - `app = AXUIElementCreateApplication(pid)`, with `AXUIElementSetMessagingTimeout(app, 0.5)`.
@@ -1294,11 +1298,11 @@ Everything else is `internal`.
      2 pt. This frame matching is a pure function over plain frames.
    - If none matches and the app has exactly one window, use that one.
    - Otherwise return `.failed(target, reason: "Window not found through Accessibility")`.
-4. `appActivation` (SPEC D42):
+4. `appActivation` (SPEC D42, D53):
    - `AXUIElementPerformAction(window, kAXRaiseAction)`;
    - set `kAXMainAttribute = true` on the window;
-   - `NSRunningApplication(processIdentifier:)?.activate(options: [])`: no options, so only the app's main and key
-     windows (the raised one) come forward, not every window of the app.
+   - activate front-window-only (see below), else `NSRunningApplication(processIdentifier:)?.activate(options: [])`:
+     no options, so only the app's main and key windows come forward, not every window of the app.
 
    Then verify by polling every 25 ms, for up to 300 ms, until both hold:
    - the frontmost pid equals the target's pid;
@@ -1315,7 +1319,15 @@ Everything else is `internal`.
 6. Otherwise → `.failed(target, reason: "Focus did not move to <app>")`.
 7. If the calling task is cancelled between methods → `.failed(target, reason: "Cancelled")`. No further method
    is tried, which lets a Focus Test countdown be cancelled.
-- `milliseconds` runs from step 2 to verification. The returned `WindowSummary` includes the AX title when it is
+- The activation in step 4 is front-window-only first (SPEC D53): `GanderFrontWindowOnly(pid)` from the C target
+  `FrontProcess` (Carbon `SetFrontProcessWithOptions(kSetFrontProcessFrontWindowOnly)`, weakly imported: `unimpErr`
+  when macOS lacks it). If it fails or the app is not frontmost within 100 ms, `NSRunningApplication.activate(options:
+  [])` as before, unless the request was cancelled. Both count as `appActivation`; a fallback logs an info line,
+  "activation fell back".
+- After a verified switch (SPEC D54), a background task cancelled by the next request looks again after 200 ms and
+  500 ms: if the target's app is still frontmost but its focused window is another of its windows, assigned to a
+  different display than the target, raise the target and set `kAXMainAttribute` again. Logged as "focus kept".
+- `milliseconds` runs from the SPEC D52 check to verification. The returned `WindowSummary` includes the AX title when it is
   known.
 - **Rules:**
   - No main-thread AX calls: all window-list and AX work runs on one private serial `DispatchQueue`, bridged with
@@ -1468,7 +1480,7 @@ AppModel(camera: camera, poseSource: poseSource, displays: ScreenDisplayTracker(
 
 ## 11. Privacy rules (enforced by `scripts/privacy-guard.sh` in CI)
 
-The shipped code in `Gander/` and `GanderCore/Sources/` may not mention these, not even in comments:
+The shipped code in `Gander/` and `GanderCore/Sources/`, Swift and C, may not mention these, not even in comments:
 - networking: `URLSession`, `URLRequest`, `NSURLConnection`, `Network` / `NW*`, sockets, `WebKit`;
 - image or video persistence: `AVAssetWriter`, `AVCaptureMovieFileOutput`, `AVCapturePhotoOutput`,
   `CGImageDestination`, `pngData` / `jpegData` / `tiffRepresentation`, etc.

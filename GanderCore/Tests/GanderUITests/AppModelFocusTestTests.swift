@@ -48,6 +48,7 @@ struct AppModelFocusTestTests {
         #expect(
             text(.focused(window, method: .accessibilityFrontmost, milliseconds: 310))
                 == "Focused Safari via Accessibility frontmost in 310 ms")
+        #expect(text(.focused(window, method: .alreadyFocused, milliseconds: 3)) == "Safari already had focus there")
         #expect(text(.noWindow(Fixtures.left.id)) == "No window on Left")
         #expect(text(.notTrusted) == "Accessibility permission needed")
         #expect(text(.failed(window, reason: "Focus did not move to Safari")) == "Failed: Focus did not move to Safari")

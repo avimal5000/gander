@@ -201,7 +201,7 @@ extension AppModel {
         appendSwitchLog(SwitchPreviewPresentation.logText(for: result, display: display, held: held))
         logSwitch(result, display: display)
         // The glow marks a switch that really moved focus, and only Gander's own tracking requests come through here.
-        if case .focused = result { showEdgeGlow(on: target) }
+        if case .focused(_, let method, _) = result, method != .alreadyFocused { showEdgeGlow(on: target) }
     }
 
     private func appendSwitchLog(_ text: String) {
@@ -215,6 +215,11 @@ extension AppModel {
     private func logSwitch(_ result: FocusResult, display: String) {
         let log = GanderLogger.tracking
         switch result {
+        case .focused(let window, .alreadyFocused, _):
+            // Not "Focused ... via": scripts/soak.sh counts those lines as switches, and nothing moved.
+            log.info(
+                "Already in \(window.appName, privacy: .private(mask: .hash)) on \(display, privacy: .private(mask: .hash)); nothing raised"
+            )
         case .focused(let window, let method, let milliseconds):
             log.info(
                 "Focused \(window.appName, privacy: .private(mask: .hash)) on \(display, privacy: .private(mask: .hash)) via \(method.rawValue, privacy: .public) in \(milliseconds) ms"

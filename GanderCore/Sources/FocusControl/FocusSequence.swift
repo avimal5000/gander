@@ -3,8 +3,8 @@ import GanderModels
 
 /// The focus fallback list, independent of how windows are found and raised:
 /// 1. `appActivation`: raise the window and make it main, then ask the system to activate its app, then verify.
-///    Activation brings only the app's main and key windows forward, so its other windows stay behind whatever
-///    covers them (SPEC D42).
+///    Activation brings only the raised window forward, or at worst the app's main and key windows, so its other
+///    windows stay behind whatever covers them (SPEC D42, D53).
 /// 2. `accessibilityFrontmost`: make the app frontmost through Accessibility, raise again, then verify. That can
 ///    bring all of the app's windows forward, so it is only the fallback for an app that ignores activation.
 /// Each method is verified by polling. If both fail the sequence reports `focusDidNotMove`.

@@ -2,7 +2,7 @@
 # Privacy and behavior guard (PLAN.md sections 1 and 4): fails if networking, image/video persistence,
 # cursor movement, input-event synthesis or capture, subprocesses, other image encoders, package dependencies, or
 # private window-server APIs appear in shipped code. It is a line-based grep: a call split across lines can slip past.
-# Scans the app target and GanderCore sources (tests excluded).
+# Scans the app target and GanderCore sources, Swift and C (tests excluded).
 # Escape hatch for a reviewed false positive: append the comment `privacy-guard:allow` to that line.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -32,7 +32,8 @@ PATTERNS=(
 )
 
 regex=$(IFS='|'; echo "${PATTERNS[*]}")
-hits=$(grep -rnE --include='*.swift' "$regex" Gander GanderCore/Sources 2>/dev/null | grep -v 'privacy-guard:allow' || true)
+hits=$(grep -rnE --include='*.swift' --include='*.c' --include='*.h' "$regex" Gander GanderCore/Sources 2>/dev/null \
+  | grep -v 'privacy-guard:allow' || true)
 
 # Package manifests: a dependency (remote or local) would put unreviewed code in the app, and no manifest should
 # declare one. GanderCore/Package.swift has none today.

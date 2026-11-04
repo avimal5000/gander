@@ -26,11 +26,15 @@ be its focused window. Verification polls every 25 ms, for up to 300 ms per step
 | Step | What Gander does | Notes |
 |---|---|---|
 | 0 | Not trusted → stop with "Accessibility permission needed" | Nothing is attempted without permission |
+| 0a | The frontmost app's focused window already shows on the display → nothing is raised (D52) | No edge glow, logged as "Already in <app> on <display>" |
 | 1 | No normal window on the display → "No window on <display>" | Gander never launches or un-minimizes anything |
 | 2 | Find the window through Accessibility by matching its frame (within 2 pt). If the app has exactly one window, use that one | Fails for apps without standard AX windows |
-| 3 | **App activation (primary, D42):** `AXRaise` and `AXMain` on the window, then `NSRunningApplication.activate(options: [])` | With no options, only the app's main and key windows come forward, so an app's other windows (for example other Terminal windows) stay behind whatever covers them. Measured on the user's Mac |
+| 3 | **App activation (primary, D42, D53):** `AXRaise` and `AXMain` on the window, then front-window-only activation (Carbon `SetFrontProcessWithOptions`). If that is refused, missing, or the app is not frontmost in 100 ms, `NSRunningApplication.activate(options: [])` | Front-window-only brings just the raised window, like a click. With no options, the app's main and key windows come forward, and an app such as Terminal also brings the window last typed in, on another display. Either way an app's other windows stay behind whatever covers them. Measured on the user's Mac |
 | 4 | **Accessibility frontmost (fallback):** `AXFrontmost` on the app, then raise again | For apps that ignore activation. `AXFrontmost` can bring every window of the app forward, which is why it is no longer first |
 | 5 | Report "Failed: Focus did not move to <app>" | Logged with the app name and timing, never the window title |
+
+After a verified switch, Gander looks again at 200 ms and 500 ms. If the app is still in front but moved focus to one of
+its windows on another display, Gander raises the target again (D54). Focus that moved within the display is left alone.
 
 Every Accessibility call has a 0.5 s timeout per app and runs off the main thread, so an unresponsive app
 cannot freeze Gander.

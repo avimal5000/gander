@@ -117,6 +117,10 @@ report() {
   fi
   count() { grep -cE "$1" <<<"$events" || true; }
   echo "  switches focused:        $(count 'Focused .* on .* via')"
+  echo "  already on the display:  $(count 'Already in .* nothing raised')"
+  echo "  via the frontmost call:  $(count ' via accessibilityFrontmost')  (brings every window of the app: should be rare)"
+  echo "  activation fallbacks:    $(count 'activation fell back')  (front-window-only did not work: should be rare)"
+  echo "  focus kept:              $(count 'focus kept:')"
   echo "  display had no window:   $(count 'No window on')"
   echo "  switches that failed:    $(count 'Switch to .* failed')"
   echo "  camera stalls:           $(count 'Camera stalled')"

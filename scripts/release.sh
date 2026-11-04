@@ -72,6 +72,15 @@ codesign --verify --strict --verbose=2 "$app"
 echo "==> Checking the app before packaging"
 scripts/audit-privacy.sh --app "$app"
 
+echo "==> Checking the deprecated Carbon calls are weak imports (SPEC D53)"
+# A strong import of a call Apple has removed would stop Gander from launching at all.
+carbon_imports=$(nm -m -arch all "$app/Contents/MacOS/Gander" | grep -E ' _(GetProcessForPID|SetFrontProcessWithOptions) ' || true)
+if [[ -z "$carbon_imports" ]] || grep -qv 'weak external' <<<"$carbon_imports"; then
+  echo "Expected only weak imports of GetProcessForPID and SetFrontProcessWithOptions, got:" >&2
+  echo "${carbon_imports:-(none)}" >&2
+  exit 1
+fi
+
 echo "==> Making $dmg"
 # The window: a branded background with an arrow from Gander to Applications (scripts/make-dmg-background.swift),
 # laid out by dmgbuild (scripts/dmg-settings.py), which writes Finder's layout file directly instead of driving Finder.
