@@ -10,6 +10,11 @@ struct VideoDimensions: Sendable, Equatable {
 
 /// Pure format fallback (CONTRACT 6.1), used when the device does not support the 640x480 session preset.
 enum CaptureFormatChooser {
+    /// Index of the first format that is exactly the capture size (640x480), or `nil` when the camera has none.
+    static func exactCaptureSizeIndex(among formats: [VideoDimensions]) -> Int? {
+        formats.firstIndex { $0.width == GanderPolicy.captureWidth && $0.height == GanderPolicy.captureHeight }
+    }
+
     /// Index of the smallest format that is at least `GanderPolicy.captureWidth` (640) pixels wide, or `nil`
     /// when none is (the caller then keeps the device default).
     ///

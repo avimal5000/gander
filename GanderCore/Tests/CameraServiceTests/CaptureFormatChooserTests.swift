@@ -30,6 +30,15 @@ struct CaptureFormatChooserTests {
         #expect(CaptureFormatChooser.smallestSufficientIndex(among: formats) == 0)
     }
 
+    @Test func findsTheCamerasOwn640x480Format() {
+        let formats = [
+            VideoDimensions(width: 1920, height: 1080), VideoDimensions(width: 640, height: 360),
+            VideoDimensions(width: 640, height: 480), VideoDimensions(width: 640, height: 480),
+        ]
+        #expect(CaptureFormatChooser.exactCaptureSizeIndex(among: formats) == 2)
+        #expect(CaptureFormatChooser.exactCaptureSizeIndex(among: Array(formats.prefix(2))) == nil)
+    }
+
     @Test func sixteenByNineAtTheMinimumWidthQualifies() {
         let formats = [VideoDimensions(width: 1280, height: 720), VideoDimensions(width: 640, height: 360)]
         #expect(CaptureFormatChooser.smallestSufficientIndex(among: formats) == 1)

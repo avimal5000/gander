@@ -208,6 +208,7 @@ final class CaptureSessionController: @unchecked Sendable {
             teardownSession()
             throw .deviceUnavailable("\(device.name) did not start")
         }
+        preferNativeCaptureSize(on: avDevice)
         applyFrameRate(configuration.frameRate, to: avDevice)
 
         awaitingReconnectID = nil
@@ -269,11 +270,7 @@ final class CaptureSessionController: @unchecked Sendable {
             return
         }
         let formats = device.formats
-        let sizes = formats.map { format -> VideoDimensions in
-            let dimensions = CMVideoFormatDescriptionGetDimensions(format.formatDescription)
-            return VideoDimensions(width: Int(dimensions.width), height: Int(dimensions.height))
-        }
-        guard let index = CaptureFormatChooser.smallestSufficientIndex(among: sizes) else {
+        guard let index = CaptureFormatChooser.smallestSufficientIndex(among: formats.map(Self.dimensions)) else {
             Self.log.info("No format at least \(GanderPolicy.captureWidth) wide; keeping the device default")
             return
         }
@@ -285,6 +282,31 @@ final class CaptureSessionController: @unchecked Sendable {
         } catch {
             Self.log.error("Could not set the capture format: \(error.localizedDescription)")
         }
+    }
+
+    /// Some cameras accept the 640x480 preset yet keep delivering 1920x1080 (seen on a 2026 MacBook Air), which costs
+    /// more to process and crops tighter than the camera's own 640x480. Once the session runs (before that the preset
+    /// would replace it), switch to the camera's own 640x480 format when it has one. A failure keeps the current format.
+    private func preferNativeCaptureSize(on device: AVCaptureDevice) {
+        let active = Self.dimensions(of: device.activeFormat)
+        guard active.width != GanderPolicy.captureWidth || active.height != GanderPolicy.captureHeight else { return }
+        let formats = device.formats
+        guard let index = CaptureFormatChooser.exactCaptureSizeIndex(among: formats.map(Self.dimensions)) else {
+            return
+        }
+        do {
+            try device.lockForConfiguration()
+            defer { device.unlockForConfiguration() }
+            device.activeFormat = formats[index]
+            Self.log.info("Switched capture from \(active.width)x\(active.height) to the camera's own 640x480 format")
+        } catch {
+            Self.log.error("Could not switch to the 640x480 format: \(error.localizedDescription)")
+        }
+    }
+
+    private static func dimensions(of format: AVCaptureDevice.Format) -> VideoDimensions {
+        let dimensions = CMVideoFormatDescriptionGetDimensions(format.formatDescription)
+        return VideoDimensions(width: Int(dimensions.width), height: Int(dimensions.height))
     }
 
     /// Locks the device and sets min and max frame duration to `1 / frameRate`, clamped into a supported
