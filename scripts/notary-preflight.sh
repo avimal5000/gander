@@ -77,6 +77,15 @@ entitlements=$(codesign -d --entitlements - --xml "$app" 2>/dev/null | plutil -c
 if [[ "$entitlements" == "$expected_entitlements" ]]; then pass "entitlements are exactly: $expected_entitlements"
 else fail "entitlements are '$entitlements', expected '$expected_entitlements'"; fi
 if [[ "$entitlements" == *"get-task-allow"* ]]; then fail "com.apple.security.get-task-allow is set: notarization rejects debuggable builds"; fi
+# Same keys is not enough: each value must match the repo's file too (a boolean flipped, a broader list).
+signed_plist=$(mktemp)
+codesign -d --entitlements - --xml "$app" > "$signed_plist" 2>/dev/null
+if /usr/bin/python3 -I -c 'import plistlib, sys
+load = lambda path: plistlib.load(open(path, "rb"))
+sys.exit(0 if load(sys.argv[1]) == load(sys.argv[2]) else 1)' "$signed_plist" "$entitlements_file" 2>/dev/null
+then pass "entitlement values match Config/Gander.entitlements"
+else fail "signed entitlement values differ from Config/Gander.entitlements"; fi
+rm -f "$signed_plist"
 
 echo "4. Info.plist"
 plist="$app/Contents/Info.plist"
