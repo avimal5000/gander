@@ -5,7 +5,8 @@
 #   scripts/notary-preflight.sh <path to Gander.app> [--developer-id]
 #
 # Always checked: every Mach-O in the bundle is signed with the hardened runtime and holds both Apple silicon and Intel
-# code; the signature verifies strictly; the entitlements are exactly the expected list (no debugging entitlement);
+# code; the signature verifies strictly; the signed entitlements are exactly the keys in Config/Gander.entitlements
+# (no debugging entitlement);
 # Info.plist has the keys a release needs; the SDK and minimum macOS are recorded; nothing links a library from outside
 # the system or the bundle; no symlink points outside the bundle.
 # With --developer-id (a real certificate, not ad hoc): the signature is Developer ID Application, from team
@@ -22,7 +23,14 @@ if [[ -z "$app" || ! -d "$app" ]]; then
 fi
 
 team="WNW4M84Z3U"
-expected_entitlements="com.apple.security.device.camera"
+# The signed app must carry exactly what the repo declares, so a new entitlement is a reviewed change to that file.
+entitlements_file="$(cd "$(dirname "$0")/.." && pwd)/Config/Gander.entitlements"
+expected_entitlements=$(plutil -convert xml1 -o - "$entitlements_file" 2>/dev/null |
+  grep -o "<key>[^<]*</key>" | sed 's/<[^>]*>//g' | sort | tr '\n' ' ' | sed 's/ $//')
+if [[ -z "$expected_entitlements" ]]; then
+  echo "Could not read the expected entitlements from $entitlements_file" >&2
+  exit 2
+fi
 failures=0
 pass() { echo "  pass: $1"; }
 fail() { echo "  FAIL: $1" >&2; failures=$((failures + 1)); }
