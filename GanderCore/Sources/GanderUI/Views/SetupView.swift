@@ -30,7 +30,7 @@ struct SetupView: View {
             if model.setupWindowDidAppear() { NSApp.activate() }
         }
         .onDisappear { model.setupWindowDidDisappear() }
-        .launchGuarded(id: GanderWindowID.setup, model: model)
+        .launchGuarded(id: GanderWindowID.setup, model: model, showsInDock: true)
     }
 
     /// The fade between steps: about 0.2 s, none with Reduce Motion.

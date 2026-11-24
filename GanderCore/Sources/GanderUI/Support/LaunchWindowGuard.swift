@@ -49,15 +49,17 @@ struct LaunchWindowGuard: NSViewRepresentable {
 }
 
 extension View {
-    /// Applies the launch guard for window `id`: a window nobody asked for is closed unseen.
-    func launchGuarded(id: String, model: AppModel) -> some View {
-        modifier(LaunchGuardModifier(id: id, model: model))
+    /// Applies the launch guard for window `id`: a window nobody asked for is closed unseen. With `showsInDock`, the
+    /// app has a Dock icon while the window is open, so a window that falls behind others is one click away.
+    func launchGuarded(id: String, model: AppModel, showsInDock: Bool = false) -> some View {
+        modifier(LaunchGuardModifier(id: id, model: model, showsInDock: showsInDock))
     }
 }
 
 private struct LaunchGuardModifier: ViewModifier {
     let id: String
     let model: AppModel
+    let showsInDock: Bool
     @Environment(\.dismissWindow) private var dismissWindow
 
     func body(content: Content) -> some View {
@@ -66,6 +68,10 @@ private struct LaunchGuardModifier: ViewModifier {
             .onAppear {
                 if model.hasWindowRequest(id) {
                     model.revealWindow(id)
+                    if showsInDock {
+                        NSApp.setActivationPolicy(.regular)
+                        NSApp.activate()
+                    }
                     return
                 }
                 let dismissWindow = dismissWindow
@@ -73,6 +79,7 @@ private struct LaunchGuardModifier: ViewModifier {
                     // The user may have asked for the window in the meantime.
                     if model.hasWindowRequest(id) {
                         model.revealWindow(id)
+                        if showsInDock { NSApp.setActivationPolicy(.regular) }
                     } else {
                         dismissWindow(id: id)
                     }
@@ -81,6 +88,7 @@ private struct LaunchGuardModifier: ViewModifier {
             .onDisappear {
                 // The window closed: the next unrequested appearance is suppressed again.
                 _ = model.consumeWindowRequest(id)
+                if showsInDock { NSApp.setActivationPolicy(.accessory) }
             }
     }
 }
